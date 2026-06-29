@@ -3,6 +3,11 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- `--sarif` — SARIF 2.1.0 output for GitHub code scanning (inline annotations on the PR diff).
+
 ## [1.2.0]
 
 ### Added
