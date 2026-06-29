@@ -27,6 +27,7 @@ function parseArgs(argv) {
     else if (a === '--sarif') opts.format = 'sarif';
     else if (a === '--format') opts.format = argv[++i];
     else if (a === '--no-color') opts.color = false;
+    else if (a === '--watch' || a === '-w') opts.watch = true;
     else if (a === '--max') { const v = parseInt(argv[++i], 10); if (Number.isInteger(v) && v >= 0) opts.max = v; }
     else if (a === '--fail-on') { opts.failOn = argv[++i]; opts.failOnSet = true; }
     else if (a === '--ignore') opts.ignore.push(argv[++i]);
@@ -76,42 +77,70 @@ function configStartDir(paths) {
 const SEV_RANK = { critical: 3, major: 2, minor: 1 };
 const FAIL_GATE = { critical: 3, major: 2, minor: 1, never: 4 };
 
-function runScan(opts) {
-  report.setColor(opts.color && process.stdout.isTTY !== false);
-  for (const p of opts.paths) {
-    if (!fs.existsSync(p)) { err(`slopscore: path not found: ${p}`); process.exit(2); }
-  }
-  const { config: cfg, baseDir } = loadConfig(configStartDir(opts.paths));
+// One scan + report. Returns whether the run should fail the gate. Does NOT exit
+// (so --watch can call it in a loop).
+function scanAndReport(opts, cfg, baseDir, failOn) {
   const ignore = (cfg.ignore || []).concat(opts.ignore);
-  const failOn = opts.failOnSet ? opts.failOn : (cfg.failOn || opts.failOn);
   const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules: cfg.rules });
-
-  // Baseline / ratchet mode: snapshot accepted findings, then fail only on NEW slop.
   if (opts.baseline) {
-    const existing = opts.updateBaseline ? null : loadBaseline(opts.baseline);
-    if (!existing) {
-      const n = writeBaseline(opts.baseline, result.findings, new Date().toISOString());
-      out(`slopscore: ${opts.updateBaseline ? 'updated' : 'wrote'} baseline ${opts.baseline} (${n} findings).`);
-      out('Future scans with --baseline report and gate only on NEW slop.');
-      process.exit(0);
+    const existing = loadBaseline(opts.baseline);
+    if (existing) {
+      const known = result.findings.filter((f) => existing.has(fingerprint(f))).length;
+      result.findings = result.findings.filter((f) => !existing.has(fingerprint(f)));
+      result.baseline = { known, file: opts.baseline };
     }
-    const known = result.findings.filter((f) => existing.has(fingerprint(f))).length;
-    result.findings = result.findings.filter((f) => !existing.has(fingerprint(f)));
-    result.baseline = { known, file: opts.baseline };
   }
-
   const s = score(result);
   if (opts.format === 'json') report.jsonReport(result, s);
   else if (opts.format === 'markdown') report.markdownReport(result, s);
   else if (opts.format === 'agent') report.agentReport(result, s);
   else if (opts.format === 'sarif') report.sarifReport(result, s);
   else report.terminalReport(result, s, { max: opts.max });
-
-  // The CI gate fails on PRODUCTION findings only (test/tooling is reported, not gated)
+  // The gate fails on PRODUCTION findings only (test/tooling is reported, not gated)
   // — and, under --baseline, only on findings new since the snapshot.
   const gate = FAIL_GATE[failOn] || FAIL_GATE.major;
-  const failing = result.findings.some((f) => f.zone !== 'test' && SEV_RANK[f.severity] >= gate);
-  process.exit(failing ? 1 : 0);
+  return result.findings.some((f) => f.zone !== 'test' && SEV_RANK[f.severity] >= gate);
+}
+
+const WATCH_DEBOUNCE_MS = 150;
+const WATCH_POLL_MS = 1500;
+function runWatch(opts, cfg, baseDir, failOn) {
+  const run = () => {
+    process.stdout.write('\x1b[2J\x1b[H'); // clear screen, cursor home
+    scanAndReport(opts, cfg, baseDir, failOn);
+    out(`  ${new Date().toLocaleTimeString()} · watching for changes — Ctrl-C to stop`);
+  };
+  run();
+  let timer = null;
+  const trigger = () => { clearTimeout(timer); timer = setTimeout(run, WATCH_DEBOUNCE_MS); };
+  let recursive = false;
+  for (const p of opts.paths) {
+    const root = fs.existsSync(p) && fs.statSync(p).isDirectory() ? p : path.dirname(p);
+    try { fs.watch(root, { recursive: true }, trigger); recursive = true; } catch { /* unsupported */ }
+  }
+  if (!recursive) setInterval(run, WATCH_POLL_MS); // platforms without recursive fs.watch (e.g. Linux)
+}
+
+function runScan(opts) {
+  report.setColor(opts.color && process.stdout.isTTY !== false);
+  for (const p of opts.paths) {
+    if (!fs.existsSync(p)) { err(`slopscore: path not found: ${p}`); process.exit(2); }
+  }
+  const { config: cfg, baseDir } = loadConfig(configStartDir(opts.paths));
+  const failOn = opts.failOnSet ? opts.failOn : (cfg.failOn || opts.failOn);
+
+  // Baseline snapshot is a one-shot action (write the accepted floor, then exit).
+  if (opts.baseline && (opts.updateBaseline || !loadBaseline(opts.baseline))) {
+    const ignore = (cfg.ignore || []).concat(opts.ignore);
+    const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules: cfg.rules });
+    const n = writeBaseline(opts.baseline, result.findings, new Date().toISOString());
+    out(`slopscore: ${opts.updateBaseline ? 'updated' : 'wrote'} baseline ${opts.baseline} (${n} findings).`);
+    out('Future scans with --baseline report and gate only on NEW slop.');
+    process.exit(0);
+  }
+
+  if (opts.watch) { runWatch(opts, cfg, baseDir, failOn); return; }
+  process.exit(scanAndReport(opts, cfg, baseDir, failOn) ? 1 : 0);
 }
 
 function printProtocol() {
@@ -214,6 +243,7 @@ OPTIONS
   --update-baseline          re-snapshot the baseline (accept the current findings)
   --max <n>                  max findings to print in the terminal     (default: 40)
   --ignore <path>            extra path to ignore (repeatable)
+  --watch, -w                re-scan on every file change (live local conscience)
   --no-color                 disable ANSI color
 
 EXAMPLES

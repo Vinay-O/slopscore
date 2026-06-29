@@ -5,6 +5,10 @@ All notable changes to slopscore are documented here. Format based on
 
 ## [Unreleased]
 
+### Added
+- **`--watch` / `-w`** — re-scan on every file change (a live local conscience).
+  Uses recursive `fs.watch` with a polling fallback; no new dependencies.
+
 ### Changed
 - **Cohesion-aware god-file (055).** A large file is only flagged when it's also
   *sprawling* (many top-level functions/classes); a 2,000-line registry, lookup
