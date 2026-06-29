@@ -206,6 +206,12 @@ const LINE_RULES = [
     fix: 'Use a real surface-elevation scale; reserve blur for genuine overlays. Re-check contrast.',
   },
   {
+    id: '012', title: 'Colored left/top border on cards (the left-border tell)', category: 'visual', severity: 'minor',
+    authority: 'propose', exts: STYLE, skipTests: false, respectComments: false,
+    re: /(border-[lt]-[24]\b.*\bborder-(?:[lt]-)?(?:red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3}|border-(?:left|top)\s*:\s*[1-6]px\s+solid)/i,
+    fix: 'Remove the accent stripe; separate cards with spacing, background and type hierarchy. Reserve a colored leading border for ONE genuine purpose (the single active/selected item).',
+  },
+  {
     id: '008', title: 'Animated gradient text', category: 'visual', severity: 'major',
     authority: 'propose', exts: STYLE, skipTests: false, respectComments: false,
     re: /(bg-clip-text\s+text-transparent|background-clip\s*:\s*text|-webkit-text-fill-color\s*:\s*transparent)/,
