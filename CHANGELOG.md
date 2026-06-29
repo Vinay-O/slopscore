@@ -3,7 +3,7 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.2.0]
 
 ### Added
 - **Baseline / ratchet mode** (`--baseline [file]`, `--update-baseline`). Snapshot
