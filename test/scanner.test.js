@@ -10,6 +10,7 @@ const { execFileSync } = require('node:child_process');
 
 const { scan } = require('../src/scanner');
 const { score } = require('../src/score');
+const { fingerprint, writeBaseline, loadBaseline } = require('../src/baseline');
 
 const BIN = path.join(__dirname, '..', 'bin', 'slopscore.js');
 
@@ -262,6 +263,24 @@ test('whole-file rule reports correct line numbers for many matches', () => {
   const hits = scan(p).findings.filter((f) => f.id === '053');
   assert.strictEqual(hits.length, 2);
   assert.deepStrictEqual(hits.map((f) => f.line).sort((a, b) => a - b), [2, 4]);
+});
+
+// Baseline / ratchet mode: snapshot accepted findings, fail only on NEW slop.
+test('baseline fingerprint ignores line number but tracks content', () => {
+  const f = { id: '054', file: 'src/x.ts', line: 5, snippet: 'const a: any = 1;' };
+  assert.strictEqual(fingerprint(f), fingerprint({ ...f, line: 99 }), 'moving code is not new slop');
+  assert.notStrictEqual(fingerprint(f), fingerprint({ ...f, snippet: 'const a: any = 2;' }), 'changed code is new');
+});
+
+test('baseline write/load roundtrips and separates new from known', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-bl-'));
+  const file = path.join(dir, 'b.json');
+  const known = { id: '054', file: 'a.ts', line: 1, snippet: 'const a: any = 1;' };
+  assert.strictEqual(writeBaseline(file, [known], ''), 1);
+  const set = loadBaseline(file);
+  assert.ok(set.has(fingerprint(known)), 'baselined finding is known');
+  assert.ok(!set.has(fingerprint({ id: '054', file: 'a.ts', line: 9, snippet: 'const b: any = 2;' })), 'a different finding is new');
+  assert.strictEqual(loadBaseline(path.join(dir, 'missing.json')), null, 'missing baseline -> null');
 });
 
 test('083 respects a global :focus-visible reset in another file (cross-file)', () => {

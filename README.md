@@ -192,6 +192,18 @@ files=$(git diff --cached --name-only --diff-filter=ACM)
 [ -z "$files" ] || npx slopscore $files --fail-on major
 ```
 
+### Adopting it on a messy codebase — ratchet mode
+
+A real repo won't score 0 on day one, and "Heavy slop" on your first run is how a tool gets closed and forgotten. So **baseline what's already there and fail only on _new_ slop:**
+
+```bash
+slopscore scan . --baseline        # first run: snapshots current findings, exits 0
+slopscore scan . --baseline        # from now on: passes unless you ADD slop
+slopscore scan . --update-baseline # accept the current state as the new floor
+```
+
+The baseline keys findings by content, not line number — so moving code around never registers as new slop. Commit `.slopscore-baseline.json` and your CI gate goes green today while the count only ever goes down.
+
 ## Configuration
 
 `.slopscore.json` in your repo root:

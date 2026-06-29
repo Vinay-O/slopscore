@@ -58,6 +58,9 @@ function terminalReport(result, s, options = {}) {
   const findings = sortFindings(result.findings);
   out('');
   out(paint(C.cyan, paint(C.bold, '  slopscore')) + paint(C.dim, `  ·  ${result.fileCount} files  ·  ${s.kloc} kLOC`));
+  if (result.baseline) {
+    out('  ' + paint(C.dim, `against baseline · ${result.baseline.known} known finding${result.baseline.known === 1 ? '' : 's'} hidden · showing only what's new`));
+  }
   if (findings.length === 0) {
     out('');
     out('   ' + paint(C.green, paint(C.bold, '✓ No slop patterns detected. Pristine.')));
