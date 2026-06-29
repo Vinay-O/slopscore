@@ -376,7 +376,7 @@ emits for "make a landing page" (icon-card grids in 22% of pages).
 Cards that are structurally identical: icon, bold label, paragraph, same height. Bullet points in a
 Halloween costume.
 `DETECT:` `.map` producing identical `<Icon/><h3><p>` cards · all cards fixed equal height · no differentiation.
-`FIX:` Give the most important feature more visual weight (size, position, a real image). If features are genuinely peer-level, a clean list may beat a card grid. Differentiate or simplify.
+`FIX:` Don't fight the sameness with decoration — fight it with hierarchy. Promote the single highest-value feature to a wider/taller cell with a real product image; let the peers fall back to a plain text list, not more cards. If you can't rank them, that's the signal the grid is filler — replace it with prose. (010 is the centered-hero skeleton; this is the card grid itself.)
 
 **012 · Colored left/top border on cards (the left-border tell)** `🟡` `🟡 PROPOSE`
 A 3–4px colored stripe on the card's left/top edge. A designer called it "almost as reliable a sign of
@@ -389,7 +389,7 @@ globally.
 Every card gets a *different* colored left border — red, blue, green, orange — because the model can't
 reason about a global color budget. Four accents cancel each other out.
 `DETECT:` different `border-color` per sibling card · `colors[index % colors.length]` applied to borders.
-`FIX:` Pick one accent (or none). If categories truly need color coding, derive it from a small, meaningful, documented set — not an arbitrary cycle.
+`FIX:` Kill the per-index color cycle (`colors[i % colors.length]`). Color may encode category only if the categories are a small, fixed, documented set with stable meaning; otherwise use one accent or none and let position and spacing separate items. (012 is a single colored border misused as decoration; this is the rainbow *cycle* across siblings.)
 
 **014 · Decorative status dots that indicate nothing** `🟡` `🟡 PROPOSE`
 Little colored circles on nav items, headers, and labels — not because state changed, but because they
@@ -424,8 +424,8 @@ aged badly and hurts readability.
 **019 · Bento grid with even content density** `🟡` `🟡 PROPOSE`
 Apple-style bento with mixed cell sizes — but every cell carries the same amount of content, defeating
 the point.
-`DETECT:` `bento` in class names/comments · mixed `col-span-2/col-span-1` for a feature showcase with uniform content.
-`FIX:` Either earn the bento (put genuinely different-weight content in different-size cells, with the hero feature largest) or drop it for a simpler grid. Don't keep a bento that's just a uniform grid in disguise.
+`DETECT:` a grid of mixed `col-span-*`/`row-span-*` cells where content per cell (text length, field count) varies by less than ~20% · every cell is the same component with the same fields.
+`FIX:` A bento earns its irregular cells only if the content is irregular. Put the hero metric/feature in the largest cell with the most content; if every cell holds one stat and one label, drop the spans and ship a uniform grid — it's more honest and reads cleaner.
 
 **020 · Confetti / particle / floating-orb animations** `🟡` `🟢 AUTO` `⚙️ slopscore scan`
 Confetti on submit, particle backgrounds, drifting blobs. Pure cognitive noise.
@@ -509,7 +509,7 @@ showcase, not a product.
 **032 · `Wand2` as the universal AI button** `🟡` `🟡 PROPOSE`
 The "other" AI icon alongside Sparkles. Wand + Sparkles on one page = peak vibe-coded.
 `DETECT:` `import.*Wand2?` · `<Wand2|<WandSparkles>`.
-`FIX:` Same as 002 — name the actual action with the icon. Remove the wand.
+`FIX:` An icon shouldn't promise "magic" — it should name what happens. Swap the wand for a glyph of the real action (generate → document, summarize → list, rewrite → pencil). Wand2 *and* Sparkles on one screen is the single strongest visual tell — cut at least one. (Sibling of 002; this one is specifically the "magic wand" framing.)
 
 **033 · Bot / Brain / Cpu / Zap as the product's identity** `🟡` `🟡 PROPOSE`
 Using these four as the brand/logo mark for an AI product. Instantly reads as "I asked the AI what icon
@@ -613,10 +613,10 @@ Cute, unhelpful errors (often with 😅/🙃) that say nothing about what happen
 `DETECT:` `Smart |AI-Powered |Next-Gen |Intelligent |Advanced |Enhanced ` as feature-name prefixes.
 `FIX:` Rename by function/outcome ("Anomaly alerts," "Full-text search across all docs"). PROPOSE — names are product decisions.
 
-**050 · Inconsistent capitalization across the UI** `🟡` `🟢 AUTO`
+**050 · Inconsistent capitalization across the UI** `🟡` `🟡 PROPOSE`
 Title Case, ALL CAPS, sentence case, and lowercase mixed with no system.
-`DETECT:` mixed casing in nav labels · inconsistent casing within one component.
-`FIX:` Choose one convention (sentence case is the modern default) and apply it across labels, buttons, and headings. AUTO once the convention is set.
+`DETECT:` the same kind of label (e.g. nav items, buttons) using 2+ casing conventions across the app · inconsistent casing within one component.
+`FIX:` PROPOSE to pick the convention (sentence case is the modern default, but the brand may mandate Title Case — that's a human call); once chosen, enforcing it across labels/buttons/headings is mechanical (AUTO).
 
 **051 · Comments that narrate *what*, not *why*** `🟡` `🟢 AUTO`
 `// Check if user is authenticated`, `// Return the result`, `// Step 1: Validate input`. Humans comment
@@ -654,7 +654,7 @@ holistically without architecture. In field scans, god functions led all finding
 **056 · God functions (200+ lines)** `🟠` `🟡 PROPOSE`
 Functions doing far too much. vibecop flags ~50+ lines; 200+ is structural.
 `DETECT:` JS/TS functions > 200 lines · Python > 100 · one function with multiple responsibilities.
-`FIX:` Decompose by responsibility into named, testable helpers. Preserve behavior; add tests around the seam first if none exist. PROPOSE.
+`FIX:` Decompose by responsibility into named, testable helpers. Preserve behavior; add tests around the seam first if none exist. PROPOSE. (055 is the file/component scope; this is a single oversized function inside an otherwise-fine file.)
 
 **057 · TODO / FIXME / HACK in production** `🟡` `🔴 FLAG` `⚙️ slopscore scan`
 `// TODO: add error handling`, `// FIXME: this is broken`, `// HACK: temporary`. Placeholders the model
@@ -725,7 +725,7 @@ blocks up 4–8×; copy/paste now exceeds refactoring). Each block is a future i
 `// Step 1: Validate`, `// Step 2: Process`, `// First… // Then… // Finally…`. Humans don't number
 procedure steps in comments.
 `DETECT:` `// Step N:|# Step N:` · `// Phase N:` · sequential `// First/Then/Finally` narration.
-`FIX:` Remove the numbered narration; if the steps mark real sub-tasks, extract them into named functions instead. AUTO.
+`FIX:` Remove the numbered narration; if the steps mark real sub-tasks, extract them into named functions instead. AUTO. (051 is the general "comments narrate what, not why" tell; this is the specific numbered-step signature the CLI automates.)
 
 **070 · Hallucinated API calls on non-existent methods** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
 `fetch.get()`, `array.flatten()`, `string.capitalize()`, `promise.done()`. Looks plausible, breaks at
@@ -857,7 +857,7 @@ No "Skip to main content"; no `<main>/<nav>/<header>` landmarks.
 **092 · No lazy loading for images or heavy components** `🟡` `🟡 PROPOSE`
 Everything eager; all routes in one chunk.
 `DETECT:` no `React.lazy()`/dynamic `import()` for route components · no `Suspense` boundary.
-`FIX:` Code-split routes and heavy components with `lazy()`/dynamic import + `Suspense`; lazy-load off-screen media. PROPOSE.
+`FIX:` Code-split routes and heavy components with `lazy()`/dynamic import + `Suspense`; lazy-load off-screen media. PROPOSE. (This is the missing *runtime* lazy/Suspense; 098 is the *build* emitting a single un-split bundle — fix both.)
 
 **093 · Importing whole libraries for one utility** `🟡` `🟢 AUTO` `⚙️ slopscore scan`
 `import _ from 'lodash'` for one `debounce`; whole-`moment` imports.
@@ -887,7 +887,7 @@ Three independent `await`s in a row that could run in parallel.
 **098 · No code splitting — one giant bundle** `🟠` `🟡 PROPOSE`
 Landing + dashboard + admin all loaded on first visit.
 `DETECT:` no dynamic imports in routes · single bundle output · no chunk splitting in config.
-`FIX:` Route-level code splitting + vendor chunking via the bundler. PROPOSE; verify with a bundle analyzer.
+`FIX:` Route-level code splitting + vendor chunking via the bundler. PROPOSE; verify with a bundle analyzer. (This is the build-config side; 092 is the missing runtime `React.lazy`/`Suspense`.)
 
 ---
 
@@ -945,7 +945,7 @@ Inline styles + CSS Modules + Tailwind, sometimes on one element.
 
 **109 · Inconsistent file naming** `🟡` `🟡 PROPOSE`
 `MyComponent.jsx` next to `mycomponent.js` next to `my-component.tsx`.
-`DETECT:` mixed case conventions in one dir.
+`DETECT:` the same logical kind of file (e.g. components) named with 2+ case conventions in one directory — not legitimate type conventions like `Component.tsx` next to `utils.ts`.
 `FIX:` Choose one convention (e.g. PascalCase components, kebab-case routes) and rename to match, updating imports. PROPOSE — renames touch imports; use tooling.
 
 **110 · No barrel exports / inconsistent import paths** `🟡` `🟡 PROPOSE`
@@ -1016,7 +1016,7 @@ Tests asserting internal call order/state instead of behavior; they break on any
 **121 · Coverage theater** `🟠` `🟡 PROPOSE`
 High coverage numbers achieved by tests that call code without asserting outcomes.
 `DETECT:` high coverage + zero negative cases · tests that invoke without asserting.
-`FIX:` Add real assertions; gate on test *quality*, not just the coverage badge. PROPOSE.
+`FIX:` Add real assertions; gate on test *quality*, not just the coverage badge. PROPOSE. (Distinct from 119 (happy-path-only) and 149 (tautological asserts): the tell here is using the coverage *number itself* as the deliverable.)
 
 **122 · No tests on auth / payment / data-handling** `🔴` `🟡 PROPOSE`
 The riskiest paths have no tests, or only happy-path ones.
@@ -1039,19 +1039,19 @@ The riskiest paths have no tests, or only happy-path ones.
 **124 · Charts rendering hardcoded sample data** `🔴` `🔴 FLAG`
 `const chartData = [{x:1,y:100},{x:2,y:150}]` that never reflects reality.
 `DETECT:` hardcoded data arrays passed to recharts/chart.js/d3 · chart with no fetch.
-`FIX:` Wire to real data with proper loading/empty/error states. If data doesn't exist yet, FLAG and show an empty state. Don't ship fake trend lines.
+`FIX:` Wire to real data with proper loading/empty/error states. If data doesn't exist yet, FLAG and show an empty state. Don't ship fake trend lines. (123 is fabricated stat tiles; this is fabricated chart *series* — same sin, different widget.)
 
 **125 · Settings page where nothing saves** `🔴` `🟡 PROPOSE`
 A form with a Save button whose `onSubmit` only `console.log`s or toasts — no persistence.
 `DETECT:` settings `onSubmit` with no API call · `handleSave` that only logs/toasts · local-state-only with no persistence.
 `FIX:` Wire to a real persistence endpoint and confirm it round-trips. PROPOSE — implement the save path and verify it actually stores and reloads.
 
-**126 · Export button downloading an empty/broken file** `🔴` `🟡 PROPOSE`
+**126 · Export button downloading an empty/broken file** `🟠` `🟡 PROPOSE`
 "Download CSV/PDF" that yields an empty file, headers-only, or a silent error.
 `DETECT:` export with no data binding · `downloadCSV([])` · blob from empty/placeholder data.
-`FIX:` Generate the export from real data; handle empty data with a clear message; test the produced file opens correctly. PROPOSE.
+`FIX:` Generate the export from real data; handle empty data with a clear message; test the produced file opens correctly. PROPOSE. (Escalate to 🔴 if this is the user's only data-portability/GDPR export path.)
 
-**127 · Search that doesn't filter** `🔴` `🟡 PROPOSE`
+**127 · Search that doesn't filter** `🟠` `🟡 PROPOSE`
 A search box whose state never filters the list, or whose API results are ignored.
 `DETECT:` search `onChange` that doesn't update the list · search state unused in filtering · API results discarded.
 `FIX:` Connect the query to the actual filtering/fetch and render the filtered results. PROPOSE.
@@ -1069,7 +1069,7 @@ Real-looking controls that fetch all 5,000 rows and hide most in JS.
 **130 · Avatars always showing initials — photos never load** `🟡` `🟡 PROPOSE`
 Initials-in-a-circle fallback with no actual image resolution or upload path.
 `DETECT:` avatar always rendering initials · no `avatarUrl` field · no upload endpoint · hardcoded to ui-avatars/dicebear.
-`FIX:` Support real images (resolve `avatarUrl`, add upload) with initials as the genuine fallback. PROPOSE — or keep initials deliberately and remove the dead image scaffolding.
+`FIX:` Decide honestly: if avatars are a real feature, wire `avatarUrl` + an upload path with initials as the genuine fallback; if they aren't, delete the dead image scaffolding and ship initials as the *intended* design. The slop isn't initials — it's half-built scaffolding for a feature that never arrives. PROPOSE.
 
 ---
 
@@ -1118,17 +1118,18 @@ the eye to the loading sequence.
 **138 · Micro-animations on every interactive element** `🟡` `🟡 PROPOSE`
 Everything bounces, spins, shakes, or scales on hover because it was asked to "feel alive."
 `DETECT:` `@keyframes bounce/shake/pulse` on UI · rotate animations on non-loading icons · `hover:scale-105` on every card/button · animation on >30% of interactive els.
-`FIX:` Keep motion purposeful and sparse (the primary CTA, real feedback). Remove the rest; respect reduced-motion. PROPOSE.
+`FIX:` Keep motion purposeful and sparse (the primary CTA, real feedback). Remove the rest; respect reduced-motion. PROPOSE. (137 is the staggered *entrance* choreography; this is per-element hover/keyframe sprawl.)
 
 **139 · `window.location.href` navigation in an SPA** `🟠` `🟢 AUTO` `⚙️ slopscore scan`
 `window.location.href = '/dashboard'` instead of the router, forcing a full reload.
 `DETECT:` `window.location.href =` / `window.location.replace(` for internal nav.
 `FIX:` Use the router (`navigate()`/`<Link>`/`router.push()`). AUTO — keep `window.location` only for genuinely external URLs.
 
-**140 · Tailwind class strings 20+ classes long (utility sprawl)** `🟡` `🟡 PROPOSE`
-25–40 utilities in one `className`, repeated, with no abstraction.
-`DETECT:` `className` with 20+ classes · padding+margin+color+border+radius+shadow+hover+focus+transition+responsive all inline · no abstraction for repeats.
-`FIX:` Extract repeated combos into components or `cva`/`@apply` patterns; keep one-off utilities inline. PROPOSE.
+**140 · Copy-pasted Tailwind class strings (no component extraction)** `🟡` `🟡 PROPOSE`
+The tell isn't a long class list — that's idiomatic Tailwind. It's the *same* long string copy-pasted
+across files because the model never extracted a component.
+`DETECT:` the same 15+ class `className` string repeated 3+ times across files with no shared component (a single long class string is normal — don't flag it).
+`FIX:` Pull the repeated combo into a component (or `cva` variants); leave genuinely one-off utilities inline. Reach for a component before `@apply` — it's usually the better unit. PROPOSE.
 
 ---
 
