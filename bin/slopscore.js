@@ -24,6 +24,7 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a === '--json') opts.format = 'json';
     else if (a === '--markdown' || a === '--md') opts.format = 'markdown';
+    else if (a === '--sarif') opts.format = 'sarif';
     else if (a === '--format') opts.format = argv[++i];
     else if (a === '--no-color') opts.color = false;
     else if (a === '--max') { const v = parseInt(argv[++i], 10); if (Number.isInteger(v) && v >= 0) opts.max = v; }
@@ -103,6 +104,7 @@ function runScan(opts) {
   if (opts.format === 'json') report.jsonReport(result, s);
   else if (opts.format === 'markdown') report.markdownReport(result, s);
   else if (opts.format === 'agent') report.agentReport(result, s);
+  else if (opts.format === 'sarif') report.sarifReport(result, s);
   else report.terminalReport(result, s, { max: opts.max });
 
   // The CI gate fails on PRODUCTION findings only (test/tooling is reported, not gated)
@@ -204,6 +206,7 @@ USAGE
 OPTIONS
   --json                     machine-readable findings + score
   --markdown                 a Markdown report (great for PR comments)
+  --sarif                    SARIF 2.1.0 (GitHub code-scanning annotations)
   --format agent             compact output for feeding an AI agent
   --fail-on <level>          exit non-zero at: critical | major | minor | never  (default: major)
   --baseline [file]          ratchet mode: snapshot current findings, then fail only

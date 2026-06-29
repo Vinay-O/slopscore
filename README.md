@@ -176,6 +176,14 @@ jobs:
       - run: npx slopscore scan . --fail-on major
 ```
 
+**Want findings inline on the PR diff?** Emit SARIF and upload it to GitHub code scanning:
+
+```yaml
+      - run: npx slopscore scan . --sarif --fail-on never > slopscore.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        with: { sarif_file: slopscore.sarif }
+```
+
 **Want the Slop Score posted on every PR?** Add a sticky comment from the Markdown report:
 
 ```yaml

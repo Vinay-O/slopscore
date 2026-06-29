@@ -314,6 +314,18 @@ test('test/tooling findings are non-production and excluded from the headline sc
   assert.strictEqual(s.nonprod.total, 1, 'the test any is reported, not scored');
 });
 
+test('--sarif emits valid SARIF 2.1.0 for code scanning', () => {
+  const fixture = path.join(__dirname, '..', 'examples', 'slop.tsx');
+  const out = execFileSync('node', [BIN, 'scan', fixture, '--sarif', '--fail-on', 'never'], { encoding: 'utf8' });
+  const j = JSON.parse(out);
+  assert.strictEqual(j.version, '2.1.0');
+  assert.strictEqual(j.runs[0].tool.driver.name, 'slopscore');
+  assert.ok(j.runs[0].results.length > 0, 'has results');
+  const r = j.runs[0].results[0];
+  assert.ok(['error', 'warning', 'note'].includes(r.level), 'valid level');
+  assert.ok(r.locations[0].physicalLocation.region.startLine >= 1, 'has a line');
+});
+
 // `slopscore explain <id>` surfaces a single catalog entry from the CLI.
 test('explain prints a catalog entry + fix for a valid id', () => {
   const out = execFileSync('node', [BIN, 'explain', '058'], { encoding: 'utf8' });
