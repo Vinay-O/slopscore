@@ -3,7 +3,7 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.3.0]
 
 ### Added
 - Detector **136** (hollow loading state — `if (loading) return null`, the white-flash
