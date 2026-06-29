@@ -378,7 +378,7 @@ Halloween costume.
 `DETECT:` `.map` producing identical `<Icon/><h3><p>` cards · all cards fixed equal height · no differentiation.
 `FIX:` Don't fight the sameness with decoration — fight it with hierarchy. Promote the single highest-value feature to a wider/taller cell with a real product image; let the peers fall back to a plain text list, not more cards. If you can't rank them, that's the signal the grid is filler — replace it with prose. (010 is the centered-hero skeleton; this is the card grid itself.)
 
-**012 · Colored left/top border on cards (the left-border tell)** `🟡` `🟡 PROPOSE`
+**012 · Colored left/top border on cards (the left-border tell)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
 A 3–4px colored stripe on the card's left/top edge. A designer called it "almost as reliable a sign of
 AI design as em-dashes are for AI text." Learned from "active item" and blockquote patterns, applied
 globally.

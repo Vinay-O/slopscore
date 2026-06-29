@@ -32,6 +32,25 @@ const HUGE_FILE_LINES = 800;
 const DEP_BUDGET = 80;
 const THIN_README_LINES = 20;
 
+// Generated / vendored / minified files are not the author's code — scanning them
+// is pure noise (a minified bundle is full of "empty catches" and "any"). Skip them.
+const GENERATED_NAME = /(\.min\.(js|mjs|cjs|css)|\.bundle\.(js|mjs|cjs)|\.generated\.|\.gen\.|-lock\.|\.map)$/i;
+function looksGenerated(file, lines) {
+  if (GENERATED_NAME.test(path.basename(file))) return true;
+  if (lines.some((l) => l.length > 3000)) return true; // minified: enormous single lines
+  return /@generated|DO NOT EDIT|auto-?generated|this file is (auto-?)?generated/i.test(lines.slice(0, 5).join('\n'));
+}
+
+// Non-production zones: test, tooling, scripts. Findings here are real but carry
+// far less production risk (controlled inputs, never shipped), so they're reported
+// separately and don't inflate the headline Slop Score. Note: examples/ is treated
+// as production (sample code people copy) — only clearly non-shipped paths qualify.
+const NONPROD_PATH = /(^|[\\/])(tests?|specs?|e2e|__tests__|__mocks__|fixtures?|mocks?|cypress|\.storybook|scripts?|tooling|benchmarks?|bench|audit)([\\/]|$)/i;
+const NONPROD_FILE = /\.(test|spec|stories|cy|e2e|bench)\.[a-z]+$/i;
+function zoneOf(file) {
+  return (NONPROD_PATH.test(file) || NONPROD_FILE.test(file)) ? 'test' : 'production';
+}
+
 // Two kinds of ignore entry: a bare segment ("node_modules", "examples") matches
 // any path component with that name; a path with a separator ("src/rules.js")
 // resolves to an absolute location against `base` (the .slopscore.json dir), so a
@@ -335,6 +354,7 @@ function scan(target, options = {}) {
   const findings = [];
 
   let totalLines = 0;
+  let productionLines = 0;
   for (const file of files) {
     let text;
     try {
@@ -345,25 +365,32 @@ function scan(target, options = {}) {
     }
     if (text.includes('\u0000')) continue; // binary guard
     const ext = path.extname(file);
-    const isTest = TEST_RE.test(file);
     const lines = text.split('\n');
+    if (looksGenerated(file, lines)) continue; // skip minified/vendored/generated noise
+    const isTest = TEST_RE.test(file);
+    const zone = zoneOf(file);
     // A trailing newline yields a final empty element — don't count it as a line.
     const lineCount = lines.length - (lines.length && lines[lines.length - 1] === '' ? 1 : 0);
     totalLines += lineCount;
+    if (zone === 'production') productionLines += lineCount;
     const mask = commentMask(lines);
+    const before = findings.length;
     scanLineRules(file, ext, isTest, text, lines, mask, findings);
     scanWholeFileRules(file, ext, isTest, text, lines, findings);
     checkFileSize(file, ext, isTest, lineCount, findings);
+    for (let i = before; i < findings.length; i += 1) findings[i].zone = zone;
   }
 
   checkVersionedDuplicates(files, findings);
   const repoRoot = path.resolve(options.repoRoot || (hasDir ? roots.find((r) => safeIsDir(r)) : null) || '.');
   if (hasDir && fs.existsSync(repoRoot) && !options.skipRepoChecks) checkRepoLevel(repoRoot, findings);
+  // Repo-level findings (.env, dep bloat, thin README, dup files) are production by default.
+  for (const f of findings) if (!f.zone) f.zone = 'production';
 
   const displayRoot = roots.length === 1 ? path.resolve(roots[0]) : process.cwd();
   const baseDir = safeIsDir(displayRoot) ? displayRoot : path.dirname(displayRoot);
   for (const f of findings) f.file = path.relative(baseDir, f.file) || path.basename(f.file);
-  return { findings, fileCount: files.length, totalLines };
+  return { findings, fileCount: files.length, totalLines, productionLines };
 }
 
 function safeIsDir(p) {
