@@ -8,8 +8,10 @@ const { score } = require('../src/score');
 const report = require('../src/report');
 const { LINE_RULES, WHOLE_FILE_RULES, META_RULES } = require('../src/rules');
 const { fingerprint, loadBaseline, writeBaseline } = require('../src/baseline');
+const { sparkline, loadHistory, appendHistory, trendDelta } = require('../src/history');
 
 const DEFAULT_BASELINE = '.slopscore-baseline.json';
+const DEFAULT_HISTORY = '.slopscore-history.json';
 
 const out = (s) => process.stdout.write(s + '\n');
 const err = (s) => process.stderr.write(s + '\n');
@@ -35,7 +37,10 @@ function parseArgs(argv) {
       const next = argv[i + 1];
       if (next && !next.startsWith('-')) { opts.baseline = next; i += 1; } else opts.baseline = DEFAULT_BASELINE;
     } else if (a === '--update-baseline') { opts.updateBaseline = true; opts.baseline = opts.baseline || DEFAULT_BASELINE; }
-    else if (!a.startsWith('-')) opts.paths.push(a);
+    else if (a === '--history') {
+      const next = argv[i + 1];
+      if (next && !next.startsWith('-')) { opts.history = next; i += 1; } else opts.history = DEFAULT_HISTORY;
+    } else if (!a.startsWith('-')) opts.paths.push(a);
   }
   if (opts.paths.length === 0) opts.paths.push('.');
   return opts;
@@ -77,9 +82,23 @@ function configStartDir(paths) {
 const SEV_RANK = { critical: 3, major: 2, minor: 1 };
 const FAIL_GATE = { critical: 3, major: 2, minor: 1, never: 4 };
 
+function recordTrend(opts, s) {
+  const prev = loadHistory(opts.history);
+  const entry = {
+    date: new Date().toISOString(),
+    weighted: s.weighted, density: s.density,
+    critical: s.counts.critical, major: s.counts.major, minor: s.counts.minor,
+  };
+  const runs = appendHistory(opts.history, entry);
+  if (opts.format && opts.format !== 'terminal') return; // only narrate in terminal mode
+  const delta = trendDelta(prev, s.weighted);
+  out(`  trend  ${sparkline(runs.map((r) => r.weighted))}  ${s.weighted} weighted${delta ? ` · ${delta} since last run` : ''} · ${runs.length} runs`);
+  out('');
+}
+
 // One scan + report. Returns whether the run should fail the gate. Does NOT exit
-// (so --watch can call it in a loop).
-function scanAndReport(opts, cfg, baseDir, failOn) {
+// (so --watch can call it in a loop). `record` appends to the score history.
+function scanAndReport(opts, cfg, baseDir, failOn, record) {
   const ignore = (cfg.ignore || []).concat(opts.ignore);
   const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules: cfg.rules });
   if (opts.baseline) {
@@ -96,6 +115,7 @@ function scanAndReport(opts, cfg, baseDir, failOn) {
   else if (opts.format === 'agent') report.agentReport(result, s);
   else if (opts.format === 'sarif') report.sarifReport(result, s);
   else report.terminalReport(result, s, { max: opts.max });
+  if (record && opts.history) recordTrend(opts, s);
   // The gate fails on PRODUCTION findings only (test/tooling is reported, not gated)
   // — and, under --baseline, only on findings new since the snapshot.
   const gate = FAIL_GATE[failOn] || FAIL_GATE.major;
@@ -140,7 +160,7 @@ function runScan(opts) {
   }
 
   if (opts.watch) { runWatch(opts, cfg, baseDir, failOn); return; }
-  process.exit(scanAndReport(opts, cfg, baseDir, failOn) ? 1 : 0);
+  process.exit(scanAndReport(opts, cfg, baseDir, failOn, true) ? 1 : 0);
 }
 
 function printProtocol() {
@@ -241,6 +261,8 @@ OPTIONS
   --baseline [file]          ratchet mode: snapshot current findings, then fail only
                              on NEW slop (default file: .slopscore-baseline.json)
   --update-baseline          re-snapshot the baseline (accept the current findings)
+  --history [file]           record the score over time + show a trend sparkline
+                             (default file: .slopscore-history.json)
   --max <n>                  max findings to print in the terminal     (default: 40)
   --ignore <path>            extra path to ignore (repeatable)
   --watch, -w                re-scan on every file change (live local conscience)

@@ -11,6 +11,7 @@ const { execFileSync } = require('node:child_process');
 const { scan } = require('../src/scanner');
 const { score } = require('../src/score');
 const { fingerprint, writeBaseline, loadBaseline } = require('../src/baseline');
+const { sparkline, appendHistory, loadHistory, trendDelta } = require('../src/history');
 
 const BIN = path.join(__dirname, '..', 'bin', 'slopscore.js');
 
@@ -273,6 +274,18 @@ test('whole-file rule reports correct line numbers for many matches', () => {
   const hits = scan(p).findings.filter((f) => f.id === '053');
   assert.strictEqual(hits.length, 2);
   assert.deepStrictEqual(hits.map((f) => f.line).sort((a, b) => a - b), [2, 4]);
+});
+
+test('history records runs and reports the trend delta', () => {
+  assert.strictEqual(sparkline([]), '');
+  assert.strictEqual(sparkline([0, 5, 10]).length, 3);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-hist-'));
+  const file = path.join(dir, 'h.json');
+  appendHistory(file, { weighted: 10 });
+  const runs = appendHistory(file, { weighted: 5 });
+  assert.strictEqual(runs.length, 2);
+  assert.strictEqual(loadHistory(file).length, 2);
+  assert.match(trendDelta([{ weighted: 10 }], 5), /down 50%/);
 });
 
 // Baseline / ratchet mode: snapshot accepted findings, fail only on NEW slop.
