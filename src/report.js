@@ -26,10 +26,16 @@ function sortFindings(findings) {
 
 function scoreBanner(s) {
   const color = s.density === 0 ? C.green : s.density <= 6 ? C.yellow : C.red;
+  // Box drawn from a single INNER width so the side bands always line up with
+  // the corners (a hardcoded middle row drifts the moment the title changes).
+  const INNER = 42;
+  const title = 'S L O P   S C O R E';
+  const padL = Math.floor((INNER - title.length) / 2);
+  const padR = INNER - title.length - padL;
   out('');
-  out(paint(C.bold, '  ╔══════════════════════════════════════════╗'));
-  out(paint(C.bold, '  ║             S L O P   S C O R E              ║'));
-  out(paint(C.bold, '  ╚══════════════════════════════════════════╝'));
+  out(paint(C.bold, '  ╔' + '═'.repeat(INNER) + '╗'));
+  out(paint(C.bold, '  ║' + ' '.repeat(padL) + title + ' '.repeat(padR) + '║'));
+  out(paint(C.bold, '  ╚' + '═'.repeat(INNER) + '╝'));
   out('');
   const showDensity = s.lines >= 200;
   out('   ' + paint(color, paint(C.bold, `${s.weighted}`)) + paint(C.dim, ` weighted`)
