@@ -314,6 +314,17 @@ test('test/tooling findings are non-production and excluded from the headline sc
   assert.strictEqual(s.nonprod.total, 1, 'the test any is reported, not scored');
 });
 
+test('068 flags an identical block copy-pasted across files, not a unique one', () => {
+  const block = 'function totals(items, rate) {\n  let sub = 0;\n  for (const it of items) {\n    sub += it.price * it.qty;\n  }\n  const tax = sub * rate;\n  return { sub, tax, total: sub + tax };\n}\n';
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-dup-'));
+  fs.writeFileSync(path.join(dir, 'a.js'), `${block}export const a = 1;\n`);
+  fs.writeFileSync(path.join(dir, 'b.js'), `export const b = 2;\n${block}`);
+  assert.ok(ids(scan([dir], { ignoreBase: dir })).includes('068'), 'copy-paste across files is flagged');
+  const solo = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-solo-'));
+  fs.writeFileSync(path.join(solo, 'c.js'), block);
+  assert.ok(!ids(scan([solo], { ignoreBase: solo })).includes('068'), 'a single copy is not duplication');
+});
+
 test('inline suppression skips the targeted rule on the next line only', () => {
   const p = tmpFile('a.ts', '// slopscore-disable-next-line 054 — fix in 2 weeks\nconst x: any = 1;\nconst y: any = 2;\n');
   const r = scan(p);

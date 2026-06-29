@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { LINE_RULES, WHOLE_FILE_RULES, META } = require('./rules');
+const { checkDuplication, CODE_FOR_DUP } = require('./duplication');
 
 // Build a finding from a META catalog entry, allowing the bespoke check to
 // override the display title (e.g. to include a live line/dependency count) and
@@ -192,6 +193,14 @@ function commentMask(lines) {
   return mask;
 }
 
+// Build a finding from a matched rule (shared by line and whole-file scanning).
+function ruleFinding(rule, file, line, snippet) {
+  return {
+    id: rule.id, title: rule.title, category: rule.category, severity: rule.severity,
+    authority: rule.authority, fix: rule.fix, file, line, snippet,
+  };
+}
+
 function ruleAppliesToFile(rule, ext) {
   return rule.exts === null || rule.exts === undefined || rule.exts.includes(ext);
 }
@@ -212,11 +221,7 @@ function scanLineRules(file, ext, isTest, text, lines, mask, findings, project) 
       const m = rule.re.exec(line);
       if (!m) continue;
       if (rule.respectComments && mask[n][m.index]) continue;
-      findings.push({
-        id: rule.id, title: rule.title, category: rule.category, severity: rule.severity,
-        authority: rule.authority, fix: rule.fix, file, line: n + 1,
-        snippet: line.trim().slice(0, 120),
-      });
+      findings.push(ruleFinding(rule, file, n + 1, line.trim().slice(0, 120)));
     }
   }
 }
@@ -245,11 +250,7 @@ function scanWholeFileRules(file, ext, isTest, text, lines, findings) {
     let m;
     while ((m = re.exec(text)) !== null) {
       const lineNo = lineNoAt(lineStarts, m.index);
-      findings.push({
-        id: rule.id, title: rule.title, category: rule.category, severity: rule.severity,
-        authority: rule.authority, fix: rule.fix, file, line: lineNo,
-        snippet: (lines[lineNo - 1] || '').trim().slice(0, 120),
-      });
+      findings.push(ruleFinding(rule, file, lineNo, (lines[lineNo - 1] || '').trim().slice(0, 120)));
       if (m.index === re.lastIndex) re.lastIndex += 1;
     }
   }
@@ -393,6 +394,7 @@ function scan(target, options = {}) {
   const findings = [];
 
   const project = detectGlobalContext(files);
+  const codeFiles = [];
   let totalLines = 0;
   let productionLines = 0;
   let suppressed = 0;
@@ -414,6 +416,7 @@ function scan(target, options = {}) {
     const lineCount = lines.length - (lines.length && lines[lines.length - 1] === '' ? 1 : 0);
     totalLines += lineCount;
     if (zone === 'production') productionLines += lineCount;
+    if (CODE_FOR_DUP.has(ext)) codeFiles.push({ file, lines, zone });
     const mask = commentMask(lines);
     const before = findings.length;
     scanLineRules(file, ext, isTest, text, lines, mask, findings, project);
@@ -431,6 +434,7 @@ function scan(target, options = {}) {
   }
 
   checkVersionedDuplicates(files, findings);
+  if (!options.skipDuplication) checkDuplication(codeFiles, findings, metaFinding);
   const repoRoot = path.resolve(options.repoRoot || (hasDir ? roots.find((r) => safeIsDir(r)) : null) || '.');
   if (hasDir && fs.existsSync(repoRoot) && !options.skipRepoChecks) checkRepoLevel(repoRoot, findings);
   // Repo-level findings (.env, dep bloat, thin README, dup files) are production by default.
