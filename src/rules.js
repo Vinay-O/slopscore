@@ -96,8 +96,16 @@ const LINE_RULES = [
   {
     id: '142', title: 'Unpinned / aliased LLM model string', category: 'supply-chain', severity: 'major',
     authority: 'propose', exts: null, skipTests: true, respectComments: false,
-    re: /['"](gpt-4o|gpt-4-turbo|gpt-3\.5-turbo|claude-3-[a-z]+|gemini-1\.5-[a-z]+)['"]/i,
-    fix: 'Pin an exact, current model id and move it to config/env. Confirm the id is real.',
+    // Aliased/unpinned model ids that silently move under you (gpt-4o, claude-sonnet-4,
+    // gemini-1.5-pro…). Requires the id in quotes so it's a real model string, not prose.
+    re: /['"](gpt-[0-9o][\w.-]*|claude-[\w.-]+|gemini-[0-9][\w.-]*|text-embedding-[\w.-]+|dall-e-[\w.-]*)['"]/i,
+    fix: 'Pin an exact, current model id (with its date suffix) and move it to config/env. Confirm the id is real — aliases get deprecated and slopsquatted.',
+  },
+  {
+    id: '136', title: 'Hollow loading state (returns null, no skeleton)', category: 'architecture',
+    severity: 'minor', authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /if\s*\(\s*\w*loading\b\s*\)\s*return\s+(null|undefined)\b/i,
+    fix: 'Render a skeleton or spinner while loading — returning null is the white-flash tell of an unfinished UI.',
   },
 
   // ---- CATEGORY 10/11: architecture & API ----
@@ -341,6 +349,11 @@ const META_RULES = [
     id: '055', title: 'God file (oversized source file)', category: 'architecture',
     severity: 'major', authority: 'propose',
     fix: 'Split by responsibility into components/hooks/services. Preserve behavior; do it on a branch.',
+  },
+  {
+    id: '068', title: 'Copy-pasted duplicated code block', category: 'code',
+    severity: 'major', authority: 'propose',
+    fix: 'Extract the shared logic into a function/component/hook. This is the refactor AI skips — and the duplication that quietly multiplies every future bug fix.',
   },
   {
     id: '061', title: 'Versioned duplicate file', category: 'code',

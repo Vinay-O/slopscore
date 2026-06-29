@@ -3,6 +3,26 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.3.0]
+
+### Added
+- Detector **136** (hollow loading state — `if (loading) return null`, the white-flash
+  tell of an unfinished UI) automated → 54 detectors. Broadened **142** to current
+  aliased model ids (gpt-4o, claude-sonnet-4, gemini-1.5-pro, …).
+- **Copy-paste / duplicate-block detector** (catalog 068, now automated → 53 detectors).
+  Windowed normalized-block hashing finds code copy-pasted across files; overlapping
+  windows merge into one finding; trivial lines (imports, braces) are excluded.
+- `--sarif` — SARIF 2.1.0 output for GitHub code scanning (inline annotations on the PR diff).
+
+### Changed
+- Split the duplicate detector into `src/duplication.js` and deduped the finding
+  constructor — slopscore flagged its own `scanner.js` as a god file, so we split it
+  (the tool eats its own dog food).
+- **Inline suppression** — `// slopscore-disable-next-line <id> — reason` (or `-line`).
+  Bare form suppresses all rules on the line; the report shows the suppressed count.
+- **Per-rule config** in `.slopscore.json` — `"rules": { "054": false, "099": "minor" }`
+  disables a rule or overrides its severity.
+
 ## [1.2.0]
 
 ### Added

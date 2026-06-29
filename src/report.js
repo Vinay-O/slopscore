@@ -1,5 +1,6 @@
 'use strict';
 
+const pkg = require('../package.json');
 const out = (s) => process.stdout.write(s + '\n');
 
 const C = {
@@ -51,6 +52,9 @@ function scoreBanner(s) {
   }
   out('');
   out('   ' + paint(C.bold, paint(color, '▶ ' + s.verdict)));
+  if (s.suppressed > 0) {
+    out('   ' + paint(C.dim, `${s.suppressed} finding${s.suppressed === 1 ? '' : 's'} suppressed inline`));
+  }
   out('');
 }
 
@@ -125,4 +129,46 @@ function agentReport(result, s) {
   out('NEXT: fix production auto+propose findings per ANTI_SLOP_PROTOCOL.md, re-scan, drive production crit+major to 0 (zone=test is lower priority).');
 }
 
-module.exports = { terminalReport, jsonReport, markdownReport, agentReport, setColor };
+// SARIF 2.1.0 — ingested by GitHub code scanning to annotate the PR diff inline.
+const SARIF_LEVEL = { critical: 'error', major: 'warning', minor: 'note' };
+function sarifReport(result) {
+  const findings = sortFindings(result.findings);
+  const ruleMap = new Map();
+  for (const f of findings) if (!ruleMap.has(f.id)) ruleMap.set(f.id, f);
+  const rules = Array.from(ruleMap.values()).map((f) => ({
+    id: f.id,
+    name: f.title,
+    shortDescription: { text: f.title },
+    helpUri: 'https://github.com/Vinay-O/slopscore/blob/main/ANTI_SLOP_PROTOCOL.md',
+    properties: { category: f.category },
+  }));
+  const results = findings.map((f) => ({
+    ruleId: f.id,
+    level: SARIF_LEVEL[f.severity] || 'warning',
+    message: { text: `${f.title} — ${f.fix}` },
+    locations: [{
+      physicalLocation: {
+        artifactLocation: { uri: f.file },
+        region: { startLine: Math.max(1, f.line) },
+      },
+    }],
+    properties: { zone: f.zone || 'production', severity: f.severity, authority: f.authority },
+  }));
+  out(JSON.stringify({
+    $schema: 'https://json.schemastore.org/sarif-2.1.0.json',
+    version: '2.1.0',
+    runs: [{
+      tool: {
+        driver: {
+          name: 'slopscore',
+          version: pkg.version,
+          informationUri: 'https://github.com/Vinay-O/slopscore',
+          rules,
+        },
+      },
+      results,
+    }],
+  }, null, 2));
+}
+
+module.exports = { terminalReport, jsonReport, markdownReport, agentReport, sarifReport, setColor };

@@ -94,7 +94,7 @@ slopscore ships **two halves of the same idea**: a deterministic scanner you run
 
 ### 1. The scanner (deterministic, zero-dependency)
 
-Runs **52 detectors** locally in milliseconds — secrets, SQL injection, empty catches, `any`, hallucinated APIs, missing `alt`, the VibeCode-purple gradient, AI buzzword copy, god files, and more. No LLM, no network, no dependencies.
+Runs **54 detectors** locally in milliseconds — secrets, SQL injection, empty catches, `any`, hallucinated APIs, missing `alt`, the VibeCode-purple gradient, AI buzzword copy, god files, and more. No LLM, no network, no dependencies.
 
 ### 2. The protocol (for your coding agent)
 
@@ -102,7 +102,7 @@ Runs **52 detectors** locally in milliseconds — secrets, SQL injection, empty 
 
 > **"Check the system."**
 
-The agent runs a defined loop — orient → scan → score → triage → **fix** → verify → report — where every pattern carries a `DETECT`, a `FIX`, and a **fix authority** (🟢 auto-fix · 🟡 propose · 🔴 flag-for-human) so it knows what it may change on its own versus what needs your call. The **52 patterns the CLI already automates are tagged `⚙️ slopscore scan`** right in the catalog (generated from the scanner's own rule table, so the two halves never drift) — the untagged ones are where the agent earns its keep.
+The agent runs a defined loop — orient → scan → score → triage → **fix** → verify → report — where every pattern carries a `DETECT`, a `FIX`, and a **fix authority** (🟢 auto-fix · 🟡 propose · 🔴 flag-for-human) so it knows what it may change on its own versus what needs your call. The **54 patterns the CLI already automates are tagged `⚙️ slopscore scan`** right in the catalog (generated from the scanner's own rule table, so the two halves never drift) — the untagged ones are where the agent earns its keep.
 
 ```bash
 slopscore protocol | pbcopy        # copy the protocol to paste into your agent
@@ -176,6 +176,14 @@ jobs:
       - run: npx slopscore scan . --fail-on major
 ```
 
+**Want findings inline on the PR diff?** Emit SARIF and upload it to GitHub code scanning:
+
+```yaml
+      - run: npx slopscore scan . --sarif --fail-on never > slopscore.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        with: { sarif_file: slopscore.sarif }
+```
+
 **Want the Slop Score posted on every PR?** Add a sticky comment from the Markdown report:
 
 ```yaml
@@ -211,7 +219,11 @@ The baseline keys findings by content, not line number — so moving code around
 ```json
 {
   "ignore": ["examples", "legacy", "src/generated"],
-  "failOn": "major"
+  "failOn": "major",
+  "rules": {
+    "054": false,
+    "099": "minor"
+  }
 }
 ```
 
@@ -219,8 +231,18 @@ The baseline keys findings by content, not line number — so moving code around
 |:--|:--|
 | `ignore` | Extra paths to skip (added to the built-in `node_modules`, `dist`, etc.) |
 | `failOn` | Exit non-zero at `critical`, `major`, `minor`, or `never` |
+| `rules` | Per-rule overrides — `false`/`"off"` disables a rule; `"critical"`/`"major"`/`"minor"` overrides its severity |
 
-## What it detects (52 of the 150)
+**Suppress one finding inline** with a directive (require a reason for your future self):
+
+```ts
+// slopscore-disable-next-line 054 — deliberate cast at the Deno JSON boundary
+const config = data as any;
+```
+
+A bare `// slopscore-disable-next-line` (no id) suppresses every rule on the next line; `slopscore-disable-line <id>` works on the same line. The terminal report prints how many findings were suppressed, so they don't rot.
+
+## What it detects (54 of the 150)
 
 The CLI runs the deterministic subset; the [full 150-pattern catalog](ANTI_SLOP_PROTOCOL.md) (including visual, architectural, and judgment-heavy patterns) is what you hand your agent.
 

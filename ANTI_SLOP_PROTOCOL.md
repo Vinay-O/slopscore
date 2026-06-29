@@ -715,7 +715,7 @@ to silence the warning instead of fixing it.
 `DETECT:` `useState({ loading, data, error, modal, form` · large `setState(prev => ({...prev,…}))` · one state for 5+ concerns.
 `FIX:` Split into focused `useState`s or a `useReducer` with named actions; lift server state into a query library (see 097). PROPOSE.
 
-**068 · Copy-pasted duplicated code instead of abstraction** `🟠` `🟡 PROPOSE`
+**068 · Copy-pasted duplicated code instead of abstraction** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
 Identical blocks across files — the single biggest measured AI-code-quality regression (duplicated
 blocks up 4–8×; copy/paste now exceeds refactoring). Each block is a future inconsistency bug.
 `DETECT:` identical fetch/validation/util blocks in multiple components · `jscpd`/vibecop cross-file duplication.
@@ -1104,7 +1104,7 @@ A 600-line `server.js`/`app.py` holding routes, DB logic, business rules, middle
 `DETECT:` single server file > 400 lines · all routes+logic in one file · no route/controller/service split.
 `FIX:` Split into routes → controllers → services → data layers. PROPOSE — incremental extraction, behavior-preserving, on a branch.
 
-**136 · No loading skeleton — white flash before content** `🟡` `🟢 AUTO`
+**136 · No loading skeleton — white flash before content** `🟡` `🟢 AUTO` `⚙️ slopscore scan`
 `if (loading) return null` → blank flash before content paints.
 `DETECT:` `if (loading) return null` · loading state rendering empty.
 `FIX:` Render a skeleton/spinner (or keep the previous content) during load. AUTO — add a basic skeleton matching the layout.

@@ -314,6 +314,58 @@ test('test/tooling findings are non-production and excluded from the headline sc
   assert.strictEqual(s.nonprod.total, 1, 'the test any is reported, not scored');
 });
 
+test('136 flags a hollow loading state (returns null) but not a real spinner', () => {
+  const bad = tmpFile('a.tsx', 'function C(){ if (loading) return null; return <div/>; }\n');
+  assert.ok(ids(scan(bad)).includes('136'));
+  const ok = tmpFile('b.tsx', 'function C(){ if (loading) return <Spinner/>; }\n');
+  assert.ok(!ids(scan(ok)).includes('136'));
+});
+
+test('142 catches current aliased model ids', () => {
+  const p = tmpFile('a.ts', 'const m = "claude-sonnet-4";\nconst n = "gpt-4.1";\n');
+  assert.ok(ids(scan(p)).includes('142'));
+});
+
+test('068 flags an identical block copy-pasted across files, not a unique one', () => {
+  const block = 'function totals(items, rate) {\n  let sub = 0;\n  for (const it of items) {\n    sub += it.price * it.qty;\n  }\n  const tax = sub * rate;\n  return { sub, tax, total: sub + tax };\n}\n';
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-dup-'));
+  fs.writeFileSync(path.join(dir, 'a.js'), `${block}export const a = 1;\n`);
+  fs.writeFileSync(path.join(dir, 'b.js'), `export const b = 2;\n${block}`);
+  assert.ok(ids(scan([dir], { ignoreBase: dir })).includes('068'), 'copy-paste across files is flagged');
+  const solo = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-solo-'));
+  fs.writeFileSync(path.join(solo, 'c.js'), block);
+  assert.ok(!ids(scan([solo], { ignoreBase: solo })).includes('068'), 'a single copy is not duplication');
+});
+
+test('inline suppression skips the targeted rule on the next line only', () => {
+  const p = tmpFile('a.ts', '// slopscore-disable-next-line 054 — fix in 2 weeks\nconst x: any = 1;\nconst y: any = 2;\n');
+  const r = scan(p);
+  assert.deepStrictEqual(r.findings.filter((f) => f.id === '054').map((f) => f.line), [3], 'line 2 suppressed, 3 kept');
+  assert.strictEqual(r.suppressed, 1);
+  // the "2 weeks" reason must not be parsed as rule 002
+  assert.ok(!r.findings.some((f) => f.id === '002'));
+});
+
+test('per-rule config disables a rule and overrides severity', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-rc-'));
+  fs.writeFileSync(path.join(dir, 'app.ts'), 'const x: any = 1;\nconst u = "http://localhost:3000";\n');
+  const r = scan([dir], { ignoreBase: dir, rules: { '054': false, '099': 'minor' } });
+  assert.ok(!r.findings.some((f) => f.id === '054'), '054 disabled');
+  assert.strictEqual((r.findings.find((f) => f.id === '099') || {}).severity, 'minor', '099 downgraded');
+});
+
+test('--sarif emits valid SARIF 2.1.0 for code scanning', () => {
+  const fixture = path.join(__dirname, '..', 'examples', 'slop.tsx');
+  const out = execFileSync('node', [BIN, 'scan', fixture, '--sarif', '--fail-on', 'never'], { encoding: 'utf8' });
+  const j = JSON.parse(out);
+  assert.strictEqual(j.version, '2.1.0');
+  assert.strictEqual(j.runs[0].tool.driver.name, 'slopscore');
+  assert.ok(j.runs[0].results.length > 0, 'has results');
+  const r = j.runs[0].results[0];
+  assert.ok(['error', 'warning', 'note'].includes(r.level), 'valid level');
+  assert.ok(r.locations[0].physicalLocation.region.startLine >= 1, 'has a line');
+});
+
 // `slopscore explain <id>` surfaces a single catalog entry from the CLI.
 test('explain prints a catalog entry + fix for a valid id', () => {
   const out = execFileSync('node', [BIN, 'explain', '058'], { encoding: 'utf8' });
