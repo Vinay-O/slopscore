@@ -3,6 +3,26 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.4.0]
+
+### Added
+- **`--watch` / `-w`** — re-scan on every file change (a live local conscience).
+  Uses recursive `fs.watch` with a polling fallback; no new dependencies.
+- **`--history [file]`** — record the Slop Score over time and print a trend
+  sparkline ("`█▃▁  0 weighted · down 100% since last run`"). Commit
+  `.slopscore-history.json` and watch the number move sprint over sprint.
+
+- **Per-directory config** — `.slopscore.json` `"paths": { "legacy/": { "*": "minor" } }`
+  applies rule overrides under a path (`"*"` targets every rule). Per-path wins over global.
+
+### Changed
+- **Cohesion-aware god-file (055).** A large file is only flagged when it's also
+  *sprawling* (many top-level functions/classes); a 2,000-line registry, lookup
+  table, or single cohesive class is no longer called slop.
+- **Data-flow-lite for 071.** A constant string assignment (`innerHTML = "static"`,
+  `__html: "..."`) and an `=== ` comparison no longer read as XSS — only dynamic
+  injection does.
+
 ## [1.3.0]
 
 ### Added

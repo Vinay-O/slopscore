@@ -11,6 +11,7 @@ const { execFileSync } = require('node:child_process');
 const { scan } = require('../src/scanner');
 const { score } = require('../src/score');
 const { fingerprint, writeBaseline, loadBaseline } = require('../src/baseline');
+const { sparkline, appendHistory, loadHistory, trendDelta } = require('../src/history');
 
 const BIN = path.join(__dirname, '..', 'bin', 'slopscore.js');
 
@@ -91,10 +92,20 @@ test('detects div with onClick (no role=button)', () => {
   assert.ok(ids(scan(p)).includes('082'));
 });
 
-test('flags a god file', () => {
-  const big = 'const x = 1;\n'.repeat(600);
-  const p = tmpFile('big.js', big);
-  assert.ok(ids(scan(p)).includes('055'));
+test('flags a sprawling god file but not a large cohesive one', () => {
+  // 500+ lines spread across many separate functions = sprawl
+  let sprawl = '';
+  for (let i = 0; i < 12; i += 1) sprawl += `function unit${i}() {\n${'  doThing();\n'.repeat(45)}}\n`;
+  assert.ok(ids(scan(tmpFile('god.js', sprawl))).includes('055'));
+  // 600 lines but one cohesive data structure (1 responsibility) = not a god file
+  const data = `export const TABLE = {\n${Array.from({ length: 600 }, (_, i) => `  k${i}: ${i},`).join('\n')}\n};\n`;
+  assert.ok(!ids(scan(tmpFile('data.js', data))).includes('055'));
+});
+
+test('071 ignores a constant innerHTML and an === comparison', () => {
+  assert.ok(ids(scan(tmpFile('a.js', 'el.innerHTML = userInput;\n'))).includes('071'));
+  assert.ok(!ids(scan(tmpFile('b.js', 'el.innerHTML = "<b>static</b>";\n'))).includes('071'));
+  assert.ok(!ids(scan(tmpFile('c.js', 'if (el.innerHTML === expected) ok();\n'))).includes('071'));
 });
 
 test('skips test files for skipTests rules', () => {
@@ -265,6 +276,18 @@ test('whole-file rule reports correct line numbers for many matches', () => {
   assert.deepStrictEqual(hits.map((f) => f.line).sort((a, b) => a - b), [2, 4]);
 });
 
+test('history records runs and reports the trend delta', () => {
+  assert.strictEqual(sparkline([]), '');
+  assert.strictEqual(sparkline([0, 5, 10]).length, 3);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-hist-'));
+  const file = path.join(dir, 'h.json');
+  appendHistory(file, { weighted: 10 });
+  const runs = appendHistory(file, { weighted: 5 });
+  assert.strictEqual(runs.length, 2);
+  assert.strictEqual(loadHistory(file).length, 2);
+  assert.match(trendDelta([{ weighted: 10 }], 5), /down 50%/);
+});
+
 // Baseline / ratchet mode: snapshot accepted findings, fail only on NEW slop.
 test('baseline fingerprint ignores line number but tracks content', () => {
   const f = { id: '054', file: 'src/x.ts', line: 5, snippet: 'const a: any = 1;' };
@@ -344,6 +367,18 @@ test('inline suppression skips the targeted rule on the next line only', () => {
   assert.strictEqual(r.suppressed, 1);
   // the "2 weeks" reason must not be parsed as rule 002
   assert.ok(!r.findings.some((f) => f.id === '002'));
+});
+
+test('per-path config disables a rule under one directory only', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-pp-'));
+  fs.mkdirSync(path.join(dir, 'legacy'));
+  fs.mkdirSync(path.join(dir, 'src'));
+  fs.writeFileSync(path.join(dir, 'legacy', 'o.ts'), 'const x: any = 1;\n');
+  fs.writeFileSync(path.join(dir, 'src', 'n.ts'), 'const y: any = 1;\n');
+  const flagged = scan([dir], { ignoreBase: dir, paths: { 'legacy/': { '054': false } } })
+    .findings.filter((f) => f.id === '054').map((f) => f.file);
+  assert.ok(flagged.some((f) => f.includes('src')), 'src still flagged');
+  assert.ok(!flagged.some((f) => f.includes('legacy')), 'legacy suppressed');
 });
 
 test('per-rule config disables a rule and overrides severity', () => {
