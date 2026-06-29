@@ -101,11 +101,11 @@ test('skips test files for skipTests rules', () => {
   assert.ok(!ids(scan(p)).includes('052'));
 });
 
-test('score: clean input is breathtaking', () => {
+test('score: clean input is pristine', () => {
   const p = tmpFile('a.js', 'export const add = (a, b) => a + b;\n');
   const s = score(scan(p));
   assert.strictEqual(s.weighted, 0);
-  assert.match(s.verdict, /Breathtaking/);
+  assert.match(s.verdict, /Pristine/);
 });
 
 test('score: critical weighs 10, major 3, minor 1', () => {
@@ -262,6 +262,17 @@ test('whole-file rule reports correct line numbers for many matches', () => {
   const hits = scan(p).findings.filter((f) => f.id === '053');
   assert.strictEqual(hits.length, 2);
   assert.deepStrictEqual(hits.map((f) => f.line).sort((a, b) => a - b), [2, 4]);
+});
+
+test('083 respects a global :focus-visible reset in another file (cross-file)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-fv-'));
+  fs.writeFileSync(path.join(dir, 'button.css'), '.btn { outline: none; }\n');
+  fs.writeFileSync(path.join(dir, 'global.css'), '*:focus-visible { outline: 2px solid blue; }\n');
+  assert.ok(!ids(scan([dir], { ignoreBase: dir })).includes('083'),
+    'a global focus-visible reset should suppress outline:none repo-wide');
+  fs.unlinkSync(path.join(dir, 'global.css'));
+  assert.ok(ids(scan([dir], { ignoreBase: dir })).includes('083'),
+    'without the global reset, outline:none should flag again');
 });
 
 // Context weighting: generated/minified files are skipped, and test/tooling

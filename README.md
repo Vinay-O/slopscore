@@ -11,7 +11,7 @@ The antidote to vibe-coded software: turn *generation* into *governance*.
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![node](https://img.shields.io/badge/node-%E2%89%A518-339933)](https://nodejs.org)
 [![dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](package.json)
-[![self-scan](https://img.shields.io/badge/slop%20score-0%20·%20breathtaking-brightgreen)](#it-passes-its-own-scan)
+[![self-scan](https://img.shields.io/badge/slop%20score-0%20·%20pristine-brightgreen)](#it-passes-its-own-scan)
 
 </div>
 
@@ -123,7 +123,7 @@ SLOP DENSITY = weighted findings per 1,000 lines (kLOC)
 
 | Density (weighted / kLOC) | Verdict |
 |:--|:--|
-| 0 | **Breathtaking. Ship it.** |
+| 0 | **Pristine. Ship it.** |
 | ≤ 2 | Clean. Human-grade. |
 | 2–6 | Mild slop. A focused pass fixes it. |
 | 6–12 | Heavy slop. Needs real work. |
@@ -145,11 +145,11 @@ The number you see is the risk you're actually shipping.
 A linter about not shipping slop had better not *be* slop. So slopscore holds itself to its own standard:
 
 - **Zero runtime dependencies.** The whole tool is Node built-ins.
-- **`slopscore scan .` on this repo returns `0` — "Breathtaking."**
+- **`slopscore scan .` on this repo returns `0` — "Pristine."**
 - Its own CI runs the scanner on its own source at `--fail-on minor` and fails the build if anything slips.
 
 ```bash
-npm run selfcheck     # → Breathtaking. Ship it.  (exit 0)
+npm run selfcheck     # → Pristine. Ship it.  (exit 0)
 ```
 
 *(The rule-definition file and example fixtures are excluded — they necessarily contain the very strings slopscore looks for, exactly as ESLint excludes its own fixtures. See [`.slopscoreignore.md`](.slopscoreignore.md).)*

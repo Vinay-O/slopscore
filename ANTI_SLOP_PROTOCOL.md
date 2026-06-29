@@ -7,7 +7,7 @@
 > > **"Check the system."**
 >
 > The agent then runs the loop in §0, scans against the catalog in §3, scores the result, fixes
-> what it is authorized to fix, and hands you a report. "Make it breathtaking" = run the loop until
+> what it is authorized to fix, and hands you a report. "Make it pristine" = run the loop until
 > the Slop Score is 0 and the three Escape Moves in §5 are satisfied.
 
 > **What this is.** Every reliable signature of AI-generated slop — visual, typographic, structural,
@@ -106,13 +106,13 @@ run ~14.0/kLOC (3.2× higher). Targets:
 
 | Density (weighted / kLOC) | Verdict |
 |---|---|
-| 0 | Breathtaking. Ship it. |
+| 0 | Pristine. Ship it. |
 | ≤ 2 | Clean. Human-grade. |
 | 2–6 | Mild slop. A focused pass fixes it. |
 | 6–12 | Heavy slop. Needs real work. |
 | > 12 | Vibe-coded. Audit before anyone depends on it. |
 
-A system is **"breathtaking"** (the bar the human is asking for) when: Slop Score = 0 on 🔴 and 🟠,
+A system is **"pristine"** (the bar the human is asking for) when: Slop Score = 0 on 🔴 and 🟠,
 remaining 🟡 are deliberate and defensible, **and** all three Escape Moves in §5 are satisfied.
 
 ### When to stop and ask the human
@@ -1234,7 +1234,7 @@ After scanning, fill in this report verbatim and hand it to the human. It is the
 ## 🔴 Flagged (FLAG) — needs your decision or an out-of-band action
 - [ID] <pattern> — <file:line> — <what it is + the action only you can take, e.g. "rotate this key">
 
-## 🧭 Escape-Move check (the breathtaking bar — §5)
+## 🧭 Escape-Move check (the pristine bar — §5)
 - [ ] Palette has a point of view (not lavender→indigo)
 - [ ] Typeface is a deliberate choice (not default Inter), with heading/body contrast
 - [ ] One strong layout primitive, repeated — not seven card types
@@ -1246,7 +1246,7 @@ After scanning, fill in this report verbatim and hand it to the human. It is the
 ```
 
 **Scoring reminders:** weighted = 🔴×10 + 🟠×3 + 🟡×1; density = weighted ÷ kLOC. Drive 🔴 and 🟠 to
-zero first; remaining 🟡 must be *deliberate*, not residual. "Breathtaking" = 0 on 🔴🟠, defensible 🟡,
+zero first; remaining 🟡 must be *deliberate*, not residual. "Pristine" = 0 on 🔴🟠, defensible 🟡,
 and all three escape moves satisfied.
 
 ---
@@ -1268,7 +1268,7 @@ between the 46% clean and the work that looks authored. From Krebs' research and
    styles. One primitive, repeated until it becomes the product's visual signature.
 
 These are the positive counterpart to the deny-list: when the agent has driven the score to zero, check
-these three before declaring the system breathtaking.
+these three before declaring the system pristine.
 
 ---
 

@@ -5,6 +5,15 @@ All notable changes to slopscore are documented here. Format based on
 
 ## [Unreleased]
 
+### Changed
+- Reworded the zero-slop verdict from "Breathtaking" to **"Pristine. Ship it."**
+  (verdict band, report messages, self-scan badge, and the protocol's quality bar).
+
+- **[083] focus-ring is now cross-file aware.** A global `:focus-visible` reset
+  defined anywhere in the project (CSS is global) suppresses `outline:none`
+  findings repo-wide, instead of flagging every component that relies on it. Adds
+  a general `unlessProject` rule mechanism backed by a cheap pre-pass over style files.
+
 ### Added
 - **Context-aware scoring.** The headline Slop Score now reflects *production* risk:
   generated/vendored/minified files (`*.min.js`, huge single-line bundles, `@generated`)

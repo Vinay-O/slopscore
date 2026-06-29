@@ -51,6 +51,24 @@ function zoneOf(file) {
   return (NONPROD_PATH.test(file) || NONPROD_FILE.test(file)) ? 'test' : 'production';
 }
 
+// Project-level context computed before scanning, so cross-file facts can suppress
+// per-line false positives. CSS is global: if the project defines a `:focus-visible`
+// style anywhere (a global reset), `outline:none` elsewhere isn't removing the focus
+// indicator — so rule 083 shouldn't fire repo-wide. Cheap: only reads style files.
+const STYLE_EXT = new Set(['.css', '.scss', '.sass', '.less', '.styl']);
+function detectGlobalContext(files) {
+  const ctx = { hasGlobalFocusVisible: false };
+  for (const file of files) {
+    if (ctx.hasGlobalFocusVisible) break;
+    if (!STYLE_EXT.has(path.extname(file))) continue;
+    try {
+      if (fs.statSync(file).size > MAX_BYTES) continue;
+      if (/:focus-visible/.test(fs.readFileSync(file, 'utf8'))) ctx.hasGlobalFocusVisible = true;
+    } catch { /* unreadable — ignore */ }
+  }
+  return ctx;
+}
+
 // Two kinds of ignore entry: a bare segment ("node_modules", "examples") matches
 // any path component with that name; a path with a separator ("src/rules.js")
 // resolves to an absolute location against `base` (the .slopscore.json dir), so a
@@ -158,14 +176,15 @@ function ruleAppliesToFile(rule, ext) {
   return rule.exts === null || rule.exts === undefined || rule.exts.includes(ext);
 }
 
-function scanLineRules(file, ext, isTest, text, lines, mask, findings) {
-  // Decide which rules apply to this file once, not per line. `unlessFileContains`
-  // suppresses a rule when the whole file proves the issue is handled elsewhere —
-  // e.g. don't flag `outline:none` if the file also defines a :focus-visible style.
+function scanLineRules(file, ext, isTest, text, lines, mask, findings, project) {
+  // Decide which rules apply to this file once, not per line.
+  //  - unlessFileContains: the whole file proves it's handled (same-file focus-visible).
+  //  - unlessProject: a project-wide fact suppresses it (a global :focus-visible reset).
   const active = LINE_RULES.filter((rule) => ruleAppliesToFile(rule, ext)
     && !(rule.skipTests && isTest)
     && !(rule.unlessFile && rule.unlessFile.test(file))
-    && !(rule.unlessFileContains && rule.unlessFileContains.test(text)));
+    && !(rule.unlessFileContains && rule.unlessFileContains.test(text))
+    && !(rule.unlessProject && project && project[rule.unlessProject]));
   for (let n = 0; n < lines.length; n += 1) {
     const line = lines[n];
     for (const rule of active) {
@@ -353,6 +372,7 @@ function scan(target, options = {}) {
   const { files, hasDir } = gatherFiles(roots, norm);
   const findings = [];
 
+  const project = detectGlobalContext(files);
   let totalLines = 0;
   let productionLines = 0;
   for (const file of files) {
@@ -375,7 +395,7 @@ function scan(target, options = {}) {
     if (zone === 'production') productionLines += lineCount;
     const mask = commentMask(lines);
     const before = findings.length;
-    scanLineRules(file, ext, isTest, text, lines, mask, findings);
+    scanLineRules(file, ext, isTest, text, lines, mask, findings, project);
     scanWholeFileRules(file, ext, isTest, text, lines, findings);
     checkFileSize(file, ext, isTest, lineCount, findings);
     for (let i = before; i < findings.length; i += 1) findings[i].zone = zone;

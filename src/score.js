@@ -3,7 +3,7 @@
 const WEIGHTS = { critical: 10, major: 3, minor: 1 };
 
 const VERDICTS = [
-  { max: 0, label: 'Breathtaking. Ship it.' },
+  { max: 0, label: 'Pristine. Ship it.' },
   { max: 2, label: 'Clean. Human-grade.' },
   { max: 6, label: 'Mild slop. A focused pass fixes it.' },
   { max: 12, label: 'Heavy slop. Needs real work.' },
