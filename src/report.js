@@ -41,9 +41,14 @@ function scoreBanner(s) {
   out('   ' + paint(color, paint(C.bold, `${s.weighted}`)) + paint(C.dim, ` weighted`)
     + (showDensity ? paint(C.dim, `   `) + paint(color, `${s.density}`) + paint(C.dim, ` / kLOC`) : '')
     + paint(C.dim, `   (${s.lines} lines scanned)`));
+  const hasNonprod = s.nonprod && s.nonprod.total > 0;
   out('   ' + paint(C.red, `${s.counts.critical} critical`) + '   '
     + paint(C.yellow, `${s.counts.major} major`) + '   '
-    + paint(C.gray, `${s.counts.minor} minor`));
+    + paint(C.gray, `${s.counts.minor} minor`)
+    + (hasNonprod ? paint(C.dim, '   (production)') : ''));
+  if (hasNonprod) {
+    out('   ' + paint(C.dim, `+ ${s.nonprod.total} in test / tooling — reported, not scored`));
+  }
   out('');
   out('   ' + paint(C.bold, paint(color, '▶ ' + s.verdict)));
   out('');
@@ -109,11 +114,12 @@ function markdownReport(result, s) {
 function agentReport(result, s) {
   // Compact, ~1 line per finding, to conserve an agent's context window.
   const findings = sortFindings(result.findings);
-  out(`SLOP_SCORE weighted=${s.weighted} density=${s.density}/kLOC verdict="${s.verdict}" crit=${s.counts.critical} major=${s.counts.major} minor=${s.counts.minor}`);
+  const np = s.nonprod ? s.nonprod.total : 0;
+  out(`SLOP_SCORE weighted=${s.weighted} density=${s.density}/kLOC verdict="${s.verdict}" crit=${s.counts.critical} major=${s.counts.major} minor=${s.counts.minor} nonprod=${np}`);
   for (const f of findings) {
-    out(`${SEV_TAG[f.severity]} [${f.id}] ${f.file}:${f.line} ${f.title} | authority=${f.authority} | fix: ${f.fix}`);
+    out(`${SEV_TAG[f.severity]} [${f.id}] ${f.file}:${f.line} ${f.title} | zone=${f.zone || 'production'} | authority=${f.authority} | fix: ${f.fix}`);
   }
-  out('NEXT: fix auto+propose findings per ANTI_SLOP_PROTOCOL.md, re-scan, drive crit+major to 0.');
+  out('NEXT: fix production auto+propose findings per ANTI_SLOP_PROTOCOL.md, re-scan, drive production crit+major to 0 (zone=test is lower priority).');
 }
 
 module.exports = { terminalReport, jsonReport, markdownReport, agentReport, setColor };
