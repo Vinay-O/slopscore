@@ -3,7 +3,7 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.4.0]
 
 ### Added
 - **`--watch` / `-w`** — re-scan on every file change (a live local conscience).
