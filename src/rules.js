@@ -242,9 +242,11 @@ const LINE_RULES = [
     id: '083', title: 'Focus removed (outline:none) without :focus-visible', category: 'a11y', severity: 'major',
     authority: 'auto', exts: STYLE, skipTests: false, respectComments: false,
     re: /(outline\s*:\s*(none|0)\b|\boutline-none\b)/,
-    // Honor the rule's own promise: if the file defines a focus-visible style
-    // anywhere, the focus indicator isn't actually gone — don't flag it.
+    // Honor the rule's own promise. Don't flag when the focus ring is handled:
+    //  - same file defines a focus-visible style (Tailwind `focus-visible:` or inline), or
+    //  - the project defines a global `:focus-visible` reset anywhere (CSS is global).
     unlessFileContains: /focus-visible/,
+    unlessProject: 'hasGlobalFocusVisible',
     fix: 'Provide a visible :focus-visible style wherever focus outline is removed.',
   },
 

@@ -264,6 +264,17 @@ test('whole-file rule reports correct line numbers for many matches', () => {
   assert.deepStrictEqual(hits.map((f) => f.line).sort((a, b) => a - b), [2, 4]);
 });
 
+test('083 respects a global :focus-visible reset in another file (cross-file)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-fv-'));
+  fs.writeFileSync(path.join(dir, 'button.css'), '.btn { outline: none; }\n');
+  fs.writeFileSync(path.join(dir, 'global.css'), '*:focus-visible { outline: 2px solid blue; }\n');
+  assert.ok(!ids(scan([dir], { ignoreBase: dir })).includes('083'),
+    'a global focus-visible reset should suppress outline:none repo-wide');
+  fs.unlinkSync(path.join(dir, 'global.css'));
+  assert.ok(ids(scan([dir], { ignoreBase: dir })).includes('083'),
+    'without the global reset, outline:none should flag again');
+});
+
 // Context weighting: generated/minified files are skipped, and test/tooling
 // findings are zoned non-production so the headline score reflects shipped risk.
 test('minified / generated files are skipped entirely', () => {
