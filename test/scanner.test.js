@@ -91,10 +91,20 @@ test('detects div with onClick (no role=button)', () => {
   assert.ok(ids(scan(p)).includes('082'));
 });
 
-test('flags a god file', () => {
-  const big = 'const x = 1;\n'.repeat(600);
-  const p = tmpFile('big.js', big);
-  assert.ok(ids(scan(p)).includes('055'));
+test('flags a sprawling god file but not a large cohesive one', () => {
+  // 500+ lines spread across many separate functions = sprawl
+  let sprawl = '';
+  for (let i = 0; i < 12; i += 1) sprawl += `function unit${i}() {\n${'  doThing();\n'.repeat(45)}}\n`;
+  assert.ok(ids(scan(tmpFile('god.js', sprawl))).includes('055'));
+  // 600 lines but one cohesive data structure (1 responsibility) = not a god file
+  const data = `export const TABLE = {\n${Array.from({ length: 600 }, (_, i) => `  k${i}: ${i},`).join('\n')}\n};\n`;
+  assert.ok(!ids(scan(tmpFile('data.js', data))).includes('055'));
+});
+
+test('071 ignores a constant innerHTML and an === comparison', () => {
+  assert.ok(ids(scan(tmpFile('a.js', 'el.innerHTML = userInput;\n'))).includes('071'));
+  assert.ok(!ids(scan(tmpFile('b.js', 'el.innerHTML = "<b>static</b>";\n'))).includes('071'));
+  assert.ok(!ids(scan(tmpFile('c.js', 'if (el.innerHTML === expected) ok();\n'))).includes('071'));
 });
 
 test('skips test files for skipTests rules', () => {
