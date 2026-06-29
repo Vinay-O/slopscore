@@ -84,7 +84,7 @@ function runScan(opts) {
   const { config: cfg, baseDir } = loadConfig(configStartDir(opts.paths));
   const ignore = (cfg.ignore || []).concat(opts.ignore);
   const failOn = opts.failOnSet ? opts.failOn : (cfg.failOn || opts.failOn);
-  const result = scan(opts.paths, { ignore, ignoreBase: baseDir });
+  const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules: cfg.rules });
 
   // Baseline / ratchet mode: snapshot accepted findings, then fail only on NEW slop.
   if (opts.baseline) {

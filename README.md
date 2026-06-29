@@ -219,7 +219,11 @@ The baseline keys findings by content, not line number — so moving code around
 ```json
 {
   "ignore": ["examples", "legacy", "src/generated"],
-  "failOn": "major"
+  "failOn": "major",
+  "rules": {
+    "054": false,
+    "099": "minor"
+  }
 }
 ```
 
@@ -227,6 +231,16 @@ The baseline keys findings by content, not line number — so moving code around
 |:--|:--|
 | `ignore` | Extra paths to skip (added to the built-in `node_modules`, `dist`, etc.) |
 | `failOn` | Exit non-zero at `critical`, `major`, `minor`, or `never` |
+| `rules` | Per-rule overrides — `false`/`"off"` disables a rule; `"critical"`/`"major"`/`"minor"` overrides its severity |
+
+**Suppress one finding inline** with a directive (require a reason for your future self):
+
+```ts
+// slopscore-disable-next-line 054 — deliberate cast at the Deno JSON boundary
+const config = data as any;
+```
+
+A bare `// slopscore-disable-next-line` (no id) suppresses every rule on the next line; `slopscore-disable-line <id>` works on the same line. The terminal report prints how many findings were suppressed, so they don't rot.
 
 ## What it detects (52 of the 150)
 
