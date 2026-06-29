@@ -1,0 +1,41 @@
+name: "False positive"
+description: slopscore flagged something that isn't slop
+title: "[FP] <rule id> flags <what>"
+labels: ["false-positive"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A noisy detector trains people to ignore the tool. False positives are
+        high-priority — thank you for reporting one.
+  - type: input
+    id: rule
+    attributes:
+      label: Rule ID
+      description: The bracketed catalog ID from the finding, e.g. `[054]`.
+      placeholder: "054"
+    validations:
+      required: true
+  - type: textarea
+    id: snippet
+    attributes:
+      label: The line it flagged
+      description: Paste the exact line (or a minimal snippet). Redact real secrets.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it's legitimate
+      description: Why is this correct code that should not be flagged?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: slopscore version
+      description: Output of `slopscore --version`.
+      placeholder: "1.0.0"
+    validations:
+      required: true

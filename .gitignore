@@ -1,0 +1,8 @@
+# slopscore is a zero-dependency, zero-build CLI — it never produces dist/build/
+# coverage artifacts, so they're not listed. Keep this minimal and honest.
+node_modules/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example

@@ -1,0 +1,4 @@
+{
+  "ignore": ["examples", "test", "src/rules.js"],
+  "failOn": "major"
+}

@@ -1,0 +1,13 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Run tests (zero dependencies, nothing to install)
+        run: node --test
+      - name: Self-scan — slopscore must pass its own audit
+        run: node bin/slopscore.js scan . --fail-on minor

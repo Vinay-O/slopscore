@@ -1,0 +1,45 @@
+name: "New detector"
+description: Propose a new AI-slop pattern for slopscore to catch
+title: "[detector] <the pattern>"
+labels: ["new-detector", "good first issue"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        New detectors are the most valuable contribution. If you can write the
+        regex and a test, open a PR instead — see CONTRIBUTING.md (it's ~2 minutes).
+  - type: textarea
+    id: pattern
+    attributes:
+      label: The slop pattern
+      description: What does AI-generated code do here that a careful human wouldn't?
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: A real example
+      description: Paste a representative snippet the detector should catch.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Suggested severity
+      options:
+        - "critical — breaks or endangers users"
+        - "major — rots maintainability or UX"
+        - "minor — aesthetic tell"
+    validations:
+      required: true
+  - type: input
+    id: catalog
+    attributes:
+      label: Catalog ID (if it already exists in ANTI_SLOP_PROTOCOL.md)
+      placeholder: "e.g. 112, or 'new'"
+  - type: textarea
+    id: falsepos
+    attributes:
+      label: False-positive risk
+      description: Where might this regex wrongly fire on legitimate code?
