@@ -715,7 +715,7 @@ to silence the warning instead of fixing it.
 `DETECT:` `useState({ loading, data, error, modal, form` · large `setState(prev => ({...prev,…}))` · one state for 5+ concerns.
 `FIX:` Split into focused `useState`s or a `useReducer` with named actions; lift server state into a query library (see 097). PROPOSE.
 
-**068 · Copy-pasted duplicated code instead of abstraction** `🟠` `🟡 PROPOSE`
+**068 · Copy-pasted duplicated code instead of abstraction** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
 Identical blocks across files — the single biggest measured AI-code-quality regression (duplicated
 blocks up 4–8×; copy/paste now exceeds refactoring). Each block is a future inconsistency bug.
 `DETECT:` identical fetch/validation/util blocks in multiple components · `jscpd`/vibecop cross-file duplication.

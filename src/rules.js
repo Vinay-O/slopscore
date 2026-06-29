@@ -343,6 +343,11 @@ const META_RULES = [
     fix: 'Split by responsibility into components/hooks/services. Preserve behavior; do it on a branch.',
   },
   {
+    id: '068', title: 'Copy-pasted duplicated code block', category: 'code',
+    severity: 'major', authority: 'propose',
+    fix: 'Extract the shared logic into a function/component/hook. This is the refactor AI skips — and the duplication that quietly multiplies every future bug fix.',
+  },
+  {
     id: '061', title: 'Versioned duplicate file', category: 'code',
     severity: 'major', authority: 'propose',
     fix: 'Identify the live file, confirm nothing imports the copies, delete them; rely on git history.',
