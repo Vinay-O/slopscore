@@ -68,7 +68,7 @@ Then run `npm test` and `npm run selfcheck`. Both must be green before you open 
 ## PR checklist
 
 - [ ] `npm test` passes (and you added a test for your change)
-- [ ] `npm run selfcheck` is still "Breathtaking" (exit 0)
+- [ ] `npm run selfcheck` is still "Pristine" (exit 0)
 - [ ] New detector is mapped to a catalog ID in `ANTI_SLOP_PROTOCOL.md`
 - [ ] No new dependencies
 - [ ] `CHANGELOG.md` updated under the unreleased section

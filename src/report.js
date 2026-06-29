@@ -60,7 +60,7 @@ function terminalReport(result, s, options = {}) {
   out(paint(C.cyan, paint(C.bold, '  slopscore')) + paint(C.dim, `  ·  ${result.fileCount} files  ·  ${s.kloc} kLOC`));
   if (findings.length === 0) {
     out('');
-    out('   ' + paint(C.green, paint(C.bold, '✓ No slop patterns detected. Breathtaking.')));
+    out('   ' + paint(C.green, paint(C.bold, '✓ No slop patterns detected. Pristine.')));
     scoreBanner(s);
     return;
   }
@@ -106,7 +106,7 @@ function markdownReport(result, s) {
       lines.push(`| ${f.severity} | ${f.id} | ${f.title} | \`${f.file}:${f.line}\` | ${f.fix} |`);
     }
   } else {
-    lines.push('No slop patterns detected. Breathtaking.');
+    lines.push('No slop patterns detected. Pristine.');
   }
   out(lines.join('\n'));
 }
