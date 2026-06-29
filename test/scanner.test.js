@@ -314,6 +314,23 @@ test('test/tooling findings are non-production and excluded from the headline sc
   assert.strictEqual(s.nonprod.total, 1, 'the test any is reported, not scored');
 });
 
+test('inline suppression skips the targeted rule on the next line only', () => {
+  const p = tmpFile('a.ts', '// slopscore-disable-next-line 054 — fix in 2 weeks\nconst x: any = 1;\nconst y: any = 2;\n');
+  const r = scan(p);
+  assert.deepStrictEqual(r.findings.filter((f) => f.id === '054').map((f) => f.line), [3], 'line 2 suppressed, 3 kept');
+  assert.strictEqual(r.suppressed, 1);
+  // the "2 weeks" reason must not be parsed as rule 002
+  assert.ok(!r.findings.some((f) => f.id === '002'));
+});
+
+test('per-rule config disables a rule and overrides severity', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-rc-'));
+  fs.writeFileSync(path.join(dir, 'app.ts'), 'const x: any = 1;\nconst u = "http://localhost:3000";\n');
+  const r = scan([dir], { ignoreBase: dir, rules: { '054': false, '099': 'minor' } });
+  assert.ok(!r.findings.some((f) => f.id === '054'), '054 disabled');
+  assert.strictEqual((r.findings.find((f) => f.id === '099') || {}).severity, 'minor', '099 downgraded');
+});
+
 test('--sarif emits valid SARIF 2.1.0 for code scanning', () => {
   const fixture = path.join(__dirname, '..', 'examples', 'slop.tsx');
   const out = execFileSync('node', [BIN, 'scan', fixture, '--sarif', '--fail-on', 'never'], { encoding: 'utf8' });

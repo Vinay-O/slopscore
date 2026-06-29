@@ -52,6 +52,9 @@ function scoreBanner(s) {
   }
   out('');
   out('   ' + paint(C.bold, paint(color, '▶ ' + s.verdict)));
+  if (s.suppressed > 0) {
+    out('   ' + paint(C.dim, `${s.suppressed} finding${s.suppressed === 1 ? '' : 's'} suppressed inline`));
+  }
   out('');
 }
 

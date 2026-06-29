@@ -54,6 +54,7 @@ function score(result) {
     counts, weighted, density, verdict,
     kloc: klocRounded, lines: prodLines,
     nonprod: { total: nonprodList.length, counts: tally(nonprodList) },
+    suppressed: result.suppressed || 0,
   };
 }
 

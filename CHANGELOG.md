@@ -7,6 +7,10 @@ All notable changes to slopscore are documented here. Format based on
 
 ### Added
 - `--sarif` — SARIF 2.1.0 output for GitHub code scanning (inline annotations on the PR diff).
+- **Inline suppression** — `// slopscore-disable-next-line <id> — reason` (or `-line`).
+  Bare form suppresses all rules on the line; the report shows the suppressed count.
+- **Per-rule config** in `.slopscore.json` — `"rules": { "054": false, "099": "minor" }`
+  disables a rule or overrides its severity.
 
 ## [1.2.0]
 
