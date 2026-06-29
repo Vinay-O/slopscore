@@ -94,7 +94,7 @@ slopscore ships **two halves of the same idea**: a deterministic scanner you run
 
 ### 1. The scanner (deterministic, zero-dependency)
 
-Runs **51 detectors** locally in milliseconds — secrets, SQL injection, empty catches, `any`, hallucinated APIs, missing `alt`, the VibeCode-purple gradient, AI buzzword copy, god files, and more. No LLM, no network, no dependencies.
+Runs **52 detectors** locally in milliseconds — secrets, SQL injection, empty catches, `any`, hallucinated APIs, missing `alt`, the VibeCode-purple gradient, AI buzzword copy, god files, and more. No LLM, no network, no dependencies.
 
 ### 2. The protocol (for your coding agent)
 
@@ -102,7 +102,7 @@ Runs **51 detectors** locally in milliseconds — secrets, SQL injection, empty 
 
 > **"Check the system."**
 
-The agent runs a defined loop — orient → scan → score → triage → **fix** → verify → report — where every pattern carries a `DETECT`, a `FIX`, and a **fix authority** (🟢 auto-fix · 🟡 propose · 🔴 flag-for-human) so it knows what it may change on its own versus what needs your call. The **51 patterns the CLI already automates are tagged `⚙️ slopscore scan`** right in the catalog (generated from the scanner's own rule table, so the two halves never drift) — the untagged ones are where the agent earns its keep.
+The agent runs a defined loop — orient → scan → score → triage → **fix** → verify → report — where every pattern carries a `DETECT`, a `FIX`, and a **fix authority** (🟢 auto-fix · 🟡 propose · 🔴 flag-for-human) so it knows what it may change on its own versus what needs your call. The **52 patterns the CLI already automates are tagged `⚙️ slopscore scan`** right in the catalog (generated from the scanner's own rule table, so the two halves never drift) — the untagged ones are where the agent earns its keep.
 
 ```bash
 slopscore protocol | pbcopy        # copy the protocol to paste into your agent
@@ -130,6 +130,15 @@ SLOP DENSITY = weighted findings per 1,000 lines (kLOC)
 | > 12 | Vibe-coded. Audit before anyone depends on it. |
 
 > Field benchmark: established codebases run ~4.4 weighted findings/kLOC; vibe-coded ones run ~14 — over 3× higher.
+
+### The score reflects *production* risk
+
+A `console.log` in a test runner is not a SQL injection in production — so they shouldn't score the same. slopscore is context-aware by default:
+
+- **Generated and vendored files are skipped** — minified bundles (`*.min.js`), files with enormous single lines, and `@generated` headers are not your code, so they don't pollute the score.
+- **Test and tooling code is reported, not scored** — findings in `test/`, `e2e/`, `scripts/`, `__tests__/`, `*.spec.*`, etc. still surface, but they don't inflate the headline Slop Score (`5 critical … (production) · + 12 in test / tooling — reported, not scored`).
+
+The number you see is the risk you're actually shipping.
 
 ## It passes its own scan
 
@@ -199,7 +208,7 @@ files=$(git diff --cached --name-only --diff-filter=ACM)
 | `ignore` | Extra paths to skip (added to the built-in `node_modules`, `dist`, etc.) |
 | `failOn` | Exit non-zero at `critical`, `major`, `minor`, or `never` |
 
-## What it detects (51 of the 150)
+## What it detects (52 of the 150)
 
 The CLI runs the deterministic subset; the [full 150-pattern catalog](ANTI_SLOP_PROTOCOL.md) (including visual, architectural, and judgment-heavy patterns) is what you hand your agent.
 

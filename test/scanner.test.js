@@ -264,6 +264,26 @@ test('whole-file rule reports correct line numbers for many matches', () => {
   assert.deepStrictEqual(hits.map((f) => f.line).sort((a, b) => a - b), [2, 4]);
 });
 
+// Context weighting: generated/minified files are skipped, and test/tooling
+// findings are zoned non-production so the headline score reflects shipped risk.
+test('minified / generated files are skipped entirely', () => {
+  const byName = tmpFile('lib.min.js', 'try{}catch(e){}\nconst x = 1;\n');
+  assert.strictEqual(scan(byName).findings.length, 0);
+  const byHugeLine = tmpFile('huge.js', `try{}catch(e){}\n${'a'.repeat(4000)}\n`);
+  assert.strictEqual(scan(byHugeLine).findings.length, 0);
+});
+
+test('test/tooling findings are non-production and excluded from the headline score', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-zone-'));
+  fs.mkdirSync(path.join(dir, 'src'));
+  fs.mkdirSync(path.join(dir, 'test'));
+  fs.writeFileSync(path.join(dir, 'src', 'a.ts'), 'const x: any = 1;\n');  // production major
+  fs.writeFileSync(path.join(dir, 'test', 'a.ts'), 'const y: any = 1;\n'); // non-production
+  const s = score(scan([dir], { ignoreBase: dir }));
+  assert.strictEqual(s.counts.major, 1, 'only the production any is scored');
+  assert.strictEqual(s.nonprod.total, 1, 'the test any is reported, not scored');
+});
+
 // `slopscore explain <id>` surfaces a single catalog entry from the CLI.
 test('explain prints a catalog entry + fix for a valid id', () => {
   const out = execFileSync('node', [BIN, 'explain', '058'], { encoding: 'utf8' });

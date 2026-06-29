@@ -3,6 +3,17 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Context-aware scoring.** The headline Slop Score now reflects *production* risk:
+  generated/vendored/minified files (`*.min.js`, huge single-line bundles, `@generated`)
+  are skipped entirely, and findings in test/tooling/scripts are reported separately
+  ("+ N in test / tooling — reported, not scored") instead of inflating the score.
+  Each finding carries a `zone` (production | test), surfaced in `--json` and `--format agent`.
+- Detector [012] (colored card left/top border) wired into the deterministic scanner — 52
+  detectors now, and the catalog tag was added so detectors ↔ `⚙️ slopscore scan` tags stay 1:1.
+
 ## [1.1.0]
 
 ### Added
