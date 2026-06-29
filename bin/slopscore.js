@@ -108,6 +108,33 @@ function printRules() {
   }
 }
 
+function printExplain(arg) {
+  const id = String(arg || '').replace(/[^0-9]/g, '').padStart(3, '0');
+  if (!/^\d{3}$/.test(id)) {
+    err('slopscore: usage — slopscore explain <id>   e.g. slopscore explain 058');
+    process.exit(2);
+  }
+  const p = path.join(__dirname, '..', 'ANTI_SLOP_PROTOCOL.md');
+  if (!fs.existsSync(p)) { err('slopscore: ANTI_SLOP_PROTOCOL.md not found alongside the package.'); process.exit(2); }
+  const lines = fs.readFileSync(p, 'utf8').split('\n');
+  const start = lines.findIndex((l) => l.startsWith(`**${id} · `));
+  if (start === -1) { err(`slopscore: no catalog entry ${id} (ids run 001–150). Try: slopscore protocol`); process.exit(2); }
+  const block = [lines[start]];
+  for (let i = start + 1; i < lines.length; i += 1) {
+    if (/^\*\*\d{3} · /.test(lines[i])) break; // next entry
+    block.push(lines[i]);
+    if (lines[i].startsWith('`FIX:`')) break; // entry ends at its FIX line
+  }
+  const automated = new Set(LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES).map((r) => r.id));
+  out('');
+  for (const l of block) out(`  ${l}`);
+  out('');
+  out(automated.has(id)
+    ? '  ⚙️  Automated — `slopscore scan` flags this one for you.'
+    : '  ✋  Not automated by the CLI — hand the protocol to your agent for this pattern.');
+  out('');
+}
+
 const ACTION_YML = `name: anti-slop
 on: [pull_request, push]
 jobs:
@@ -148,6 +175,7 @@ USAGE
   slopscore [scan] [paths...] [options]
   slopscore protocol            print the full 150-pattern protocol (pipe to your agent)
   slopscore rules               list the deterministic detectors this CLI runs
+  slopscore explain <id>        print one catalog pattern + its fix (e.g. explain 058)
   slopscore init                write .slopscore.json + a GitHub Action PR gate
 
 OPTIONS
@@ -177,6 +205,7 @@ function main() {
   if (cmd === '--help' || cmd === '-h' || cmd === 'help') { out(HELP); return; }
   if (cmd === 'protocol') { printProtocol(); return; }
   if (cmd === 'rules') { printRules(); return; }
+  if (cmd === 'explain') { printExplain(argv[1]); return; }
   if (cmd === 'init') { runInit(); return; }
   const rest = cmd === 'scan' ? argv.slice(1) : argv;
   runScan(parseArgs(rest));

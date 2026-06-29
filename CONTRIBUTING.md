@@ -8,7 +8,7 @@ self-contained, and reviewed fast.
 
 ```bash
 git clone https://github.com/Vinay-O/slopscore && cd slopscore
-npm test            # 38 tests, zero dependencies — nothing to install
+npm test            # 40 tests, zero dependencies — nothing to install
 npm run demo        # scan the deliberately sloppy fixture
 npm run selfcheck   # prove the repo still passes its own audit
 ```

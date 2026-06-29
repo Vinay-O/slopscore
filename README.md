@@ -107,6 +107,7 @@ The agent runs a defined loop — orient → scan → score → triage → **fix
 ```bash
 slopscore protocol | pbcopy        # copy the protocol to paste into your agent
 slopscore scan . --format agent    # compact, context-window-friendly output for an agent
+slopscore explain 058              # look up any one pattern + its fix, by id
 ```
 
 The scanner finds it. The protocol fixes it. The CI gate keeps it out.
@@ -164,6 +165,22 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: npx slopscore scan . --fail-on major
+```
+
+**Want the Slop Score posted on every PR?** Add a sticky comment from the Markdown report:
+
+```yaml
+      - run: npx slopscore scan . --markdown > slop.md || true
+      - uses: marocchino/sticky-pull-request-comment@v2
+        with: { path: slop.md }
+```
+
+**Pre-commit hook** (catches slop before it's even committed — scans only what you staged):
+
+```bash
+# .git/hooks/pre-commit  (chmod +x it)
+files=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$files" ] || npx slopscore $files --fail-on major
 ```
 
 ## Configuration
@@ -227,7 +244,7 @@ Adding a detector is one object in [`src/rules.js`](src/rules.js) + a test. See 
 
 ```bash
 git clone https://github.com/Vinay-O/slopscore && cd slopscore
-npm test          # 38 tests, zero dependencies
+npm test          # 40 tests, zero dependencies
 npm run demo      # scan the sloppy fixture
 npm run selfcheck # prove the repo passes its own audit
 ```

@@ -6,8 +6,12 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
+const { execFileSync } = require('node:child_process');
+
 const { scan } = require('../src/scanner');
 const { score } = require('../src/score');
+
+const BIN = path.join(__dirname, '..', 'bin', 'slopscore.js');
 
 function tmpFile(name, contents) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-'));
@@ -258,6 +262,21 @@ test('whole-file rule reports correct line numbers for many matches', () => {
   const hits = scan(p).findings.filter((f) => f.id === '053');
   assert.strictEqual(hits.length, 2);
   assert.deepStrictEqual(hits.map((f) => f.line).sort((a, b) => a - b), [2, 4]);
+});
+
+// `slopscore explain <id>` surfaces a single catalog entry from the CLI.
+test('explain prints a catalog entry + fix for a valid id', () => {
+  const out = execFileSync('node', [BIN, 'explain', '058'], { encoding: 'utf8' });
+  assert.match(out, /058 ·/);
+  assert.match(out, /`FIX:`/);
+  assert.match(out, /Automated/);
+});
+
+test('explain errors (exit 2) on an out-of-range id', () => {
+  assert.throws(
+    () => execFileSync('node', [BIN, 'explain', '999'], { encoding: 'utf8', stdio: 'pipe' }),
+    (e) => e.status === 2,
+  );
 });
 
 // The keystone invariant: a linter about not shipping slop must not BE slop.
