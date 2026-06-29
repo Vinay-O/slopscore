@@ -8,6 +8,9 @@ All notable changes to slopscore are documented here. Format based on
 ### Added
 - **`--watch` / `-w`** — re-scan on every file change (a live local conscience).
   Uses recursive `fs.watch` with a polling fallback; no new dependencies.
+- **`--history [file]`** — record the Slop Score over time and print a trend
+  sparkline ("`█▃▁  0 weighted · down 100% since last run`"). Commit
+  `.slopscore-history.json` and watch the number move sprint over sprint.
 
 ### Changed
 - **Cohesion-aware god-file (055).** A large file is only flagged when it's also
