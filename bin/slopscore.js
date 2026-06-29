@@ -100,7 +100,7 @@ function recordTrend(opts, s) {
 // (so --watch can call it in a loop). `record` appends to the score history.
 function scanAndReport(opts, cfg, baseDir, failOn, record) {
   const ignore = (cfg.ignore || []).concat(opts.ignore);
-  const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules: cfg.rules });
+  const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules: cfg.rules, paths: cfg.paths });
   if (opts.baseline) {
     const existing = loadBaseline(opts.baseline);
     if (existing) {
@@ -152,7 +152,7 @@ function runScan(opts) {
   // Baseline snapshot is a one-shot action (write the accepted floor, then exit).
   if (opts.baseline && (opts.updateBaseline || !loadBaseline(opts.baseline))) {
     const ignore = (cfg.ignore || []).concat(opts.ignore);
-    const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules: cfg.rules });
+    const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules: cfg.rules, paths: cfg.paths });
     const n = writeBaseline(opts.baseline, result.findings, new Date().toISOString());
     out(`slopscore: ${opts.updateBaseline ? 'updated' : 'wrote'} baseline ${opts.baseline} (${n} findings).`);
     out('Future scans with --baseline report and gate only on NEW slop.');
