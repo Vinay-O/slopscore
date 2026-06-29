@@ -3,9 +3,17 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.2.0]
+
+### Added
+- **Baseline / ratchet mode** (`--baseline [file]`, `--update-baseline`). Snapshot
+  the findings already in a codebase, then fail CI only on *new* slop — so a team
+  with 500 existing findings can adopt the gate today and the count only goes down.
+  Findings are keyed by content (not line number), so moving code is never "new."
 
 ### Changed
+- The CI gate is now production-focused: findings in test/tooling are reported but
+  don't fail the build (consistent with the context-weighted score).
 - Reworded the zero-slop verdict from "Breathtaking" to **"Pristine. Ship it."**
   (verdict band, report messages, self-scan badge, and the protocol's quality bar).
 

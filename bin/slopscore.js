@@ -7,6 +7,9 @@ const { scan } = require('../src/scanner');
 const { score } = require('../src/score');
 const report = require('../src/report');
 const { LINE_RULES, WHOLE_FILE_RULES, META_RULES } = require('../src/rules');
+const { fingerprint, loadBaseline, writeBaseline } = require('../src/baseline');
+
+const DEFAULT_BASELINE = '.slopscore-baseline.json';
 
 const out = (s) => process.stdout.write(s + '\n');
 const err = (s) => process.stderr.write(s + '\n');
@@ -26,6 +29,10 @@ function parseArgs(argv) {
     else if (a === '--max') { const v = parseInt(argv[++i], 10); if (Number.isInteger(v) && v >= 0) opts.max = v; }
     else if (a === '--fail-on') { opts.failOn = argv[++i]; opts.failOnSet = true; }
     else if (a === '--ignore') opts.ignore.push(argv[++i]);
+    else if (a === '--baseline') {
+      const next = argv[i + 1];
+      if (next && !next.startsWith('-')) { opts.baseline = next; i += 1; } else opts.baseline = DEFAULT_BASELINE;
+    } else if (a === '--update-baseline') { opts.updateBaseline = true; opts.baseline = opts.baseline || DEFAULT_BASELINE; }
     else if (!a.startsWith('-')) opts.paths.push(a);
   }
   if (opts.paths.length === 0) opts.paths.push('.');
@@ -77,15 +84,31 @@ function runScan(opts) {
   const ignore = (cfg.ignore || []).concat(opts.ignore);
   const failOn = opts.failOnSet ? opts.failOn : (cfg.failOn || opts.failOn);
   const result = scan(opts.paths, { ignore, ignoreBase: baseDir });
-  const s = score(result);
 
+  // Baseline / ratchet mode: snapshot accepted findings, then fail only on NEW slop.
+  if (opts.baseline) {
+    const existing = opts.updateBaseline ? null : loadBaseline(opts.baseline);
+    if (!existing) {
+      const n = writeBaseline(opts.baseline, result.findings, new Date().toISOString());
+      out(`slopscore: ${opts.updateBaseline ? 'updated' : 'wrote'} baseline ${opts.baseline} (${n} findings).`);
+      out('Future scans with --baseline report and gate only on NEW slop.');
+      process.exit(0);
+    }
+    const known = result.findings.filter((f) => existing.has(fingerprint(f))).length;
+    result.findings = result.findings.filter((f) => !existing.has(fingerprint(f)));
+    result.baseline = { known, file: opts.baseline };
+  }
+
+  const s = score(result);
   if (opts.format === 'json') report.jsonReport(result, s);
   else if (opts.format === 'markdown') report.markdownReport(result, s);
   else if (opts.format === 'agent') report.agentReport(result, s);
   else report.terminalReport(result, s, { max: opts.max });
 
+  // The CI gate fails on PRODUCTION findings only (test/tooling is reported, not gated)
+  // — and, under --baseline, only on findings new since the snapshot.
   const gate = FAIL_GATE[failOn] || FAIL_GATE.major;
-  const failing = result.findings.some((f) => SEV_RANK[f.severity] >= gate);
+  const failing = result.findings.some((f) => f.zone !== 'test' && SEV_RANK[f.severity] >= gate);
   process.exit(failing ? 1 : 0);
 }
 
@@ -183,6 +206,9 @@ OPTIONS
   --markdown                 a Markdown report (great for PR comments)
   --format agent             compact output for feeding an AI agent
   --fail-on <level>          exit non-zero at: critical | major | minor | never  (default: major)
+  --baseline [file]          ratchet mode: snapshot current findings, then fail only
+                             on NEW slop (default file: .slopscore-baseline.json)
+  --update-baseline          re-snapshot the baseline (accept the current findings)
   --max <n>                  max findings to print in the terminal     (default: 40)
   --ignore <path>            extra path to ignore (repeatable)
   --no-color                 disable ANSI color
