@@ -369,6 +369,18 @@ test('inline suppression skips the targeted rule on the next line only', () => {
   assert.ok(!r.findings.some((f) => f.id === '002'));
 });
 
+test('per-path config disables a rule under one directory only', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-pp-'));
+  fs.mkdirSync(path.join(dir, 'legacy'));
+  fs.mkdirSync(path.join(dir, 'src'));
+  fs.writeFileSync(path.join(dir, 'legacy', 'o.ts'), 'const x: any = 1;\n');
+  fs.writeFileSync(path.join(dir, 'src', 'n.ts'), 'const y: any = 1;\n');
+  const flagged = scan([dir], { ignoreBase: dir, paths: { 'legacy/': { '054': false } } })
+    .findings.filter((f) => f.id === '054').map((f) => f.file);
+  assert.ok(flagged.some((f) => f.includes('src')), 'src still flagged');
+  assert.ok(!flagged.some((f) => f.includes('legacy')), 'legacy suppressed');
+});
+
 test('per-rule config disables a rule and overrides severity', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-rc-'));
   fs.writeFileSync(path.join(dir, 'app.ts'), 'const x: any = 1;\nconst u = "http://localhost:3000";\n');

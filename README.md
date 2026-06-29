@@ -212,6 +212,16 @@ slopscore scan . --update-baseline # accept the current state as the new floor
 
 The baseline keys findings by content, not line number — so moving code around never registers as new slop. Commit `.slopscore-baseline.json` and your CI gate goes green today while the count only ever goes down.
 
+## Local development
+
+```bash
+slopscore scan . --watch       # re-scan on every save — a live conscience
+slopscore scan . --history     # record the score over time + a trend sparkline
+slopscore scan . --sarif       # inline annotations on the PR diff (code scanning)
+```
+
+`--history` writes `.slopscore-history.json` and prints `trend  █▃▁  0 weighted · down 100% since last run` — commit it and watch slop fall sprint over sprint.
+
 ## Configuration
 
 `.slopscore.json` in your repo root:
@@ -223,6 +233,9 @@ The baseline keys findings by content, not line number — so moving code around
   "rules": {
     "054": false,
     "099": "minor"
+  },
+  "paths": {
+    "legacy/": { "*": "minor" }
   }
 }
 ```
@@ -232,6 +245,7 @@ The baseline keys findings by content, not line number — so moving code around
 | `ignore` | Extra paths to skip (added to the built-in `node_modules`, `dist`, etc.) |
 | `failOn` | Exit non-zero at `critical`, `major`, `minor`, or `never` |
 | `rules` | Per-rule overrides — `false`/`"off"` disables a rule; `"critical"`/`"major"`/`"minor"` overrides its severity |
+| `paths` | Per-directory overrides — same shape as `rules`, plus `"*"` to target every rule under a path (e.g. soften all of `legacy/`) |
 
 **Suppress one finding inline** with a directive (require a reason for your future self):
 

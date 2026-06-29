@@ -12,6 +12,9 @@ All notable changes to slopscore are documented here. Format based on
   sparkline ("`█▃▁  0 weighted · down 100% since last run`"). Commit
   `.slopscore-history.json` and watch the number move sprint over sprint.
 
+- **Per-directory config** — `.slopscore.json` `"paths": { "legacy/": { "*": "minor" } }`
+  applies rule overrides under a path (`"*"` targets every rule). Per-path wins over global.
+
 ### Changed
 - **Cohesion-aware god-file (055).** A large file is only flagged when it's also
   *sprawling* (many top-level functions/classes); a 2,000-line registry, lookup
