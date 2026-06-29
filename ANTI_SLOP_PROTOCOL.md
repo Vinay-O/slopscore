@@ -1104,7 +1104,7 @@ A 600-line `server.js`/`app.py` holding routes, DB logic, business rules, middle
 `DETECT:` single server file > 400 lines · all routes+logic in one file · no route/controller/service split.
 `FIX:` Split into routes → controllers → services → data layers. PROPOSE — incremental extraction, behavior-preserving, on a branch.
 
-**136 · No loading skeleton — white flash before content** `🟡` `🟢 AUTO`
+**136 · No loading skeleton — white flash before content** `🟡` `🟢 AUTO` `⚙️ slopscore scan`
 `if (loading) return null` → blank flash before content paints.
 `DETECT:` `if (loading) return null` · loading state rendering empty.
 `FIX:` Render a skeleton/spinner (or keep the previous content) during load. AUTO — add a basic skeleton matching the layout.

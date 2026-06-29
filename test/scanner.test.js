@@ -314,6 +314,18 @@ test('test/tooling findings are non-production and excluded from the headline sc
   assert.strictEqual(s.nonprod.total, 1, 'the test any is reported, not scored');
 });
 
+test('136 flags a hollow loading state (returns null) but not a real spinner', () => {
+  const bad = tmpFile('a.tsx', 'function C(){ if (loading) return null; return <div/>; }\n');
+  assert.ok(ids(scan(bad)).includes('136'));
+  const ok = tmpFile('b.tsx', 'function C(){ if (loading) return <Spinner/>; }\n');
+  assert.ok(!ids(scan(ok)).includes('136'));
+});
+
+test('142 catches current aliased model ids', () => {
+  const p = tmpFile('a.ts', 'const m = "claude-sonnet-4";\nconst n = "gpt-4.1";\n');
+  assert.ok(ids(scan(p)).includes('142'));
+});
+
 test('068 flags an identical block copy-pasted across files, not a unique one', () => {
   const block = 'function totals(items, rate) {\n  let sub = 0;\n  for (const it of items) {\n    sub += it.price * it.qty;\n  }\n  const tax = sub * rate;\n  return { sub, tax, total: sub + tax };\n}\n';
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-dup-'));
