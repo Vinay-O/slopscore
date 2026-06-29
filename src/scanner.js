@@ -256,14 +256,25 @@ function scanWholeFileRules(file, ext, isTest, text, lines, findings) {
   }
 }
 
-function checkFileSize(file, ext, isTest, lineCount, findings) {
+// Count top-level "responsibilities" — function/class/exported declarations. A
+// large file with FEW units (a registry, one cohesive class, a generated table)
+// is not a god file; a large file with MANY is. This is the cohesion signal that
+// keeps slopscore from calling a 2,000-line lookup table "slop".
+function countTopLevelUnits(lines, ext) {
+  const re = ext === '.py'
+    ? /^(async\s+def|def|class)\s+\w/
+    : /^(export\s+)?(default\s+)?(async\s+)?(function\s+\w|class\s+\w|interface\s+\w|enum\s+\w|const\s+\w+\s*=\s*(async\s*)?(\([^)]*\)|\w+)\s*=>)/;
+  let n = 0;
+  for (const l of lines) if (re.test(l)) n += 1;
+  return n;
+}
+
+function checkFileSize(file, ext, isTest, lineCount, lines, findings) {
   const CODE_LIKE = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.py', '.go', '.rb', '.php', '.vue', '.svelte'];
-  if (isTest || !CODE_LIKE.includes(ext)) return;
-  if (lineCount > HUGE_FILE_LINES) {
-    findings.push(godFinding(file, lineCount, 'critical'));
-  } else if (lineCount > GOD_FILE_LINES) {
-    findings.push(godFinding(file, lineCount, 'major'));
-  }
+  if (isTest || !CODE_LIKE.includes(ext) || lineCount <= GOD_FILE_LINES) return;
+  // Only flag when the file is also SPRAWLING (many separate responsibilities).
+  if (countTopLevelUnits(lines, ext) < 8) return;
+  findings.push(godFinding(file, lineCount, lineCount > HUGE_FILE_LINES ? 'critical' : 'major'));
 }
 
 function godFinding(file, count, severity) {
@@ -421,7 +432,7 @@ function scan(target, options = {}) {
     const before = findings.length;
     scanLineRules(file, ext, isTest, text, lines, mask, findings, project);
     scanWholeFileRules(file, ext, isTest, text, lines, findings);
-    checkFileSize(file, ext, isTest, lineCount, findings);
+    checkFileSize(file, ext, isTest, lineCount, lines, findings);
     // Apply inline suppressions and tag the zone on this file's findings.
     const suppress = buildSuppressions(lines);
     const fresh = findings.splice(before);
