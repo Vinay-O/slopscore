@@ -101,11 +101,11 @@ test('skips test files for skipTests rules', () => {
   assert.ok(!ids(scan(p)).includes('052'));
 });
 
-test('score: clean input is breathtaking', () => {
+test('score: clean input is pristine', () => {
   const p = tmpFile('a.js', 'export const add = (a, b) => a + b;\n');
   const s = score(scan(p));
   assert.strictEqual(s.weighted, 0);
-  assert.match(s.verdict, /Breathtaking/);
+  assert.match(s.verdict, /Pristine/);
 });
 
 test('score: critical weighs 10, major 3, minor 1', () => {

@@ -7,7 +7,7 @@
 ## Checklist
 
 - [ ] `npm test` passes, and I added a test for this change (positive + negative where a false positive is plausible)
-- [ ] `npm run selfcheck` is still **Breathtaking** (exit 0) — slopscore must pass its own scan
+- [ ] `npm run selfcheck` is still **Pristine** (exit 0) — slopscore must pass its own scan
 - [ ] New detector maps to a catalog ID in `ANTI_SLOP_PROTOCOL.md`
 - [ ] No new dependencies (slopscore is zero-dependency, forever)
 - [ ] `CHANGELOG.md` updated
