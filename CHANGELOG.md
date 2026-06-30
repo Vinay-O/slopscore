@@ -6,6 +6,12 @@ All notable changes to slopscore are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- **Agent auto-adoption — `slopscore init` now writes `AGENTS.md`.** Any coding agent
+  that reads `AGENTS.md` / `CLAUDE.md` (Cursor, Codex, Claude Code, Aider, Windsurf,
+  Cline) now auto-discovers the protocol: load `npx slopscore protocol`, follow it, and
+  gate on `npx slopscore scan` before finishing — no need to tell the agent "use
+  slopscore" each session. Idempotent: appends to an existing file (guarded by a marker)
+  instead of overwriting.
 - **Security detector expansion — 12 new high-signal checks (163–174).** TLS/cert
   verification disabled (`rejectUnauthorized: false`, `verify=False`,
   `InsecureSkipVerify`), weak hashing for security (MD5/SHA-1, scoped so a content
