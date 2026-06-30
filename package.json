@@ -1,6 +1,6 @@
 {
   "name": "slopscore",
-  "version": "1.7.3",
+  "version": "1.8.0",
   "description": "Scan your codebase for AI slop, get a Slop Score, ship clean. Zero dependencies. 85 detectors (security, performance, code quality, design tells) + a 181-pattern Anti-Slop Protocol for AI coding agents.",
   "bin": {
     "slopscore": "bin/slopscore.js"

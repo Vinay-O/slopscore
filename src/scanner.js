@@ -56,7 +56,6 @@ const TEXT_EXTS = new Set([
 const TEST_RE = /(\.test\.|\.spec\.|__tests__|\.stories\.|\.cy\.|(^|[\\/])test_[^\\/]*\.py$|[^\\/]*_test\.(py|go|rb)$|[^\\/]*_spec\.rb$|(^|[\\/])conftest\.py$)/;
 const MAX_BYTES = 2 * 1024 * 1024;
 const GOD_FILE_LINES = 500;
-const HUGE_FILE_LINES = 800;
 const DEP_BUDGET = 80;
 const THIN_README_LINES = 20;
 const SEVERITIES = new Set(['critical', 'major', 'minor']);
@@ -247,7 +246,10 @@ function checkFileSize(file, ext, isTest, lineCount, lines, findings) {
   if (isTest || !CODE_LIKE.includes(ext) || lineCount <= GOD_FILE_LINES) return;
   // Only flag when the file is also SPRAWLING (many separate responsibilities).
   if (countTopLevelUnits(lines, ext) < 8) return;
-  findings.push(godFinding(file, lineCount, lineCount > HUGE_FILE_LINES ? 'critical' : 'major'));
+  // A god file is a maintainability smell on a line-count heuristic — never the
+  // most-severe class. Cap at major (a huge one is still just major), so the
+  // severity stays consistent with the medium confidence we report.
+  findings.push(godFinding(file, lineCount, 'major'));
 }
 
 function godFinding(file, count, severity) {

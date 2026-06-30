@@ -21,7 +21,8 @@ test('init scaffolds config, CI workflow, and an agent directive', () => {
   assert.ok(fs.existsSync(path.join(dir, '.github', 'workflows', 'anti-slop.yml')));
   const agents = fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf8');
   assert.match(agents, /slopscore protocol/, 'tells the agent to load the catalog');
-  assert.match(agents, /scan \. --fail-on major/, 'tells the agent to gate on a scan');
+  assert.match(agents, /--fail-on major/, 'tells the agent to gate on a scan');
+  assert.match(agents, /--format agent/, 'points the agent at agent mode');
   assert.match(agents, /<!-- slopscore:anti-slop -->/, 'carries the idempotency marker');
 });
 

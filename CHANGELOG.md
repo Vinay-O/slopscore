@@ -3,6 +3,34 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.8.0] — 2026-06-30
+
+> Adoption fixes from a real-world run on a ~500k-line codebase: the detectors were
+> right, but the verdict logic buried the findings that matter. These make the output
+> CI-grade on mature, opinionated codebases.
+
+### Added
+- **Honor inline `eslint-disable`** (#41). A finding the project already, deliberately,
+  signed off via `// eslint-disable-(next-)line <rule>` is no longer re-reported —
+  today for `052` (`no-console`) and `054` (`@typescript-eslint/no-explicit-any`).
+  **Security rules carry no eslint mapping**, so an `eslint-disable` — even a bare
+  all-rules one — can never silence `eval`, SQLi, a hardcoded secret, etc.
+- **Agent mode is now discoverable.** Every terminal run footer points to
+  `slopscore scan --format agent` (the compact, fix-authority-tagged output built for
+  AI agents) + `slopscore protocol`; the generated `AGENTS.md` tells agents to *prefer*
+  agent mode.
+
+### Changed
+- **Repeated findings are clustered** so a high-volume, low-signal detector (e.g. `068`
+  on a design system's repeated markup) can't wall the output and bury the few findings
+  that matter. A rule is shown a few times inline, then collapsed into one
+  `+N more [068] … across M files — likely a repeated pattern; "rules": { "068": "off" }`
+  line. The real criticals surface first. (The weighted score was already per-rule
+  capped; this fixes the *display*.)
+- **A god file (`055`) is never CRITICAL.** It's a maintainability smell on a line-count
+  heuristic — now capped at **major**, consistent with the medium confidence it reports
+  (was escalating to critical past 800 lines).
+
 ## [1.7.3] — 2026-06-30
 
 ### Changed
