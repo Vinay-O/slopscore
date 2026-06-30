@@ -100,10 +100,13 @@ const LINE_RULES = [
   },
   {
     id: '142', title: 'Unpinned / aliased LLM model string', category: 'supply-chain', severity: 'major',
-    authority: 'propose', exts: null, skipTests: true, respectComments: false,
+    authority: 'propose', exts: null, skipTests: true, respectComments: false, confidence: 'medium',
     // Aliased/unpinned model ids that silently move under you (gpt-4o, claude-sonnet-4,
     // gemini-1.5-pro…). Requires the id in quotes so it's a real model string, not prose.
     re: /['"](gpt-[0-9o][\w.-]*|claude-[\w.-]+|gemini-[0-9][\w.-]*|text-embedding-[\w.-]+|dall-e-[\w.-]*)['"]/i,
+    // A date-pinned id (…-20241022 / …-2024-08-06) is exactly the recommended
+    // practice — never flag it.
+    unless: /-\d{8}\b|-\d{4}-\d{2}-\d{2}\b/,
     fix: 'Pin an exact, current model id (with its date suffix) and move it to config/env. Confirm the id is real — aliases get deprecated and slopsquatted.',
   },
   {
@@ -137,7 +140,9 @@ const LINE_RULES = [
   {
     id: '106', title: 'alert() / confirm() / prompt() in production', category: 'architecture',
     authority: 'propose', exts: CODE, skipTests: true, respectComments: true, severity: 'minor',
-    re: /(?<![\w.])(alert|confirm|prompt)\s*\(/,
+    // The global call only — not a method (lookbehind on `.`) and not a function or
+    // method DEFINITION named confirm/prompt (the app's own dialog wrapper).
+    re: /(?<![\w.])(?<!function\s)(alert|confirm|prompt)\s*\((?![^)]*\)\s*\{)/,
     // Don't flag an LLM/AI `prompt(...)` function — that's our own audience's code.
     unless: /system|user|assistant|\bllm\b|gpt|claude|chat|message|template|completion|tokens?\b/i,
     fix: 'Replace native blocking dialogs with the app toast/dialog components.',
@@ -367,6 +372,9 @@ const LINE_RULES = [
     id: '152', title: 'Comparison to None with == (Python)', category: 'code', severity: 'minor',
     authority: 'auto', exts: PY, skipTests: false, respectComments: true,
     re: /[!=]=\s*None\b/,
+    // SQLAlchemy / Django ORM build SQL (`IS NULL`) with `Column == None` inside a
+    // .filter()/.where() — that's required, not slop. Don't flag those lines.
+    unless: /\.(filter|where|having|exclude)\s*\(|filter_by\s*\(/,
     fix: 'Use `is None` / `is not None` — None is a singleton; `==` can be overridden and is slower.',
   },
   {
@@ -405,9 +413,9 @@ const LINE_RULES = [
   },
   {
     id: '158', title: 'fmt.Print debugging (Go)', category: 'code', severity: 'minor',
-    authority: 'auto', exts: GO, skipTests: true, respectComments: true,
+    authority: 'propose', exts: GO, skipTests: true, respectComments: true, confidence: 'medium',
     re: /\bfmt\.Print(ln|f)?\s*\(/,
-    fix: 'Remove it, or use log / a structured logger with levels.',
+    fix: 'For diagnostics use log / a structured logger with levels. (Leave it if this is the program\'s real output.)',
   },
   {
     id: '159', title: 'Command injection via exec sh -c (Go)', category: 'security', severity: 'critical',
@@ -503,9 +511,10 @@ const LINE_RULES = [
   {
     id: '172', title: 'eval() / new Function() on dynamic input', category: 'security', severity: 'critical',
     authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
-    // Match the global eval(...) only — NOT a method call like model.eval() or
-    // query.evaluate(): a leading `.` or word char means it's some object's method.
-    re: /(?<![.\w$])eval\s*\(|new\s+Function\s*\(/,
+    // Match the global eval(...) call only — NOT a method call like model.eval()
+    // (leading `.`/word), NOT a function/method DEFINITION named eval (an expression
+    // engine's own method): `function eval(` or `eval(params) {`.
+    re: /(?<![.\w$])(?<!function\s)eval\s*\((?![^)]*\)\s*\{)|new\s+Function\s*\(/,
     fix: 'Avoid eval / new Function — it is arbitrary code execution. Use JSON.parse, a lookup table, or a real parser.',
   },
   {
@@ -554,19 +563,21 @@ const LINE_RULES = [
     id: '179', title: '== True / == False comparison (Python)', category: 'code', severity: 'minor',
     authority: 'propose', exts: PY, skipTests: true, respectComments: true,
     re: /[!=]=\s*(True|False)\b/,
+    // ORM filter expressions (`Column == True`) compile to SQL `= true` — required.
+    unless: /\.(filter|where|having|exclude)\s*\(|filter_by\s*\(/,
     fix: 'Compare by truthiness: `if x:` / `if not x:`. `== True` is redundant and wrong for truthy non-bool values.',
   },
   {
-    id: '180', title: 'Debug print macro (Rust)', category: 'code', severity: 'major',
+    id: '180', title: 'Debug print macro (Rust)', category: 'code', severity: 'minor',
     authority: 'propose', exts: RUST, skipTests: true, respectComments: true, confidence: 'medium',
     re: /\b(dbg!|println!|eprintln!|print!|eprint!)\s*\(/,
-    fix: 'Use the log / tracing crate (debug!/info!) for diagnostics; reserve println! for real program output. Remove dbg!/stray prints.',
+    fix: 'dbg! is never meant to ship; for diagnostics use log / tracing (debug!/info!). Leave println! if it is the program\'s real output.',
   },
   {
-    id: '181', title: 'panic() in library code (Go)', category: 'code', severity: 'major',
-    authority: 'flag', exts: GO, skipTests: true, respectComments: true,
+    id: '181', title: 'panic() instead of returning an error (Go)', category: 'code', severity: 'major',
+    authority: 'flag', exts: GO, skipTests: true, respectComments: true, confidence: 'medium',
     re: /\bpanic\s*\(/,
-    fix: 'Return an error and let the caller decide. panic() takes down the whole process; reserve it for truly unrecoverable init failures.',
+    fix: 'Prefer returning an error so the caller decides — panic() takes down the whole process. Fair only for a truly unrecoverable init failure (FLAG: a human should confirm which this is).',
   },
 ];
 

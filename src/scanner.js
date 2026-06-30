@@ -42,7 +42,10 @@ const TEXT_EXTS = new Set([
   '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.svelte', '.css', '.scss',
   '.sass', '.less', '.html', '.py', '.go', '.rb', '.php', '.rs',
 ]);
-const TEST_RE = /(\.test\.|\.spec\.|__tests__|\.stories\.|\.cy\.)/;
+// Test files across ecosystems — JS (.test./.spec./__tests__/.stories./.cy.),
+// pytest (test_*.py, *_test.py, conftest.py), Go (*_test.go), Ruby (*_test.rb,
+// *_spec.rb). Used both to gate skipTests rules and (via zoneOf) the score zone.
+const TEST_RE = /(\.test\.|\.spec\.|__tests__|\.stories\.|\.cy\.|(^|[\\/])test_[^\\/]*\.py$|[^\\/]*_test\.(py|go|rb)$|[^\\/]*_spec\.rb$|(^|[\\/])conftest\.py$)/;
 const MAX_BYTES = 2 * 1024 * 1024;
 const GOD_FILE_LINES = 500;
 const HUGE_FILE_LINES = 800;
@@ -66,7 +69,7 @@ function looksGenerated(file, lines) {
 const NONPROD_PATH = /(^|[\\/])(tests?|specs?|e2e|__tests__|__mocks__|fixtures?|mocks?|cypress|\.storybook|scripts?|tooling|benchmarks?|bench|audit)([\\/]|$)/i;
 const NONPROD_FILE = /\.(test|spec|stories|cy|e2e|bench)\.[a-z]+$/i;
 function zoneOf(file) {
-  return (NONPROD_PATH.test(file) || NONPROD_FILE.test(file)) ? 'test' : 'production';
+  return (NONPROD_PATH.test(file) || NONPROD_FILE.test(file) || TEST_RE.test(file)) ? 'test' : 'production';
 }
 
 // Project-level context computed before scanning, so cross-file facts can suppress

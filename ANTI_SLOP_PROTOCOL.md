@@ -1227,8 +1227,8 @@ and the agent-spread phantom `react-codeshift`.
 `model: "gpt-4o"` (or whatever the AI happened to know) hardcoded in app code — unpinned, undated, and
 not configurable. Breaks silently when the alias moves or is deprecated; can't be swapped per
 environment.
-`DETECT:` model name string literals in source · no env/config indirection · aliases the model "just knew."
-`FIX:` Pin the exact, current model id, move it to config/env, and centralize the client. Confirm the id is real and available rather than a remembered/guessed one. PROPOSE.
+`DETECT:` an un-dated model alias string literal (`gpt-4o`, `claude-sonnet-4`). A date-pinned id (`…-20241022`, `…-2024-08-06`) is the recommended practice and is NOT flagged.
+`FIX:` Pin the exact, current model id (with its date suffix), move it to config/env, and centralize the client. Confirm the id is real rather than remembered/guessed. PROPOSE.
 
 **143 · Source maps / build artifacts shipped to production** `🔴` `🔴 FLAG` `⚙️ slopscore scan`
 Production source maps (or other build artifacts) exposing original source. This is exactly how
@@ -1359,15 +1359,15 @@ A bare `print(…)` left in application code — the Python cousin of a stray `c
 `DETECT:` `== True` / `== False` / `!= True` / `!= False`.
 `FIX:` Compare by truthiness: `if x:` / `if not x:`. Opt-in: `slopscore fix --only 179` strips the removable `== True` / `!= False` forms.
 
-**180 · Debug print macro (Rust)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+**180 · Debug print macro (Rust)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
 `dbg!(…)` is never meant to ship; `println!`/`eprintln!` left in as diagnostics are the Rust equivalent of `console.log`.
 `DETECT:` `dbg!(` · `println!(` · `eprintln!(` · `print!(` · `eprint!(`.
 `FIX:` Use the `log`/`tracing` crate (`debug!`/`info!`); reserve `println!` for real program output. (Detector only — slopscore never deletes the macro for you, since `dbg!(x)` can be a block's return value.)
 
-**181 · `panic()` in library code (Go)** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+**181 · `panic()` instead of returning an error (Go)** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
 `panic()` unwinds and crashes the whole process — an AI shortcut where a returned `error` belongs.
 `DETECT:` `panic(`.
-`FIX:` Return an `error` and let the caller decide. Reserve `panic` for genuinely unrecoverable init failures. FLAG.
+`FIX:` Return an `error` and let the caller decide. A `panic` is fair only for a truly unrecoverable init failure — FLAG so a human confirms which this is.
 
 ---
 
