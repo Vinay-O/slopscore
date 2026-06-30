@@ -296,7 +296,7 @@ Each entry: **ID · Title** `SEVERITY` `AUTHORITY` — description, `DETECT` (ho
 (aesthetic tell). Authority: 🟢 AUTO · 🟡 PROPOSE · 🔴 FLAG (see §0).
 
 A `` `⚙️ slopscore scan` `` tag means **the deterministic CLI already detects this pattern** —
-`npx slopscore` flags it for you with the exact location and fix. **78 of the 174** carry this tag
+`npx slopscore` flags it for you with the exact location and fix. **81 of the 177** carry this tag
 today; the rest need an AST tool (§2.1) or human reading (layout sameness, fake features,
 architectural drift). The tags are generated from the scanner's own rule table, so they never
 drift from what the CLI actually does. Patterns *without* the tag are where you, the agent, earn
@@ -888,6 +888,21 @@ Three independent `await`s in a row that could run in parallel.
 Landing + dashboard + admin all loaded on first visit.
 `DETECT:` no dynamic imports in routes · single bundle output · no chunk splitting in config.
 `FIX:` Route-level code splitting + vendor chunking via the bundler. PROPOSE; verify with a bundle analyzer. (This is the build-config side; 092 is the missing runtime `React.lazy`/`Suspense`.)
+
+**175 · Deep clone via JSON round-trip** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+`JSON.parse(JSON.stringify(obj))` is the copy-paste deep clone — slow (full serialize + parse) and lossy: it silently drops `Date`, `Map`, `Set`, `undefined`, and functions, turning bugs into mysteries.
+`DETECT:` `JSON.parse(JSON.stringify(`.
+`FIX:` `structuredClone(obj)` for a correct deep copy, or a targeted shallow copy (`{ ...obj }`) when that's all you need.
+
+**176 · `SELECT *` over-fetch** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+`SELECT * FROM …` pulls every column over the wire whether you use it or not — extra IO, broken assumptions when the schema changes, and a covering index that no longer covers.
+`DETECT:` `SELECT * FROM`.
+`FIX:` Name the columns you actually read. It documents intent and keeps the query fast as the table grows.
+
+**177 · `forEach` with an async callback** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+`array.forEach(async (x) => …)` looks like it awaits but doesn't — `forEach` throws the returned promises away, so the work runs unsequenced and any rejection is swallowed. A classic AI-introduced race.
+`DETECT:` `.forEach(async`.
+`FIX:` `for (const x of array) { await … }` for sequential work, or `await Promise.all(array.map(async …))` to run them in parallel and surface errors.
 
 ---
 

@@ -18,6 +18,10 @@ All notable changes to slopscore are documented here. Format based on
 - **`--category <names>` focus filter.** Run a focused audit — e.g.
   `slopscore scan . --category security` — scoring and reporting only the categories
   you name (comma-separated).
+- **Performance detectors (new `performance` category).** `175` deep-clone via
+  `JSON.parse(JSON.stringify())`, `176` `SELECT *` over-fetch, `177` `forEach` with an
+  async callback (unawaited work / swallowed errors). `093` (whole-library import) is
+  now grouped under performance too. Catalog is now **177 patterns / 81 detectors**.
 
 ### Changed
 - The count-invariant test now derives the catalog total instead of hardcoding it,
