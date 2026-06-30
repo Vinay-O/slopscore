@@ -3,7 +3,11 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.6.0] — 2026-06-30
+
+Trust-and-coverage release, implementing the improvements from a real production-app
+evaluation: the score is harder to skew, the visual detectors understand CSS-in-JS,
+there's an auto-fixer, and output is safe on Windows.
 
 ### Changed
 - **Scoring trust — no single detector defines the verdict.** The weighted score now
