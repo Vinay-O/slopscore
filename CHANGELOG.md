@@ -3,6 +3,18 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.7.2] — 2026-06-30
+
+### Fixed
+- **`163` no longer false-positives on a `session` parameter.** A clean-install test of
+  the published 1.7.1 caught it: `def active(session, verify=False)` fired the critical
+  "TLS verification disabled" rule, because `session` (a very common DB-session param
+  name) had been treated as an HTTP-client signal. `163` now requires a real HTTP client
+  (`requests`/`httpx`/`aiohttp`/`urllib3`), a `.get(…verify=False)` method call,
+  `.verify = False`, or `verify_ssl=False` — a generic `verify=False` param is left alone.
+  Real bypasses (`requests.get(…, verify=False)`, `session.get(…, verify=False)`,
+  `session.verify = False`, `httpx.Client(verify=False)`) are still caught.
+
 ## [1.7.1] — 2026-06-30
 
 ### Fixed
