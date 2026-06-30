@@ -2,8 +2,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const { LINE_RULES, WHOLE_FILE_RULES, META } = require('./rules');
+const { LINE_RULES, WHOLE_FILE_RULES, META, confidenceOf } = require('./rules');
 const { checkDuplication, CODE_FOR_DUP } = require('./duplication');
+const { buildSuppressions } = require('./suppress');
 
 // Build a finding from a META catalog entry, allowing the bespoke check to
 // override the display title (e.g. to include a live line/dependency count) and
@@ -14,6 +15,7 @@ function metaFinding(id, file, { title, severity, snippet, line = 1 } = {}) {
   return {
     id, category: m.category, authority: m.authority, fix: m.fix,
     title: title || m.title, severity: severity || m.severity,
+    confidence: confidenceOf(m),
     file, line, snippet: snippet || m.title,
   };
 }
@@ -69,25 +71,6 @@ function detectGlobalContext(files) {
     } catch { /* unreadable — ignore */ }
   }
   return ctx;
-}
-
-// Inline suppression directives:
-//   // slopscore-disable-next-line 054 — deliberate cast at the JSON boundary
-//   // slopscore-disable-line 099
-// One or more ids suppress just those rules; a bare directive suppresses all rules
-// on the target line. Ids must come before any `—`/`:` reason text (so "fix in 2
-// weeks" isn't parsed as rule 002). Returns map[lineIndex] = Set<id> | true (= all).
-function buildSuppressions(lines) {
-  const map = [];
-  for (let n = 0; n < lines.length; n += 1) {
-    const m = lines[n].match(/slopscore-disable-(next-line|line)([^\n]*)/);
-    if (!m) continue;
-    const target = m[1] === 'next-line' ? n + 1 : n;
-    const idPart = (m[2].match(/^[\s\d,]*/) || [''])[0];
-    const ids = (idPart.match(/\d{2,3}/g) || []).map((s) => s.padStart(3, '0'));
-    map[target] = ids.length ? new Set(ids) : true;
-  }
-  return map;
 }
 
 // Two kinds of ignore entry: a bare segment ("node_modules", "examples") matches
@@ -197,7 +180,7 @@ function commentMask(lines) {
 function ruleFinding(rule, file, line, snippet) {
   return {
     id: rule.id, title: rule.title, category: rule.category, severity: rule.severity,
-    authority: rule.authority, fix: rule.fix, file, line, snippet,
+    authority: rule.authority, confidence: confidenceOf(rule), fix: rule.fix, file, line, snippet,
   };
 }
 
@@ -409,6 +392,7 @@ function scan(target, options = {}) {
   let totalLines = 0;
   let productionLines = 0;
   let suppressed = 0;
+  const staleSuppressions = [];
   for (const file of files) {
     let text;
     try {
@@ -434,13 +418,20 @@ function scan(target, options = {}) {
     scanWholeFileRules(file, ext, isTest, text, lines, findings);
     checkFileSize(file, ext, isTest, lineCount, lines, findings);
     // Apply inline suppressions and tag the zone on this file's findings.
-    const suppress = buildSuppressions(lines);
+    const { map: suppress, directives } = buildSuppressions(lines);
+    const usedTargets = new Set();
     const fresh = findings.splice(before);
     for (const f of fresh) {
       const sup = suppress[f.line - 1];
-      if (sup === true || (sup && sup.has(f.id))) { suppressed += 1; continue; }
+      if (sup === true || (sup && sup.has(f.id))) { suppressed += 1; usedTargets.add(f.line - 1); continue; }
       f.zone = zone;
       findings.push(f);
+    }
+    // A directive that suppressed nothing is stale — the finding it hid is gone.
+    for (const d of directives) {
+      if (!usedTargets.has(d.target)) {
+        staleSuppressions.push({ file, line: d.line + 1, ids: d.ids });
+      }
     }
   }
 
@@ -480,7 +471,11 @@ function scan(target, options = {}) {
   const displayRoot = roots.length === 1 ? path.resolve(roots[0]) : process.cwd();
   const baseDir = safeIsDir(displayRoot) ? displayRoot : path.dirname(displayRoot);
   for (const f of effective) f.file = path.relative(baseDir, f.file) || path.basename(f.file);
-  return { findings: effective, fileCount: files.length, totalLines, productionLines, suppressed, baseDir };
+  for (const s of staleSuppressions) s.file = path.relative(baseDir, s.file) || path.basename(s.file);
+  return {
+    findings: effective, fileCount: files.length, totalLines, productionLines,
+    suppressed, staleSuppressions, baseDir,
+  };
 }
 
 function safeIsDir(p) {

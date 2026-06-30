@@ -112,6 +112,7 @@ function terminalReport(result, s, options = {}) {
     out('');
     out('   ' + paint(C.green, paint(C.bold, `${g('check')} No slop patterns detected. Pristine.`)));
     scoreBanner(s);
+    staleSection(result);
     return;
   }
   out('');
@@ -120,7 +121,8 @@ function terminalReport(result, s, options = {}) {
   for (const f of findings.slice(0, max)) {
     if (f.file !== lastFile) { out('  ' + paint(C.bold, f.file)); lastFile = f.file; }
     const sev = paint(SEV_COLOR[f.severity], sevLabel(f.severity));
-    out(`    ${paint(C.dim, ':' + f.line)}  ${sev}  ${paint(C.dim, '[' + f.id + ']')} ${f.title}`);
+    const conf = f.confidence && f.confidence !== 'high' ? paint(C.dim, ` ~${f.confidence} confidence`) : '';
+    out(`    ${paint(C.dim, ':' + f.line)}  ${sev}  ${paint(C.dim, '[' + f.id + ']')} ${f.title}${conf}`);
     out(`        ${paint(C.dim, f.snippet)}`);
     out(`        ${paint(C.cyan, 'fix:')} ${f.fix}`);
   }
@@ -128,13 +130,28 @@ function terminalReport(result, s, options = {}) {
   scoreBanner(s);
   out(paint(C.dim, `  Authority: ${g('green')} auto-fixable  ${g('dot')}  ${g('yellow')} propose (review)  ${g('dot')}  ${g('red')} flag (human decision)`));
   out(paint(C.dim, '  Full catalog + fix authority for all 162 patterns: ANTI_SLOP_PROTOCOL.md'));
+  staleSection(result);
   out('');
+}
+
+// Stale suppressions: a `slopscore-disable` directive whose finding no longer
+// exists. Surfaced (not gated) so the codebase doesn't accumulate dead directives.
+function staleSection(result) {
+  const stale = result.staleSuppressions || [];
+  if (!stale.length) return;
+  out('');
+  out(paint(C.yellow, `  ${stale.length} stale suppression${stale.length === 1 ? '' : 's'} `)
+    + paint(C.dim, `${g('dot')} the finding each one hid is gone — remove the directive:`));
+  for (const x of stale) {
+    out(paint(C.dim, `    ${x.file}:${x.line}${x.ids ? ` [${x.ids.join(',')}]` : ' [all]'}`));
+  }
 }
 
 function jsonReport(result, s) {
   out(JSON.stringify({
     score: s, fileCount: result.fileCount, totalLines: result.totalLines,
     findings: sortFindings(result.findings),
+    staleSuppressions: result.staleSuppressions || [],
   }, null, 2));
 }
 
@@ -167,7 +184,10 @@ function agentReport(result, s) {
   const np = s.nonprod ? s.nonprod.total : 0;
   out(`SLOP_SCORE weighted=${s.weighted} density=${s.density}/kLOC verdict="${s.verdict}" crit=${s.counts.critical} major=${s.counts.major} minor=${s.counts.minor} nonprod=${np}`);
   for (const f of findings) {
-    out(`${SEV_TAG[f.severity]} [${f.id}] ${f.file}:${f.line} ${f.title} | zone=${f.zone || 'production'} | authority=${f.authority} | fix: ${f.fix}`);
+    out(`${SEV_TAG[f.severity]} [${f.id}] ${f.file}:${f.line} ${f.title} | zone=${f.zone || 'production'} | confidence=${f.confidence || 'high'} | authority=${f.authority} | fix: ${f.fix}`);
+  }
+  for (const x of result.staleSuppressions || []) {
+    out(`STALE_SUPPRESSION ${x.file}:${x.line}${x.ids ? ` [${x.ids.join(',')}]` : ' [all]'} | remove the dead directive`);
   }
   out('NEXT: fix production auto+propose findings per ANTI_SLOP_PROTOCOL.md, re-scan, drive production crit+major to 0 (zone=test is lower priority).');
 }
@@ -195,7 +215,10 @@ function sarifReport(result) {
         region: { startLine: Math.max(1, f.line) },
       },
     }],
-    properties: { zone: f.zone || 'production', severity: f.severity, authority: f.authority },
+    properties: {
+      zone: f.zone || 'production', severity: f.severity,
+      confidence: f.confidence || 'high', authority: f.authority,
+    },
   }));
   out(JSON.stringify({
     $schema: 'https://json.schemastore.org/sarif-2.1.0.json',

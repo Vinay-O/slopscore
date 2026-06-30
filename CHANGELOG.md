@@ -25,6 +25,16 @@ All notable changes to slopscore are documented here. Format based on
   expanded hexes, so a neutral gradient is not flagged.
 
 ### Added
+- **Per-finding confidence + `--min-confidence`.** Every finding now carries a
+  `confidence` (high / medium / low) separate from severity — precise syntactic
+  detectors are high; idiom-matching design/copy tells and the line-hash dup
+  heuristic (068) are softer. `--min-confidence high|medium|low` filters before
+  scoring, so a CI gate can require only high-confidence signal. Shown inline
+  (`~medium confidence`) and carried in JSON / agent / SARIF output.
+- **Stale-suppression detection.** A `slopscore-disable` directive whose finding no
+  longer exists is now surfaced ("N stale suppressions — remove the directive") so
+  dead directives don't pile up. Directive parsing is anchored to the first comment,
+  so prose that merely documents the syntax isn't mistaken for a real directive.
 - **`slopscore fix` — apply the safe fixes.** A new command that auto-applies the
   deterministic, behavior-preserving fixes for a subset of the 🟢 AUTO rules: `052`
   (remove a standalone `console.log`), `069` (remove a full-line step-narration comment),

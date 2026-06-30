@@ -239,6 +239,8 @@ slopscore scan . --markdown --out slop.md   # write a UTF-8 report file directly
 
 **Windows / legacy terminals.** slopscore auto-detects consoles that can't render Unicode (legacy `cmd`/PowerShell on a non-UTF-8 code page) and falls back to ASCII glyphs — force it either way with `--ascii` / `--unicode`. Prefer `--out <file>` over a `>` redirect: it writes UTF-8 straight from Node, so the report never comes out as mojibake or UTF-16.
 
+**Confidence.** Every finding carries a confidence (high / medium / low) separate from severity — precise detectors like secrets and SQL injection are high; design/copy idioms and the duplicate-block heuristic are softer. Gate CI on the strong signal with `--min-confidence high`, or just read the inline `~medium confidence` tag. Dead `slopscore-disable` directives (the finding they hid is gone) are flagged as **stale** so they don't accumulate.
+
 ## Configuration
 
 `.slopscore.json` in your repo root:
