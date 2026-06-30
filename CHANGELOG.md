@@ -3,7 +3,7 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.8.0] — 2026-06-30
 
 > Adoption fixes from a real-world run on a ~500k-line codebase: the detectors were
 > right, but the verdict logic buried the findings that matter. These make the output
