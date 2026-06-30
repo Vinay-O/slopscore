@@ -435,6 +435,83 @@ const LINE_RULES = [
     re: /\bunsafe\s*\{/,
     fix: 'Justify every unsafe block with a comment proving the invariants, or replace it with safe code. Needs human review.',
   },
+
+  // ---- CATEGORY 14 expansion: security hardening (163–174) ----
+  {
+    id: '163', title: 'TLS / certificate verification disabled', category: 'security', severity: 'critical',
+    authority: 'propose', exts: null, skipTests: true, respectComments: true,
+    re: /(rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*[=:]\s*['"]?0|verify\s*=\s*False|InsecureSkipVerify\s*:\s*true|ssl\._create_unverified_context|CURLOPT_SSL_VERIFY(PEER|HOST)\s*,\s*(0|false))/,
+    fix: 'Never disable certificate verification. Fix the trust store / cert chain; for local dev use a real local CA (mkcert), not a global bypass.',
+  },
+  {
+    id: '164', title: 'Weak hash (MD5 / SHA-1) for security', category: 'security', severity: 'major',
+    authority: 'propose', exts: null, skipTests: true, respectComments: true, confidence: 'medium',
+    // Only when a security word shares the line — md5/sha1 for a cache key / ETag /
+    // content fingerprint is fine, so a blanket flag would be noise.
+    re: /(?:createHash\s*\(\s*['"](?:md5|sha1)['"]|hashlib\.(?:md5|sha1)\s*\(|MessageDigest\.getInstance\s*\(\s*['"](?:MD5|SHA-?1)['"])[^\n]*\b(?:password|passwd|secret|token|signature|sign|auth|credential|hmac|salt)\b|\b(?:password|passwd|secret|token|credential|signature)\w*\b[^\n]*(?:createHash\s*\(\s*['"](?:md5|sha1)|hashlib\.(?:md5|sha1)\s*\()/i,
+    fix: 'MD5/SHA-1 are broken for security. Use SHA-256+ for integrity and bcrypt/scrypt/argon2 for passwords. (Fine for non-security checksums.)',
+  },
+  {
+    id: '165', title: 'Insecure randomness for a security value', category: 'security', severity: 'critical',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /(Math\.random\([^)]*\)[^\n]*\b(token|secret|password|passwd|otp|nonce|salt|sessionid|session_id|api[_-]?key|csrf|reset)\b|\b(token|secret|password|passwd|otp|nonce|salt|sessionid|session_id|api[_-]?key|csrf|reset)\w*\s*[=:][^\n]*Math\.random\()/i,
+    fix: 'Math.random() is not cryptographically secure. Use crypto.randomBytes / crypto.randomUUID / getRandomValues for any security value.',
+  },
+  {
+    id: '166', title: 'Hardcoded private key in source', category: 'security', severity: 'critical',
+    authority: 'flag', exts: null, skipTests: true, respectComments: false,
+    re: /-----BEGIN\s+(?:RSA\s+|EC\s+|DSA\s+|OPENSSH\s+|PGP\s+)?PRIVATE\s+KEY-----/,
+    fix: 'Remove the private key from source and rotate it now (it is compromised). Load keys from a secret manager / env at runtime.',
+  },
+  {
+    id: '167', title: 'Insecure deserialization (Python)', category: 'security', severity: 'critical',
+    authority: 'propose', exts: PY, skipTests: true, respectComments: true,
+    re: /(\bpickle\.loads?\s*\(|\bcPickle\.loads?\s*\(|\bmarshal\.loads?\s*\(|\byaml\.load\s*\((?![^)]*Loader\s*=))/,
+    fix: 'Never deserialize untrusted data with pickle/marshal/yaml.load. Use yaml.safe_load; for interchange use JSON.',
+  },
+  {
+    id: '168', title: 'Wildcard CORS origin', category: 'security', severity: 'major',
+    authority: 'propose', exts: null, skipTests: true, respectComments: true,
+    re: /(Access-Control-Allow-Origin['"]?\s*[:,]\s*['"]\*|\borigin\s*:\s*['"]\*['"])/i,
+    fix: 'Don\'t reflect a wildcard origin on anything with credentials or state. Allow-list explicit origins.',
+  },
+  {
+    id: '169', title: 'target="_blank" without rel="noopener"', category: 'security', severity: 'major',
+    authority: 'auto', exts: MARKUP, skipTests: true, respectComments: true,
+    re: /<a\b[^>]*\btarget\s*=\s*['"]_blank['"][^>]*>/i,
+    unless: /\brel\s*=\s*['"][^'"]*noopener/i,
+    fix: 'Add rel="noopener noreferrer" — a target="_blank" link otherwise lets the opened page reach window.opener (reverse tabnabbing).',
+  },
+  {
+    id: '170', title: 'Credentials in a connection string', category: 'security', severity: 'critical',
+    authority: 'flag', exts: null, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\b(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|mariadb|redis|amqps?|ftp|ldaps?):\/\/[^\s:'"/]+:[^\s:'"@/]+@/i,
+    fix: 'Move the username/password out of the URL into env / a secret manager. An inline password leaks into logs, history, and process listings.',
+  },
+  {
+    id: '171', title: 'SQL built by string concatenation', category: 'security', severity: 'critical',
+    authority: 'propose', exts: null, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /(['"][^'"]*\b(?:SELECT\b[^'"]*\bFROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM)\b[^'"]*['"]\s*\+|\+\s*['"]\s*(?:WHERE|VALUES|AND|OR)\b)/i,
+    fix: 'Use parameterized queries / prepared statements. Never build SQL by concatenating input.',
+  },
+  {
+    id: '172', title: 'eval() / new Function() on dynamic input', category: 'security', severity: 'critical',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /\beval\s*\(|new\s+Function\s*\(/,
+    fix: 'Avoid eval / new Function — it is arbitrary code execution. Use JSON.parse, a lookup table, or a real parser.',
+  },
+  {
+    id: '173', title: 'Cleartext HTTP for a network call', category: 'security', severity: 'major',
+    authority: 'propose', exts: null, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\b(?:fetch|axios(?:\.\w+)?|requests\.(?:get|post|put|delete|patch)|http\.(?:get|request))\s*\(\s*['"`]http:\/\/(?!localhost|127\.0\.0\.1|0\.0\.0\.0)/i,
+    fix: 'Use HTTPS. Cleartext HTTP exposes data and tokens to anyone on the network path.',
+  },
+  {
+    id: '174', title: 'JWT signature not verified', category: 'security', severity: 'critical',
+    authority: 'propose', exts: null, skipTests: true, respectComments: true,
+    re: /(algorithms?\s*[=:]\s*\[?\s*['"]none['"]|jwt\.decode\s*\([^)]*verify\s*=\s*False|\.verify\s*\([^)]*algorithms?\s*:\s*\[\s*['"]none['"])/i,
+    fix: 'Always verify JWT signatures against a fixed allow-list of strong algorithms. Never allow "none" or verify=False.',
+  },
 ];
 
 // Detectors implemented as bespoke checks in scanner.js — file size, repo-level

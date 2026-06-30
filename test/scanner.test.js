@@ -623,9 +623,11 @@ test('catalog ⚙️ tags, the detector table, and the headline counts all agree
     if (line.includes('slopscore scan')) taggedIds.add(m[1]);
   }
 
-  // 1. Every catalog entry is unique and the catalog totals 162 patterns.
+  // 1. Every catalog entry is unique. The total (m) is derived, not hardcoded, so
+  //    growing the catalog only requires updating the prose the checks below pin.
   assert.strictEqual(new Set(headingIds).size, headingIds.length, 'duplicate catalog id');
-  assert.strictEqual(headingIds.length, 162, `catalog has ${headingIds.length} patterns, expected 162`);
+  const m = headingIds.length;
+  assert.ok(m >= 162, `catalog should not shrink below 162 (found ${m})`);
 
   // 2. The ⚙️-tagged set equals the real detector table — no aspirational tags,
   //    no silent detector that forgot its tag.
@@ -634,14 +636,16 @@ test('catalog ⚙️ tags, the detector table, and the headline counts all agree
   assert.deepStrictEqual(onlyTagged, [], `tagged in catalog but no detector: ${onlyTagged}`);
   assert.deepStrictEqual(onlyDetector, [], `detector exists but catalog untagged: ${onlyDetector}`);
 
-  // 3. Every headline number matches the detector count.
+  // 3. Every headline number matches reality (n detectors out of m patterns).
   const n = detectorIds.size;
   const readme = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
   assert.ok(readme.includes(`${n} detectors`), `README must say "${n} detectors"`);
-  assert.ok(readme.includes(`${n} of the 162`), `README must say "${n} of the 162"`);
-  assert.ok(protocol.includes(`**${n} of the 162**`), `catalog must say "${n} of the 162"`);
+  assert.ok(readme.includes(`${n} of the ${m}`), `README must say "${n} of the ${m}"`);
+  assert.ok(readme.includes(`${m}-pattern`), `README must say "${m}-pattern"`);
+  assert.ok(protocol.includes(`**${n} of the ${m}**`), `catalog must say "${n} of the ${m}"`);
   const rulesOut = execFileSync('node', [BIN, 'rules'], { encoding: 'utf8' });
   assert.ok(rulesOut.includes(`${n} deterministic detectors`), `rules must say "${n} deterministic detectors"`);
+  assert.ok(rulesOut.includes(`${m}-pattern`), `rules must say "${m}-pattern catalog"`);
 });
 
 // Regression guard for the ignore-path bug: a configured ignore like
