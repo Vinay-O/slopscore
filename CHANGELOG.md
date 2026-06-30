@@ -3,7 +3,7 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.5.0]
 
 ### Added
 - **Language coverage — Go & Rust.** Catalog now **162 patterns**, **66 detectors**. Go:
