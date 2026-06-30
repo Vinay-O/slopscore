@@ -15,6 +15,15 @@ All notable changes to slopscore are documented here. Format based on
   `sx`, className soup, status pills) scores **minor** ("repeated markup/style") — a
   component-extraction, not a logic bug. Duplicated *logic* still scores **major**.
 
+- **Visual detectors now see CSS-in-JS, not just Tailwind.** Rules 001 (purple
+  gradient), 003 (glassmorphism), and 008 (gradient text) previously matched only
+  Tailwind classes and kebab-case CSS, so a React + MUI/styled/emotion app that ships
+  glassmorphism everywhere scored zero on the visual category. They now also match
+  camelCase CSS-in-JS (`backdropFilter: "blur(…)"`, `WebkitBackgroundClip: 'text'`) and
+  theme-token gradients (`linear-gradient(…, #8b5cf6, …)`), and apply to `.ts` files
+  (theme/styled modules), not only `.tsx`. 001 requires gradient context for the
+  expanded hexes, so a neutral gradient is not flagged.
+
 ### Added
 - **Per-rule breakdown in the summary.** The score banner now prints `by rule: 068 ×45 ·
   055 ×2`, so you can see at a glance which detector is driving the number.

@@ -208,12 +208,12 @@ scan () { echo; echo "### $1"; shift; eval "grep -rnI $* \"$SRC\" 2>/dev/null | 
 echo "======== ANTI-SLOP SCAN: $(date) ========"
 
 # --- VISUAL ---
-scan "001 VibeCode-purple gradient"      "$CSS" -e 'from-purple.*to-indigo' -e 'from-violet.*to-blue' -e '#7c3aed|#4f46e5|#6d28d9'
+scan "001 VibeCode-purple gradient"      "$CSS" -e 'from-purple.*to-indigo' -e 'from-violet.*to-blue' -e '(linear|radial|conic)-gradient\(.*(purple|indigo|violet|#(a78bfa|8b5cf6|7c3aed|6d28d9|818cf8|6366f1|4f46e5|4338ca))'
 scan "002 Sparkle / Wand AI icons"       "$TS"  -e 'Sparkles?\b' -e 'Wand2?\b' -e '✨'
 scan "003 Glassmorphism"                 "$CSS" -e 'backdrop-filter.*blur' -e 'backdrop-blur-' -e 'WebkitBackdropFilter'
 scan "004 Aurora/mesh/radial bg"         "$CSS" -e 'radial-gradient' -e 'conic-gradient' -e 'aurora|mesh-gradient'
 scan "007 Decorative glow shadows"       "$CSS" -e 'box-shadow.*rgba.*0\.[3-9]' -e 'shadow-(purple|blue|glow)' -e 'drop-shadow.*(purple|indigo)'
-scan "008 Gradient clip text"            "$CSS" -e 'background-clip: ?text' -e '-webkit-background-clip' -e 'bg-clip-text text-transparent'
+scan "008 Gradient clip text"            "$CSS" -e 'background-clip: ?text' -e '-webkit-background-clip' -e 'WebkitBackgroundClip' -e 'bg-clip-text text-transparent'
 scan "012 Colored left/top card border"  "$TS"  -e 'border-[lt]-[24] border-(purple|indigo|blue|red|green)'
 scan "017 Emoji nav icons"               "$TS"  -e '🏠|⚙️|📊|👤|🔔|💡|🚀'
 scan "018/024 ALL-CAPS labels/buttons"   "$CSS" -e 'uppercase' -e 'text-transform: ?uppercase'
@@ -313,7 +313,7 @@ The lavender-to-indigo gradient (`#7c3aed → #4f46e5`, `from-purple-600 to-indi
 unofficial flag of AI UIs — Lovable, Bolt, and Base44 all default to it because Notion/Linear/Vercel
 marketing is over-represented in training data. The model learned "purple gradient = modern SaaS" and
 applies it regardless of brand.
-`DETECT:` `linear-gradient.*(purple|indigo|violet)` · `from-(purple|violet).*to-(indigo|blue)` · `#7c3aed|#4f46e5|#6d28d9` in gradient context.
+`DETECT:` `(linear|radial|conic)-gradient(...)` whose stops name a purple word or a Tailwind violet/indigo/purple hex — in CSS, CSS-in-JS (MUI `sx`, styled, emotion), or `from-(purple|violet).*to-(indigo|blue)` Tailwind classes · the bare `#7c3aed|#4f46e5|#6d28d9` tells.
 `FIX:` Replace with a palette that has a point of view (Escape Move 1). Pick one brand hue from the actual product, demote the gradient to a flat surface or a subtle same-hue tint. Define it as a token (`--brand`), don't inline it. If the product has no brand yet, propose 2–3 directions rather than picking silently.
 
 **002 · Sparkle / Wand icon on every AI button** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
@@ -326,7 +326,7 @@ and nothing specific.
 **003 · Glassmorphism cards (`backdrop-filter: blur`)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
 Frosted-glass cards on a dark background. Had a real moment in 2022; LLMs absorbed it as "dark + blur =
 premium." High GPU cost, frequently illegible, zero semantic meaning.
-`DETECT:` `backdrop-filter.*blur` · `backdrop-blur-` · `bg-white/10|bg-black/20` with blur · `glass-card`.
+`DETECT:` `backdrop-filter.*blur` · `backdrop-blur-` · CSS-in-JS camelCase `backdropFilter`/`WebkitBackdropFilter: blur` (MUI `sx`, styled, emotion) · `bg-white/10|bg-black/20` with blur · `glass-card`.
 `FIX:` Replace frosted panels with solid surfaces from a real elevation scale (e.g. `surface-1/2/3` tokens with increasing lightness or shadow). Reserve blur for genuine overlay-over-content cases. Verify text contrast after.
 
 **004 · Aurora / mesh / radial decorative background** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
@@ -357,7 +357,7 @@ communicates nothing about state or hierarchy.
 **008 · Animated gradient text (`background-clip: text`)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
 Headline with gradient fill and/or animation. Screenshot-pretty, often unreadable, fails contrast
 checkers — hence 🟠.
-`DETECT:` `background-clip: text` · `-webkit-text-fill-color: transparent` · `bg-clip-text text-transparent` · `@keyframes gradient-text`.
+`DETECT:` `background-clip: text` · `-webkit-text-fill-color: transparent` · CSS-in-JS camelCase `WebkitBackgroundClip: 'text'` / `WebkitTextFillColor: 'transparent'` · `bg-clip-text text-transparent` · `@keyframes gradient-text`.
 `FIX:` Set the headline in a solid, contrast-passing color. If you want emphasis, use weight/size/a single accent word — not a gradient. Verify contrast.
 
 **009 · Badge/pill directly above the H1** `🟡` `🟡 PROPOSE`

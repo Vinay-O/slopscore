@@ -77,6 +77,22 @@ test('detects auth token in localStorage', () => {
   assert.ok(ids(scan(p)).includes('073'));
 });
 
+test('003 detects glassmorphism in CSS-in-JS (MUI camelCase), not just Tailwind', () => {
+  assert.ok(ids(scan([tmpFile('a.tsx', 'export const C = () => <Box sx={{ backdropFilter: "blur(12px)" }} />;\n')])).includes('003'), 'MUI sx camelCase');
+  assert.ok(ids(scan([tmpFile('b.ts', "export const panel = { WebkitBackdropFilter: 'blur(8px)' };\n")])).includes('003'), 'styled .ts camelCase');
+  assert.ok(ids(scan([tmpFile('c.css', '.glass { backdrop-filter: blur(10px); }\n')])).includes('003'), 'plain CSS still works');
+});
+
+test('001 detects a purple gradient in CSS-in-JS / theme tokens, not just Tailwind hexes', () => {
+  assert.ok(ids(scan([tmpFile('a.tsx', "export const H = () => <Box sx={{ background: 'linear-gradient(135deg, #8B5CF6 0%, #6366f1 100%)' }} />;\n")])).includes('001'), 'MUI sx gradient with violet/indigo hexes');
+  assert.ok(ids(scan([tmpFile('b.ts', "export const theme = { hero: { backgroundImage: 'linear-gradient(90deg, #a78bfa, #818cf8)' } };\n")])).includes('001'), 'theme.ts token gradient');
+  assert.ok(!ids(scan([tmpFile('c.tsx', "export const Ok = () => <Box sx={{ background: 'linear-gradient(90deg, #0a0a0a, #1f2937)' }} />;\n")])).includes('001'), 'a neutral gradient is not flagged');
+});
+
+test('008 detects gradient text in CSS-in-JS camelCase', () => {
+  assert.ok(ids(scan([tmpFile('a.tsx', "export const T = () => <span style={{ WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Hi</span>;\n")])).includes('008'), 'emotion/MUI camelCase');
+});
+
 test('detects img without alt', () => {
   const p = tmpFile('a.jsx', 'export const X = () => <img src="/h.png" />;\n');
   assert.ok(ids(scan(p)).includes('081'));
@@ -493,6 +509,48 @@ test('slopscore passes its own scan (eats its own dog food)', () => {
     result.findings.length, 0,
     `slopscore flagged its own source — fix the code or the rule:\n${detail}`,
   );
+});
+
+// A tool about not shipping inconsistencies must reconcile its own counts.
+// The "⚙️ slopscore scan" tags in the catalog, the detector rule table, and every
+// headline number ("66 detectors", "66 of the 162") must agree exactly — forever.
+test('catalog ⚙️ tags, the detector table, and the headline counts all agree', () => {
+  const repoRoot = path.resolve(__dirname, '..');
+  const rules = require('../src/rules');
+  const detectorIds = new Set(
+    rules.LINE_RULES.concat(rules.WHOLE_FILE_RULES, rules.META_RULES).map((r) => r.id),
+  );
+
+  const protocol = fs.readFileSync(path.join(repoRoot, 'ANTI_SLOP_PROTOCOL.md'), 'utf8');
+  const lines = protocol.split('\n');
+  const headingIds = [];
+  const taggedIds = new Set();
+  for (const line of lines) {
+    const m = line.match(/^\*\*(\d{3}) /);
+    if (!m) continue;
+    headingIds.push(m[1]);
+    if (line.includes('slopscore scan')) taggedIds.add(m[1]);
+  }
+
+  // 1. Every catalog entry is unique and the catalog totals 162 patterns.
+  assert.strictEqual(new Set(headingIds).size, headingIds.length, 'duplicate catalog id');
+  assert.strictEqual(headingIds.length, 162, `catalog has ${headingIds.length} patterns, expected 162`);
+
+  // 2. The ⚙️-tagged set equals the real detector table — no aspirational tags,
+  //    no silent detector that forgot its tag.
+  const onlyTagged = [...taggedIds].filter((id) => !detectorIds.has(id));
+  const onlyDetector = [...detectorIds].filter((id) => !taggedIds.has(id));
+  assert.deepStrictEqual(onlyTagged, [], `tagged in catalog but no detector: ${onlyTagged}`);
+  assert.deepStrictEqual(onlyDetector, [], `detector exists but catalog untagged: ${onlyDetector}`);
+
+  // 3. Every headline number matches the detector count.
+  const n = detectorIds.size;
+  const readme = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
+  assert.ok(readme.includes(`${n} detectors`), `README must say "${n} detectors"`);
+  assert.ok(readme.includes(`${n} of the 162`), `README must say "${n} of the 162"`);
+  assert.ok(protocol.includes(`**${n} of the 162**`), `catalog must say "${n} of the 162"`);
+  const rulesOut = execFileSync('node', [BIN, 'rules'], { encoding: 'utf8' });
+  assert.ok(rulesOut.includes(`${n} deterministic detectors`), `rules must say "${n} deterministic detectors"`);
 });
 
 // Regression guard for the ignore-path bug: a configured ignore like
