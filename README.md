@@ -290,6 +290,8 @@ const config = data as any;
 
 A bare `// slopscore-disable-next-line` (no id) suppresses every rule on the next line; `slopscore-disable-line <id>` works on the same line. The terminal report prints how many findings were suppressed, so they don't rot.
 
+**It also honors your `eslint-disable`.** A line you already, deliberately, signed off on with `// eslint-disable-next-line @typescript-eslint/no-explicit-any` (or `no-console`) isn't re-litigated — slopscore won't re-flag a decision your team already reviewed. **Security findings are the exception:** an `eslint-disable` can never silence `eval`, SQL injection, a hardcoded secret, etc. — catching the hole someone waved through is the whole point.
+
 ## What it detects (85 of the 181)
 
 The CLI runs the deterministic subset; the [full 181-pattern catalog](ANTI_SLOP_PROTOCOL.md) (including visual, architectural, and judgment-heavy patterns) is what you hand your agent.
@@ -329,7 +331,7 @@ This table is scoped to **AI-slop detection specifically** — it is not a quali
 
 **Does it work for Python / Go / Rust?** Yes — there are dedicated detectors for each (Python: mutable defaults, `== None`, `eval`/`exec`, f-string SQL, `pickle`, `print`; Go: ignored errors, `fmt.Print`, `panic`, command injection; Rust: `.unwrap()`, `panic!`, `unsafe`, `dbg!`). The comment/string masking is language-aware (Python `#` comments and docstrings aren't scanned as code), and `test_*.py` / `*_test.go` are correctly treated as the test zone. Security and copy detectors run on all source; the JS/TS surface is the deepest because that's where vibe-coded slop concentrates.
 
-**How accurate is it / false positives?** Low by design, and rigorously tested: clean, idiomatic code reliably scores zero. The scanner is comment- and string-aware (it won't flag `eval()` in a docstring, `console.log` in a comment, or `firstName + " and " + lastName` as SQL), skips test files, exempts ORM `Column == None` and date-pinned model ids, and ships **143 tests** including a clean-code battery. `slopscore fix` is verified non-corrupting — it never deletes a line that would break structure or rewrites inside a string. Found a bad finding? [Open an issue.](../../issues)
+**How accurate is it / false positives?** Low by design, and rigorously tested: clean, idiomatic code reliably scores zero. The scanner is comment- and string-aware (it won't flag `eval()` in a docstring, `console.log` in a comment, or `firstName + " and " + lastName` as SQL), honors your `eslint-disable`, skips test files, exempts ORM `Column == None` and date-pinned model ids, and ships **150+ tests** including a clean-code battery. On a mature codebase, a high-volume pattern (e.g. a design system's repeated markup) is **clustered** into one line so it can't bury the findings that matter, and a single noisy detector can never define the verdict (the score caps each rule). `slopscore fix` is verified non-corrupting — it never deletes a line that would break structure or rewrites inside a string. Found a bad finding? [Open an issue.](../../issues)
 
 ## Contributing
 

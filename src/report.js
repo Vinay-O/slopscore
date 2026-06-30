@@ -116,9 +116,27 @@ function terminalReport(result, s, options = {}) {
     return;
   }
   out('');
-  let lastFile = null;
+  // Cluster repeated findings of the same rule so a high-volume, low-signal
+  // detector (e.g. 068 on a design-system's repeated markup) can't wall the
+  // output and bury the few findings that actually matter. Show a few of each
+  // rule inline; collapse the rest into a one-line "likely a repeated pattern".
+  const CLUSTER_LIMIT = options.cluster === false ? Infinity : 3;
   const max = options.max != null ? options.max : findings.length;
-  for (const f of findings.slice(0, max)) {
+  const shownPerRule = {};
+  const toShow = [];
+  const collapsed = {};
+  for (const f of findings) {
+    shownPerRule[f.id] = shownPerRule[f.id] || 0;
+    if (shownPerRule[f.id] < CLUSTER_LIMIT && toShow.length < max) {
+      shownPerRule[f.id] += 1;
+      toShow.push(f);
+    } else {
+      const c = collapsed[f.id] || (collapsed[f.id] = { count: 0, title: f.title, files: new Set(), confidence: f.confidence });
+      c.count += 1; c.files.add(f.file);
+    }
+  }
+  let lastFile = null;
+  for (const f of toShow) {
     if (f.file !== lastFile) { out('  ' + paint(C.bold, f.file)); lastFile = f.file; }
     const sev = paint(SEV_COLOR[f.severity], sevLabel(f.severity));
     const conf = f.confidence && f.confidence !== 'high' ? paint(C.dim, ` ~${f.confidence} confidence`) : '';
@@ -126,10 +144,23 @@ function terminalReport(result, s, options = {}) {
     out(`        ${paint(C.dim, f.snippet)}`);
     out(`        ${paint(C.cyan, 'fix:')} ${f.fix}`);
   }
-  if (findings.length > max) out(paint(C.dim, `\n  ${g('ellipsis')} and ${findings.length - max} more (raise --max to see all)`));
+  const collapsedIds = Object.keys(collapsed);
+  if (collapsedIds.length) {
+    out('');
+    for (const id of collapsedIds.slice(0, 15)) {
+      const c = collapsed[id];
+      const where = c.files.size > 1 ? `across ${c.files.size} files` : `in this file`;
+      const soft = c.confidence && c.confidence !== 'high' ? ' — likely a repeated pattern' : '';
+      out(paint(C.dim, `  ${g('ellipsis')} +${c.count} more [${id}] ${c.title} ${where}${soft}; \`"rules": { "${id}": "off" }\` in .slopscore.json if intentional`));
+    }
+    if (collapsedIds.length > 15) out(paint(C.dim, `  ${g('ellipsis')} +${collapsedIds.length - 15} other rules collapsed`));
+  }
   scoreBanner(s);
   out(paint(C.dim, `  Authority: ${g('green')} auto-fixable  ${g('dot')}  ${g('yellow')} propose (review)  ${g('dot')}  ${g('red')} flag (human decision)`));
   out(paint(C.dim, '  Full catalog + fix authority for all 181 patterns: ANTI_SLOP_PROTOCOL.md'));
+  // Most slopscore runs that matter happen inside an AI agent — point it at the
+  // mode built for it (and the playbook the agent should actually follow).
+  out(paint(C.cyan, `  ${g('arrow')} Driving an AI agent? `) + paint(C.dim, '`slopscore scan --format agent` (compact, fix-authority-tagged) + `slopscore protocol` (the full fix playbook).'));
   staleSection(result);
   out('');
 }

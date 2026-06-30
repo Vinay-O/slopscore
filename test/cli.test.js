@@ -18,6 +18,21 @@ function run(args) {
   }
 }
 
+test('repeated same-rule findings are clustered so real findings surface first', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-cluster-'));
+  // 20 design-system cards that each trip 068 (repeated markup) + one real critical
+  const card = (n) => `export const Card${n} = ({ title, subtitle, status }) => (\n  <Box sx={{ p: 2, borderRadius: 2, bgcolor: "paper", boxShadow: 1 }}>\n    <Typography variant="h6" color="text.primary" gutterBottom>{title}</Typography>\n    <Typography variant="body2" color="text.secondary">{subtitle}</Typography>\n    <Chip size="small" label={status} color="success" variant="outlined" />\n    <Divider sx={{ my: 1 }} />\n    <Button fullWidth variant="contained">Open</Button>\n  </Box>\n);\n`;
+  for (let n = 0; n < 20; n += 1) fs.writeFileSync(path.join(dir, `Card${n}.tsx`), card(n));
+  fs.writeFileSync(path.join(dir, 'danger.ts'), 'const r = eval(userInput);\n');
+  const out = run(['scan', dir, '--no-color']).out;
+  // the real critical is shown
+  assert.match(out, /\[172\] eval/);
+  // the dup-block wall is collapsed into a single summary, not 20 separate lines
+  assert.match(out, /\+\d+ more \[068\].*repeated pattern/);
+  const shown068 = (out.match(/^ {4}:\d+ {2}.*\[068\]/gm) || []).length;
+  assert.ok(shown068 <= 3, `068 inline lines clustered to <=3 (got ${shown068})`);
+});
+
 test('--max 0 prints zero findings (0 is not "unlimited")', () => {
   const lines = run(['scan', DEMO, '--max', '0', '--no-color']).out.split('\n').filter((l) => /^ {4}:\d+ {2}/.test(l));
   assert.strictEqual(lines.length, 0);
