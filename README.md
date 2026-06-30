@@ -213,6 +213,19 @@ slopscore scan . --update-baseline # accept the current state as the new floor
 
 The baseline keys findings by content, not line number — so moving code around never registers as new slop. Commit `.slopscore-baseline.json` and your CI gate goes green today while the count only ever goes down.
 
+## Auto-fix the safe stuff
+
+Some slop has exactly one correct fix and no judgment call — a stray `console.log`, an `<img>` missing `alt`, Python's `== None`. `slopscore fix` applies those (and only those) for you:
+
+```bash
+slopscore fix . --dry-run      # preview every change, write nothing
+slopscore fix .                # apply them, then review the diff
+slopscore fix . --only 052     # just the console.logs
+slopscore fix . --except 069   # everything fixable except comment removal
+```
+
+It only ever touches the 🟢 **AUTO**-authority rules with a deterministic, behavior-preserving transform (today: `052` console.log, `069` step-narration comments, `081` `<img>` alt, `152` Python `== None`, `158` Go `fmt.Print` debug). It is conservative by design — a multi-line `console.log`, a trailing comment, or anything that needs a name or a destination is left for you. Everything else stays a propose/flag you review by hand.
+
 ## Local development
 
 ```bash

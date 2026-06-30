@@ -25,8 +25,20 @@ All notable changes to slopscore are documented here. Format based on
   expanded hexes, so a neutral gradient is not flagged.
 
 ### Added
+- **`slopscore fix` — apply the safe fixes.** A new command that auto-applies the
+  deterministic, behavior-preserving fixes for a subset of the 🟢 AUTO rules: `052`
+  (remove a standalone `console.log`), `069` (remove a full-line step-narration comment),
+  `081` (add `<img alt="">`), `152` (Python `== None` → `is None`), `158` (remove a Go
+  `fmt.Print` debug line). `--dry-run` previews; `--only`/`--except` scope it by rule. It
+  is conservative on purpose — a multi-line call, a trailing comment, or anything needing
+  a name/destination is left for a human. Idempotent.
 - **Per-rule breakdown in the summary.** The score banner now prints `by rule: 068 ×45 ·
   055 ×2`, so you can see at a glance which detector is driving the number.
+
+### Fixed
+- **078 no longer false-positives on a JS/TS object key named `except`.** Python's bare
+  `except:` is statement-leading, so that branch is now anchored to line start; a JS
+  object literal like `{ except: x }` is no longer mistaken for broad exception handling.
 - **Windows / legacy-terminal output.** slopscore auto-detects consoles that can't render
   Unicode (legacy `cmd`/PowerShell on a non-UTF-8 code page) and falls back to ASCII
   glyphs for the banner, severity markers, and trend sparkline — `--ascii` / `--unicode`

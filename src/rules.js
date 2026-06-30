@@ -295,7 +295,11 @@ const LINE_RULES = [
   {
     id: '078', title: 'Overly broad exception handling', category: 'code', severity: 'major',
     authority: 'propose', exts: null, skipTests: true, respectComments: true,
-    re: /(except\s*:|except\s+(Exception|BaseException)\b\s*(as\s+\w+)?\s*:|catch\s*\(\s*\w+\s*:\s*any\s*\))/,
+    // Python `except`/`except Exception:` are always statement-leading, so anchor
+    // those branches to line start — otherwise a JS object key like `except: x`
+    // reads as a bare except. The `catch (e: any)` branch stays unanchored (it's
+    // mid-line after `} `).
+    re: /(^\s*except\s*:|^\s*except\s+(Exception|BaseException)\b\s*(as\s+\w+)?\s*:|catch\s*\(\s*\w+\s*:\s*any\s*\))/,
     fix: 'Catch the specific error type you can handle; let the rest propagate with context.',
   },
   {

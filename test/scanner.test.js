@@ -48,6 +48,12 @@ test('a // inside a string does not suppress detection later on the line', () =>
   assert.ok(ids(scan(p)).includes('054'));
 });
 
+test('078 flags Python bare except but not a JS object key named except', () => {
+  assert.ok(ids(scan([tmpFile('a.py', 'try:\n    risky()\nexcept:\n    pass\n')])).includes('078'), 'real bare except');
+  assert.ok(ids(scan([tmpFile('b.py', 'try:\n    x()\nexcept Exception as e:\n    pass\n')])).includes('078'), 'except Exception');
+  assert.ok(!ids(scan([tmpFile('c.js', 'const o = { except: a, only: b };\n')])).includes('078'), 'JS object key is not a bare except');
+});
+
 test('detects empty catch block', () => {
   const p = tmpFile('a.js', 'try { go(); } catch (e) {}\n');
   assert.ok(ids(scan(p)).includes('053'));
@@ -522,6 +528,14 @@ test('--out writes a UTF-8 report file (not shell-dependent encoding)', () => {
   // A UTF-8 file has no UTF-16 BOM (0xFF 0xFE) and round-trips its emoji.
   assert.ok(!(buf[0] === 0xFF && buf[1] === 0xFE), 'must not be UTF-16');
   assert.match(buf.toString('utf8'), /Slop Report/);
+});
+
+test('--help and --version print real content (guards against a broken HELP literal)', () => {
+  const help = runBin(['--help']);
+  assert.match(help, /USAGE/);
+  assert.match(help, /slopscore fix/);
+  assert.ok(help.length > 500, 'help must be the full usage text, not a stray value');
+  assert.strictEqual(runBin(['--version']).trim(), require('../package.json').version);
 });
 
 test('explain errors (exit 2) on an out-of-range id', () => {
