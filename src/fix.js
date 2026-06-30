@@ -9,6 +9,20 @@ const AUTHORITY = {};
 for (const r of LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES)) AUTHORITY[r.id] = r.authority;
 
 const fixableIds = () => Object.keys(FIXERS).sort();
+
+// A braceless control header (`if (x)` / `for (…)` / `else`) makes the next
+// statement its single body. Removing that statement would silently promote the
+// FOLLOWING line into the body — so refuse to delete a line whose previous
+// non-blank line is such a header. Conservative: when unsure, keep the line.
+function safeToRemove(lines, idx) {
+  for (let p = idx - 1; p >= 0; p -= 1) {
+    const prev = lines[p].trim();
+    if (prev === '') continue;
+    if (/(?:^|[)\s])(?:if|for|while|else\s+if)\s*\([^{]*\)\s*$/.test(prev) || /(?:^|\s)else\s*$/.test(prev) || /=>\s*$/.test(prev)) return false;
+    return true;
+  }
+  return true;
+}
 // Fixers that run on a plain `slopscore fix`: the rule is AUTO-authority, so the
 // transform is behavior-preserving in every case the detector matches.
 const autoFixableIds = () => fixableIds().filter((id) => AUTHORITY[id] === 'auto');
@@ -46,6 +60,7 @@ function planFixes(result, opts = {}) {
       const before = lines[idx];
       const res = FIXERS[f.id](before);
       if (!res) continue;
+      if (res.remove && !safeToRemove(lines, idx)) continue;
       if (res.remove) edits.push({ id: f.id, line: f.line, before, after: null });
       else if (res.replace != null && res.replace !== before) edits.push({ id: f.id, line: f.line, before, after: res.replace });
       else continue;

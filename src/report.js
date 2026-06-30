@@ -39,7 +39,7 @@ const setUnicode = (on) => { useUnicode = on; };
 // [unicode, ascii] for each glyph the terminal report draws.
 const GLYPH = {
   tl: ['╔', '+'], tr: ['╗', '+'], bl: ['╚', '+'], br: ['╝', '+'], h: ['═', '='], v: ['║', '|'],
-  arrow: ['▶', '>'], check: ['✓', '*'], dot: ['·', '-'], ellipsis: ['…', '...'],
+  arrow: ['▶', '>'], check: ['✓', '*'], dot: ['·', '-'], ellipsis: ['…', '...'], times: ['×', 'x'],
   red: ['🔴', '[X]'], orange: ['🟠', '[!]'], yellow: ['🟡', '[-]'], green: ['🟢', '[+]'],
 };
 const g = (k) => GLYPH[k][useUnicode ? 0 : 1];
@@ -88,7 +88,7 @@ function scoreBanner(s) {
   }
   const total = s.counts.critical + s.counts.major + s.counts.minor;
   if (s.topRules && s.topRules.length >= 2 && total >= 3) {
-    out('   ' + paint(C.dim, `by rule: ${s.topRules.map(([id, n]) => `${id} ×${n}`).join(' · ')}`));
+    out('   ' + paint(C.dim, `by rule: ${s.topRules.map(([id, n]) => `${id} ${g('times')}${n}`).join(` ${g('dot')} `)}`));
   }
   if (s.capped) {
     out('   ' + paint(C.dim, '(score caps each rule so one detector can\'t define the verdict)'));
@@ -117,7 +117,7 @@ function terminalReport(result, s, options = {}) {
   }
   out('');
   let lastFile = null;
-  const max = options.max || findings.length;
+  const max = options.max != null ? options.max : findings.length;
   for (const f of findings.slice(0, max)) {
     if (f.file !== lastFile) { out('  ' + paint(C.bold, f.file)); lastFile = f.file; }
     const sev = paint(SEV_COLOR[f.severity], sevLabel(f.severity));
