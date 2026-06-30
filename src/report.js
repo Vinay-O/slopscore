@@ -50,6 +50,13 @@ function scoreBanner(s) {
   if (hasNonprod) {
     out('   ' + paint(C.dim, `+ ${s.nonprod.total} in test / tooling — reported, not scored`));
   }
+  const total = s.counts.critical + s.counts.major + s.counts.minor;
+  if (s.topRules && s.topRules.length >= 2 && total >= 3) {
+    out('   ' + paint(C.dim, `by rule: ${s.topRules.map(([id, n]) => `${id} ×${n}`).join(' · ')}`));
+  }
+  if (s.capped) {
+    out('   ' + paint(C.dim, '(score caps each rule so one detector can\'t define the verdict)'));
+  }
   out('');
   out('   ' + paint(C.bold, paint(color, '▶ ' + s.verdict)));
   if (s.suppressed > 0) {

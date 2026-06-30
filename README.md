@@ -67,6 +67,7 @@ $ npx slopscore examples/slop.tsx
 
    88 weighted   (35 lines scanned)
    5 critical   10 major   8 minor
+   by rule: 069 ×2 · 105 ×1 · 058 ×1 · 054 ×1 · 070 ×1 · 099 ×1
 
    ▶ Vibe-coded. Audit before anyone depends on it.
 ```
