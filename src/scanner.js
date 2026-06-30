@@ -4,8 +4,16 @@ const fs = require('fs');
 const path = require('path');
 const { LINE_RULES, WHOLE_FILE_RULES, META, confidenceOf } = require('./rules');
 const { checkDuplication, CODE_FOR_DUP } = require('./duplication');
-const { buildSuppressions } = require('./suppress');
+const { buildSuppressions, buildEslintSuppressions } = require('./suppress');
 const { commentMask } = require('./mask');
+
+// id → { eslint, category } so an applied finding can be matched against an
+// inline `eslint-disable` directive. Security findings are never eslint-suppressible
+// (the whole point is to catch a hole the dev waved through), so they carry no map.
+const ESLINT_BY_ID = new Map();
+for (const r of [...LINE_RULES, ...WHOLE_FILE_RULES]) {
+  if (r.eslint && r.category !== 'security') ESLINT_BY_ID.set(r.id, r.eslint);
+}
 
 // Rules that detect a CODE construct (a call, an operator, a keyword): a match
 // inside a string literal or comment/docstring is always prose, never a real use,
@@ -401,11 +409,19 @@ function scan(target, options = {}) {
     checkFileSize(file, ext, isTest, lineCount, lines, findings);
     // Apply inline suppressions and tag the zone on this file's findings.
     const { map: suppress, directives } = buildSuppressions(lines);
+    const eslintSup = buildEslintSuppressions(lines);
     const usedTargets = new Set();
     const fresh = findings.splice(before);
     for (const f of fresh) {
       const sup = suppress[f.line - 1];
       if (sup === true || (sup && sup.has(f.id))) { suppressed += 1; usedTargets.add(f.line - 1); continue; }
+      // Honor an inline `eslint-disable` for the matching (non-security) rule —
+      // a finding the project already, deliberately, signed off on via ESLint.
+      const esl = eslintSup[f.line - 1];
+      const eslName = ESLINT_BY_ID.get(f.id);
+      // eslName guards security: a finding with no eslint mapping (every security
+      // rule) is never silenced, not even by a bare `eslint-disable` (all-rules).
+      if (eslName && (esl === true || (esl && esl.has(eslName)))) { suppressed += 1; continue; }
       f.zone = zone;
       findings.push(f);
     }
