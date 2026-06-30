@@ -53,6 +53,14 @@ const FIXERS = {
       .replace(/==\s*None\b/g, 'is None');
     return replace !== line ? { replace } : null;
   },
+
+  // 169 — target="_blank" without rel: add rel="noopener noreferrer" (additive,
+  // closes the reverse-tabnabbing hole without changing behavior).
+  '169': (line) => {
+    if (!/target\s*=\s*['"]_blank['"]/.test(line) || /\brel\s*=/.test(line)) return null;
+    const replace = line.replace(/(<a\b[^>]*?)(\s*\/?>)/, (_match, head, close) => `${head} rel="noopener noreferrer"${close}`);
+    return replace !== line ? { replace } : null;
+  },
 };
 
 module.exports = { FIXERS, balanced };

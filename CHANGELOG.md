@@ -3,6 +3,26 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Security detector expansion — 12 new high-signal checks (163–174).** TLS/cert
+  verification disabled (`rejectUnauthorized: false`, `verify=False`,
+  `InsecureSkipVerify`), weak hashing for security (MD5/SHA-1, scoped so a content
+  checksum isn't flagged), insecure randomness for tokens/OTPs (`Math.random`),
+  hardcoded private keys (PEM), insecure Python deserialization (`pickle.loads`,
+  `yaml.load`), wildcard CORS origin, `target="_blank"` without `rel="noopener"`
+  (auto-fixable), credentials in connection strings, SQL by string concatenation,
+  `eval`/`new Function`, cleartext HTTP calls, and unverified JWTs (`alg: none` /
+  `verify=False`). Catalog is now **174 patterns / 78 detectors**.
+- **`--category <names>` focus filter.** Run a focused audit — e.g.
+  `slopscore scan . --category security` — scoring and reporting only the categories
+  you name (comma-separated).
+
+### Changed
+- The count-invariant test now derives the catalog total instead of hardcoding it,
+  so growing the catalog only requires updating the prose it pins.
+
 ## [1.6.0] — 2026-06-30
 
 Trust-and-coverage release, implementing the improvements from a real production-app

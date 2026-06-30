@@ -40,6 +40,7 @@ function parseArgs(argv) {
     else if (a === '--max') { const v = parseInt(argv[++i], 10); if (Number.isInteger(v) && v >= 0) opts.max = v; }
     else if (a === '--fail-on') { opts.failOn = argv[++i]; opts.failOnSet = true; }
     else if (a === '--min-confidence') opts.minConfidence = argv[++i];
+    else if (a === '--category') opts.category = (argv[++i] || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
     else if (a === '--ignore') opts.ignore.push(argv[++i]);
     else if (a === '--baseline') {
       const next = argv[i + 1];
@@ -116,6 +117,10 @@ function scanAndReport(opts, cfg, baseDir, failOn, record) {
   // scoring + reporting, so CI can require only high-confidence signal.
   const floor = CONF_RANK[opts.minConfidence];
   if (floor) result.findings = result.findings.filter((f) => (CONF_RANK[f.confidence] || 3) >= floor);
+  // --category focuses the run on one or more categories (e.g. a security-only audit).
+  if (opts.category && opts.category.length) {
+    result.findings = result.findings.filter((f) => opts.category.includes(f.category));
+  }
   if (opts.baseline) {
     const existing = loadBaseline(opts.baseline);
     if (existing) {
@@ -245,7 +250,7 @@ function printProtocol() {
 
 function printRules() {
   const all = LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES);
-  out(`slopscore ships ${all.length} deterministic detectors. The full 162-pattern catalog`);
+  out(`slopscore ships ${all.length} deterministic detectors. The full 174-pattern catalog`);
   out('(including visual, architectural, and judgment-heavy patterns) lives in ANTI_SLOP_PROTOCOL.md.\n');
   const byCat = {};
   for (const r of all) (byCat[r.category] = byCat[r.category] || []).push(r);
@@ -266,7 +271,7 @@ function printExplain(arg) {
   if (!fs.existsSync(p)) { err('slopscore: ANTI_SLOP_PROTOCOL.md not found alongside the package.'); process.exit(2); }
   const lines = fs.readFileSync(p, 'utf8').split('\n');
   const start = lines.findIndex((l) => l.startsWith(`**${id} · `));
-  if (start === -1) { err(`slopscore: no catalog entry ${id} (ids run 001–162). Try: slopscore protocol`); process.exit(2); }
+  if (start === -1) { err(`slopscore: no catalog entry ${id} (ids run 001–174). Try: slopscore protocol`); process.exit(2); }
   const block = [lines[start]];
   for (let i = start + 1; i < lines.length; i += 1) {
     if (/^\*\*\d{3} · /.test(lines[i])) break; // next entry
@@ -322,7 +327,7 @@ slopscore v${pkg.version} — scan your codebase for AI slop, get a Slop Score, 
 USAGE
   slopscore [scan] [paths...] [options]
   slopscore fix [paths...]      auto-apply the safe (🟢 AUTO) fixes; --dry-run to preview
-  slopscore protocol            print the full 162-pattern protocol (pipe to your agent)
+  slopscore protocol            print the full 174-pattern protocol (pipe to your agent)
   slopscore rules               list the deterministic detectors this CLI runs
   slopscore explain <id>        print one catalog pattern + its fix (e.g. explain 058)
   slopscore init                write .slopscore.json + a GitHub Action PR gate
@@ -334,6 +339,7 @@ OPTIONS
   --format agent             compact output for feeding an AI agent
   --fail-on <level>          exit non-zero at: critical | major | minor | never  (default: major)
   --min-confidence <level>   only report/score findings at: high | medium | low  (default: low/all)
+  --category <names>         focus on one or more categories, e.g. security  (comma-separated)
   --baseline [file]          ratchet mode: snapshot current findings, then fail only
                              on NEW slop (default file: .slopscore-baseline.json)
   --update-baseline          re-snapshot the baseline (accept the current findings)

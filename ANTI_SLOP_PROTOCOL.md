@@ -296,7 +296,7 @@ Each entry: **ID · Title** `SEVERITY` `AUTHORITY` — description, `DETECT` (ho
 (aesthetic tell). Authority: 🟢 AUTO · 🟡 PROPOSE · 🔴 FLAG (see §0).
 
 A `` `⚙️ slopscore scan` `` tag means **the deterministic CLI already detects this pattern** —
-`npx slopscore` flags it for you with the exact location and fix. **66 of the 162** carry this tag
+`npx slopscore` flags it for you with the exact location and fix. **78 of the 174** carry this tag
 today; the rest need an AST tool (§2.1) or human reading (layout sameness, fake features,
 architectural drift). The tags are generated from the scanner's own rule table, so they never
 drift from what the CLI actually does. Patterns *without* the tag are where you, the agent, earn
@@ -1094,6 +1094,66 @@ No CSP, no `helmet()`, missing `X-Frame-Options`/`X-Content-Type-Options`.
 `res.json({ error: error.stack })` leaks file paths, line numbers, internals.
 `DETECT:` `error.stack`/`err.stack` in responses · internal details sent to client · no NODE_ENV gate.
 `FIX:` Return a generic message + an error id; log the full trace server-side only; gate any detail behind a dev-env check. AUTO.
+
+**163 · TLS / certificate verification disabled** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+`rejectUnauthorized: false`, `verify=False`, `InsecureSkipVerify: true`, `NODE_TLS_REJECT_UNAUTHORIZED=0` — every one turns off the check that stops a man-in-the-middle. AI reaches for it the moment a cert error appears in dev.
+`DETECT:` `rejectUnauthorized: false` · `NODE_TLS_REJECT_UNAUTHORIZED=0` · `verify=False` · `InsecureSkipVerify: true` · `ssl._create_unverified_context`.
+`FIX:` Never disable verification. Fix the trust store / cert chain; for local dev issue a real cert with a local CA (mkcert), not a global bypass.
+
+**164 · Weak hash (MD5 / SHA-1) for security** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+MD5 and SHA-1 are broken — collidable, and far too fast for password storage. Flagged only when a security word (`password`, `token`, `signature`…) shares the line, because md5/sha1 for a cache key or content fingerprint is perfectly fine.
+`DETECT:` `createHash('md5'|'sha1')` / `hashlib.md5|sha1` / `MessageDigest.getInstance("MD5"|"SHA-1")` near a credential.
+`FIX:` SHA-256+ for integrity; bcrypt/scrypt/argon2 for passwords. Leave non-security checksums alone.
+
+**165 · Insecure randomness for a security value** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+`Math.random()` is not cryptographically secure — its output is predictable. Using it to build a token, OTP, password-reset code, nonce, or salt hands an attacker the keys.
+`DETECT:` `Math.random()` on a line that also names a `token`/`secret`/`otp`/`nonce`/`salt`/`session`/`api_key`/`csrf`/`reset`.
+`FIX:` `crypto.randomBytes` / `crypto.randomUUID` / `crypto.getRandomValues` for anything security-relevant.
+
+**166 · Hardcoded private key in source** `🔴` `🔴 FLAG` `⚙️ slopscore scan`
+A `-----BEGIN … PRIVATE KEY-----` block committed to the repo is compromised the instant it lands in git history.
+`DETECT:` a PEM `PRIVATE KEY` header (RSA/EC/DSA/OPENSSH/PGP) anywhere in tracked source.
+`FIX:` Remove it and **rotate the key now**. Load keys at runtime from a secret manager / env; scrub git history.
+
+**167 · Insecure deserialization (Python)** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+`pickle.loads`, `marshal.loads`, and `yaml.load` (without `SafeLoader`) execute arbitrary code from the payload — a direct RCE on untrusted input.
+`DETECT:` `pickle.loads(` · `cPickle.loads(` · `marshal.loads(` · `yaml.load(` without a `Loader=` argument.
+`FIX:` `yaml.safe_load`; for interchange use JSON. Never unpickle data you didn't produce.
+
+**168 · Wildcard CORS origin** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+`Access-Control-Allow-Origin: *` (or `origin: '*'`) on an authenticated, state-changing API lets any site call it with the user's session.
+`DETECT:` `Access-Control-Allow-Origin: *` · `origin: '*'` in a CORS config.
+`FIX:` Allow-list explicit origins; reserve `*` for genuinely public, credential-free, read-only endpoints.
+
+**169 · `target="_blank"` without `rel="noopener"`** `🟠` `🟢 AUTO` `⚙️ slopscore scan`
+An external link opened with `target="_blank"` can reach back through `window.opener` and navigate your tab to a phishing page (reverse tabnabbing).
+`DETECT:` `<a … target="_blank" …>` with no `rel` containing `noopener`.
+`FIX:` Add `rel="noopener noreferrer"`. AUTO — `slopscore fix` adds it.
+
+**170 · Credentials in a connection string** `🔴` `🔴 FLAG` `⚙️ slopscore scan`
+`postgres://user:password@host` (Mongo, MySQL, Redis, AMQP, FTP, LDAP…) bakes a live credential into source — and it leaks into logs, shell history, and process listings.
+`DETECT:` a `scheme://user:pass@host` URL for a known database / service protocol.
+`FIX:` Move the username/password into env / a secret manager and reference them at runtime; rotate the exposed credential.
+
+**171 · SQL built by string concatenation** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+`"SELECT … WHERE id = " + id` is injection by another name — the template-literal cousin (`072`) without the backticks.
+`DETECT:` a quoted SQL fragment (`SELECT…FROM`, `INSERT INTO`, `UPDATE…SET`, `DELETE FROM`) adjacent to a `+`, or `+ "WHERE/VALUES/AND/OR …"`.
+`FIX:` Parameterized queries / prepared statements. Never concatenate input into SQL.
+
+**172 · `eval()` / `new Function()` on dynamic input** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+`eval` and `new Function` execute whatever string they're given — arbitrary code execution if any of it is attacker-influenced.
+`DETECT:` `eval(` · `new Function(` in app code.
+`FIX:` `JSON.parse` for data, a lookup table for dispatch, or a real expression parser. Remove `eval` outright where you can.
+
+**173 · Cleartext HTTP for a network call** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+`fetch("http://api…")` / `requests.get("http://…")` sends data and tokens in the clear for anyone on the path to read or tamper with.
+`DETECT:` `fetch`/`axios`/`requests`/`http.get` called with an `http://` URL (localhost excepted).
+`FIX:` Use `https://`. If a service is HTTP-only, front it with TLS termination.
+
+**174 · JWT signature not verified** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+`algorithms: ['none']` or `verify=False` accepts a forged token — anyone can mint an admin session.
+`DETECT:` `algorithms: ['none']` · `jwt.decode(token, verify=False)` · a verify call allow-listing `none`.
+`FIX:` Always verify against a fixed allow-list of strong algorithms (e.g. `RS256`/`ES256`). Never `none`, never `verify=False`.
 
 ---
 
