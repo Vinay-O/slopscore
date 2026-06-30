@@ -3,6 +3,30 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- **QA hardening — eliminated false positives and fix-engine corruption** (from a
+  4-agent adversarial sweep against realistic clean code).
+  - **Language-aware masking:** the comment mask was JS-only, so Python `#` comments
+    and docstrings — and any string literal — were scanned as live code. New tri-state
+    mask (code/comment/string) with Python `#`/docstring support; `codeOnly` rules
+    (`052 106 144 152 153 155 159 172 178 179 180 181`) only fire in real code; `057`
+    is comments-only (a `TODO` enum value no longer trips it).
+  - **Fix engine can no longer corrupt code:** removed the deletion fixers for `178`
+    (Python `print` → empties a block), `180` (Rust `dbg!` → drops a tail expression),
+    `158` (Go `fmt.Print` → deletes real output); `152/179` rewriters are string-safe;
+    a removal guard refuses to orphan a braceless control body.
+  - **Detector precision:** `172` ignores method calls / definitions / TS signatures
+    named `eval`; `106` ignores a `confirm()` wrapper; `163` needs an HTTP-client on the
+    line (not a generic `verify=False` param); `171` needs real SQL (not `a + " and " + b`);
+    `176` matches upper/lower SQL only; `142` exempts date-pinned model ids; `152/179`
+    skip ORM `Column == None`/`== True`.
+  - **Test-zone detection** for pytest (`test_*.py`/`*_test.py`), Go (`*_test.go`), Ruby.
+  - **CLI:** `--max 0` prints zero; color auto-off when not a TTY / for `--out`; `--out`
+    to a bad path exits 2 cleanly; typo'd `--category`/`--fail-on`/`--min-confidence`
+    exit 2; `--ascii` fully ASCII-ifies the by-rule line.
+
 ## [1.7.0] — 2026-06-30
 
 Security-and-reach release: a best-in-class security pass, performance detectors,

@@ -85,6 +85,7 @@ test('172 does NOT flag a method call named eval (model.eval(), this.eval())', (
 
 test('172/106 do NOT flag a function or method DEFINITION named eval/confirm', () => {
   assert.ok(!ids(tmpFile('a.js', 'const o = { eval(x) { return x; } };\n')).includes('172'), 'method shorthand named eval');
+  assert.ok(!ids(tmpFile('a2.ts', 'interface Rule { eval(ctx: number): boolean; }\n')).includes('172'), 'TS signature named eval');
   assert.ok(!ids(tmpFile('b.js', 'function evalRule(){}\n')).includes('172'));
   assert.ok(!ids(tmpFile('c.js', 'export function confirm(opts) { return show(opts); }\n')).includes('106'), 'a custom confirm() wrapper');
   assert.ok(ids(tmpFile('d.js', 'const r = eval(userInput);\n')).includes('172'), 'a real eval call still fires');

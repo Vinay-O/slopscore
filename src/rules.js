@@ -141,8 +141,8 @@ const LINE_RULES = [
     id: '106', title: 'alert() / confirm() / prompt() in production', category: 'architecture',
     authority: 'propose', exts: CODE, skipTests: true, respectComments: true, severity: 'minor',
     // The global call only — not a method (lookbehind on `.`) and not a function or
-    // method DEFINITION named confirm/prompt (the app's own dialog wrapper).
-    re: /(?<![\w.])(?<!function\s)(alert|confirm|prompt)\s*\((?![^)]*\)\s*\{)/,
+    // method DEFINITION / signature named confirm/prompt (the app's own dialog wrapper).
+    re: /(?<![\w.])(?<!function\s)(alert|confirm|prompt)\s*\((?![^)]*\)\s*[:{])/,
     // Don't flag an LLM/AI `prompt(...)` function — that's our own audience's code.
     unless: /system|user|assistant|\bllm\b|gpt|claude|chat|message|template|completion|tokens?\b/i,
     fix: 'Replace native blocking dialogs with the app toast/dialog components.',
@@ -512,9 +512,9 @@ const LINE_RULES = [
     id: '172', title: 'eval() / new Function() on dynamic input', category: 'security', severity: 'critical',
     authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
     // Match the global eval(...) call only — NOT a method call like model.eval()
-    // (leading `.`/word), NOT a function/method DEFINITION named eval (an expression
-    // engine's own method): `function eval(` or `eval(params) {`.
-    re: /(?<![.\w$])(?<!function\s)eval\s*\((?![^)]*\)\s*\{)|new\s+Function\s*\(/,
+    // (leading `.`/word), NOT a function/method DEFINITION or TS signature named eval
+    // (`function eval(`, `eval(params) {`, `eval(ctx): boolean`).
+    re: /(?<![.\w$])(?<!function\s)eval\s*\((?![^)]*\)\s*[:{])|new\s+Function\s*\(/,
     fix: 'Avoid eval / new Function — it is arbitrary code execution. Use JSON.parse, a lookup table, or a real parser.',
   },
   {
@@ -539,7 +539,7 @@ const LINE_RULES = [
   },
   {
     id: '176', title: 'SELECT * over-fetch', category: 'performance', severity: 'minor',
-    authority: 'propose', exts: null, skipTests: true, respectComments: true,
+    authority: 'propose', exts: null, skipTests: true, respectComments: true, confidence: 'medium',
     // All-upper or all-lower only (the two real SQL conventions). Title-case
     // "Select * from the menu" is prose, not a query — don't flag it.
     re: /\bSELECT\s+\*\s+FROM\b|\bselect\s+\*\s+from\b/,
