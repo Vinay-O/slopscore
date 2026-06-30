@@ -3,6 +3,16 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.7.3] — 2026-06-30
+
+### Changed
+- **Docs refreshed to match the tool.** README demo output, the auto-fix rule list,
+  the test count, and the "what it detects" table now reflect 1.7.x reality (security
+  expansion, performance + language-specific detectors, presets, the verified-safe fix
+  engine). `package.json` description updated from "162-pattern" to the current
+  **85 detectors / 181-pattern** framing, with `homepage`/`bugs` links — so the npm
+  page matches the repo. No code changes.
+
 ## [1.7.2] — 2026-06-30
 
 ### Fixed
