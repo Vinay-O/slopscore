@@ -380,7 +380,9 @@ const LINE_RULES = [
   {
     id: '153', title: 'eval() / exec() on dynamic input (Python)', category: 'security', severity: 'critical',
     authority: 'propose', exts: PY, skipTests: true, respectComments: true,
-    re: /(?<![\w.])(eval|exec)\s*\(/,
+    // The builtin call only — not a method (`.eval()`) and not a method/function
+    // DEFINITION named eval/exec (`def eval(self):` — e.g. a model's eval mode).
+    re: /(?<![\w.])(?<!def\s)(eval|exec)\s*\(/,
     unless: /ast\.literal_eval/,
     fix: 'Never eval/exec dynamic input — it is arbitrary code execution. Use ast.literal_eval or a real parser.',
   },

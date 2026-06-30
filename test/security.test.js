@@ -33,6 +33,12 @@ test('165 flags Math.random used for a security value', () => {
   assert.ok(!ids(tmpFile('b.js', 'const jitter = Math.random() * 100;\n')).includes('165'), 'non-security randomness is fine');
 });
 
+test('153 ignores a Python method named eval/exec but flags a real call', () => {
+  assert.ok(!ids(tmpFile('a.py', 'class M:\n    def eval(self):\n        return self.w\n')).includes('153'), 'def eval(self) is a method, not a call');
+  assert.ok(!ids(tmpFile('b.py', 'class M:\n    def exec(self, q):\n        return q\n')).includes('153'));
+  assert.ok(ids(tmpFile('c.py', 'r = eval(user_input)\n')).includes('153'), 'a real eval() call still fires');
+});
+
 test('166 flags a hardcoded private key', () => {
   assert.ok(ids(tmpFile('a.js', 'const k = "-----BEGIN RSA PRIVATE KEY-----";\n')).includes('166'));
 });
