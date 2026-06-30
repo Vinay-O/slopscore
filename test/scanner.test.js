@@ -48,6 +48,12 @@ test('a // inside a string does not suppress detection later on the line', () =>
   assert.ok(ids(scan(p)).includes('054'));
 });
 
+test('078 flags Python bare except but not a JS object key named except', () => {
+  assert.ok(ids(scan([tmpFile('a.py', 'try:\n    risky()\nexcept:\n    pass\n')])).includes('078'), 'real bare except');
+  assert.ok(ids(scan([tmpFile('b.py', 'try:\n    x()\nexcept Exception as e:\n    pass\n')])).includes('078'), 'except Exception');
+  assert.ok(!ids(scan([tmpFile('c.js', 'const o = { except: a, only: b };\n')])).includes('078'), 'JS object key is not a bare except');
+});
+
 test('detects empty catch block', () => {
   const p = tmpFile('a.js', 'try { go(); } catch (e) {}\n');
   assert.ok(ids(scan(p)).includes('053'));
@@ -75,6 +81,22 @@ test('detects SQL injection via template literal', () => {
 test('detects auth token in localStorage', () => {
   const p = tmpFile('a.js', 'localStorage.setItem("token", jwt);\n');
   assert.ok(ids(scan(p)).includes('073'));
+});
+
+test('003 detects glassmorphism in CSS-in-JS (MUI camelCase), not just Tailwind', () => {
+  assert.ok(ids(scan([tmpFile('a.tsx', 'export const C = () => <Box sx={{ backdropFilter: "blur(12px)" }} />;\n')])).includes('003'), 'MUI sx camelCase');
+  assert.ok(ids(scan([tmpFile('b.ts', "export const panel = { WebkitBackdropFilter: 'blur(8px)' };\n")])).includes('003'), 'styled .ts camelCase');
+  assert.ok(ids(scan([tmpFile('c.css', '.glass { backdrop-filter: blur(10px); }\n')])).includes('003'), 'plain CSS still works');
+});
+
+test('001 detects a purple gradient in CSS-in-JS / theme tokens, not just Tailwind hexes', () => {
+  assert.ok(ids(scan([tmpFile('a.tsx', "export const H = () => <Box sx={{ background: 'linear-gradient(135deg, #8B5CF6 0%, #6366f1 100%)' }} />;\n")])).includes('001'), 'MUI sx gradient with violet/indigo hexes');
+  assert.ok(ids(scan([tmpFile('b.ts', "export const theme = { hero: { backgroundImage: 'linear-gradient(90deg, #a78bfa, #818cf8)' } };\n")])).includes('001'), 'theme.ts token gradient');
+  assert.ok(!ids(scan([tmpFile('c.tsx', "export const Ok = () => <Box sx={{ background: 'linear-gradient(90deg, #0a0a0a, #1f2937)' }} />;\n")])).includes('001'), 'a neutral gradient is not flagged');
+});
+
+test('008 detects gradient text in CSS-in-JS camelCase', () => {
+  assert.ok(ids(scan([tmpFile('a.tsx', "export const T = () => <span style={{ WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Hi</span>;\n")])).includes('008'), 'emotion/MUI camelCase');
 });
 
 test('detects img without alt', () => {
@@ -349,6 +371,30 @@ test('142 catches current aliased model ids', () => {
   assert.ok(ids(scan(p)).includes('142'));
 });
 
+test('068 scores repeated markup as minor but logic duplication as major', () => {
+  const logic = 'function totals(items, rate) {\n  let sub = 0;\n  for (const it of items) {\n    sub += it.price * it.qty;\n  }\n  const tax = sub * rate;\n  return { sub, tax, total: sub + tax };\n}\n';
+  const ld = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-ld-'));
+  fs.writeFileSync(path.join(ld, 'a.js'), `${logic}export const a = 1;\n`);
+  fs.writeFileSync(path.join(ld, 'b.js'), `export const b = 2;\n${logic}`);
+  assert.ok(scan([ld], { ignoreBase: ld }).findings.some((f) => f.id === '068' && f.severity === 'major'), 'logic dup is major');
+
+  const mui = '      <Box sx={{ p: 2, borderRadius: 2, bgcolor: "paper", boxShadow: 1 }}>\n        <Typography variant="h6" color="text.primary" gutterBottom>\n          {title}\n        </Typography>\n        <Typography variant="body2" color="text.secondary">\n          {subtitle}\n        </Typography>\n        <Chip size="small" label={status} color="success" variant="outlined" />\n        <IconButton onClick={onClose} aria-label="close" size="small" />\n        <Divider sx={{ my: 1 }} />\n      </Box>\n';
+  const md = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-md-'));
+  fs.writeFileSync(path.join(md, 'c.tsx'), `function C(){ return (\n${mui}); }\nexport const x = 1;\n`);
+  fs.writeFileSync(path.join(md, 'd.tsx'), `export const y = 2;\nfunction D(){ return (\n${mui}); }\n`);
+  const dup = scan([md], { ignoreBase: md }).findings.filter((f) => f.id === '068');
+  assert.ok(dup.length > 0 && dup.every((f) => f.severity === 'minor'), 'repeated markup is minor');
+});
+
+test('the weighted score caps a single noisy rule', () => {
+  let src = '';
+  for (let i = 0; i < 15; i += 1) src += `console.log(${i});\n`;
+  const s = score(scan(tmpFile('a.js', src)));
+  assert.strictEqual(s.byRule['052'], 15, 'true count preserved');
+  assert.ok(s.capped, 'cap engaged');
+  assert.ok(s.weighted < 15 * 3, 'one rule cannot run the score away');
+});
+
 test('068 flags an identical block copy-pasted across files, not a unique one', () => {
   const block = 'function totals(items, rate) {\n  let sub = 0;\n  for (const it of items) {\n    sub += it.price * it.qty;\n  }\n  const tax = sub * rate;\n  return { sub, tax, total: sub + tax };\n}\n';
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-dup-'));
@@ -367,6 +413,46 @@ test('inline suppression skips the targeted rule on the next line only', () => {
   assert.strictEqual(r.suppressed, 1);
   // the "2 weeks" reason must not be parsed as rule 002
   assert.ok(!r.findings.some((f) => f.id === '002'));
+});
+
+test('findings carry a confidence: precise rules high, heuristics softer', () => {
+  const high = scan(tmpFile('a.js', 'const k = "sk-abcdef0123456789abcdef";\n')).findings.find((f) => f.id === '058');
+  assert.strictEqual(high.confidence, 'high', 'a secret match is high confidence');
+  const visual = scan(tmpFile('b.tsx', 'export const C = () => <div sx={{ backdropFilter: "blur(8px)" }} />;\n')).findings.find((f) => f.id === '003');
+  assert.strictEqual(visual.confidence, 'medium', 'a visual idiom is medium');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-dup-'));
+  const block = 'function totals(items, rate) {\n  let sub = 0;\n  for (const it of items) {\n    sub += it.price * it.qty;\n  }\n  const tax = sub * rate;\n  return { sub, tax };\n}\n';
+  fs.writeFileSync(path.join(dir, 'a.js'), `${block}export const a = 1;\n`);
+  fs.writeFileSync(path.join(dir, 'b.js'), `export const b = 2;\n${block}`);
+  const dup = scan([dir], { ignoreBase: dir }).findings.find((f) => f.id === '068');
+  assert.strictEqual(dup.confidence, 'low', 'the line-hash dup heuristic is low');
+});
+
+test('--min-confidence filters out softer findings before scoring', () => {
+  const f = tmpFile('a.tsx', 'export const C = () => <div sx={{ backdropFilter: "blur(8px)" }} />;\n');
+  assert.match(runBin(['scan', f, '--no-color']), /\[003\]/);
+  assert.match(runBin(['scan', f, '--min-confidence', 'high', '--no-color']), /No slop patterns detected/);
+});
+
+test('a suppression that hides nothing is reported as stale', () => {
+  const p = tmpFile('a.js', '// slopscore-disable-next-line 052 — debug log, since removed\nconst x = 1;\nexport default x;\n');
+  const r = scan(p);
+  assert.strictEqual(r.staleSuppressions.length, 1, 'the dead directive is stale');
+  assert.deepStrictEqual(r.staleSuppressions[0].ids, ['052']);
+});
+
+test('a suppression that hides a real finding is NOT stale', () => {
+  const p = tmpFile('a.ts', '// slopscore-disable-next-line 054 — deliberate\nconst x: any = 1;\n');
+  const r = scan(p);
+  assert.strictEqual(r.staleSuppressions.length, 0, 'a working suppression is not stale');
+});
+
+test('a documented/quoted directive is not treated as a real directive', () => {
+  // The leading text of the first comment is `// slopscore-...`, i.e. another
+  // comment — this is prose ABOUT the directive, not the directive itself.
+  const p = tmpFile('a.js', '//   // slopscore-disable-next-line 052 — example in a doc comment\nconst x = 1;\n');
+  const r = scan(p);
+  assert.strictEqual(r.staleSuppressions.length, 0, 'a doc example must not register as a directive');
 });
 
 test('per-path config disables a rule under one directory only', () => {
@@ -447,6 +533,51 @@ test('explain prints a catalog entry + fix for a valid id', () => {
   assert.match(out, /Automated/);
 });
 
+// The demo file scores high, so `scan` exits non-zero; execFileSync throws but
+// still carries the captured stdout. This grabs output regardless of exit code.
+function runBin(args, opts = {}) {
+  try {
+    return execFileSync('node', [BIN, ...args], { encoding: 'utf8', ...opts });
+  } catch (e) {
+    return e.stdout != null ? e.stdout : '';
+  }
+}
+
+test('--ascii renders slopscore chrome with no non-ASCII bytes (legacy Windows console)', () => {
+  // An ASCII-only source, so any non-ASCII byte in the output is slopscore's own
+  // chrome (box-drawing / emoji), not quoted user content.
+  const src = tmpFile('a.js', 'function f(){ console.log("x"); }\nconst y: any = 1;\n');
+  const out = runBin(['scan', src, '--ascii', '--no-color']);
+  // eslint-disable-next-line no-control-regex
+  assert.ok(!/[^\x00-\x7F]/.test(out), 'ASCII mode must not emit any non-ASCII glyph');
+  assert.match(out, /S L O P {3}S C O R E/); // the banner still draws, in ASCII
+  assert.match(out, /\+={3,}\+/); // ASCII box border, not Unicode ═
+});
+
+test('the default report uses Unicode glyphs', () => {
+  const out = runBin(['scan', path.join(__dirname, '..', 'examples', 'slop.tsx'), '--unicode', '--no-color']);
+  assert.ok(/[╔╗╚╝═║▶]/.test(out), 'Unicode mode draws the box-drawing banner');
+});
+
+test('--out writes a UTF-8 report file (not shell-dependent encoding)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-out-'));
+  const file = path.join(dir, 'report.md');
+  runBin(['scan', path.join(__dirname, '..', 'examples', 'slop.tsx'), '--markdown', '--out', file]);
+  const buf = fs.readFileSync(file);
+  assert.ok(buf.length > 0, 'file written');
+  // A UTF-8 file has no UTF-16 BOM (0xFF 0xFE) and round-trips its emoji.
+  assert.ok(!(buf[0] === 0xFF && buf[1] === 0xFE), 'must not be UTF-16');
+  assert.match(buf.toString('utf8'), /Slop Report/);
+});
+
+test('--help and --version print real content (guards against a broken HELP literal)', () => {
+  const help = runBin(['--help']);
+  assert.match(help, /USAGE/);
+  assert.match(help, /slopscore fix/);
+  assert.ok(help.length > 500, 'help must be the full usage text, not a stray value');
+  assert.strictEqual(runBin(['--version']).trim(), require('../package.json').version);
+});
+
 test('explain errors (exit 2) on an out-of-range id', () => {
   assert.throws(
     () => execFileSync('node', [BIN, 'explain', '999'], { encoding: 'utf8', stdio: 'pipe' }),
@@ -469,6 +600,48 @@ test('slopscore passes its own scan (eats its own dog food)', () => {
     result.findings.length, 0,
     `slopscore flagged its own source — fix the code or the rule:\n${detail}`,
   );
+});
+
+// A tool about not shipping inconsistencies must reconcile its own counts.
+// The "⚙️ slopscore scan" tags in the catalog, the detector rule table, and every
+// headline number ("66 detectors", "66 of the 162") must agree exactly — forever.
+test('catalog ⚙️ tags, the detector table, and the headline counts all agree', () => {
+  const repoRoot = path.resolve(__dirname, '..');
+  const rules = require('../src/rules');
+  const detectorIds = new Set(
+    rules.LINE_RULES.concat(rules.WHOLE_FILE_RULES, rules.META_RULES).map((r) => r.id),
+  );
+
+  const protocol = fs.readFileSync(path.join(repoRoot, 'ANTI_SLOP_PROTOCOL.md'), 'utf8');
+  const lines = protocol.split('\n');
+  const headingIds = [];
+  const taggedIds = new Set();
+  for (const line of lines) {
+    const m = line.match(/^\*\*(\d{3}) /);
+    if (!m) continue;
+    headingIds.push(m[1]);
+    if (line.includes('slopscore scan')) taggedIds.add(m[1]);
+  }
+
+  // 1. Every catalog entry is unique and the catalog totals 162 patterns.
+  assert.strictEqual(new Set(headingIds).size, headingIds.length, 'duplicate catalog id');
+  assert.strictEqual(headingIds.length, 162, `catalog has ${headingIds.length} patterns, expected 162`);
+
+  // 2. The ⚙️-tagged set equals the real detector table — no aspirational tags,
+  //    no silent detector that forgot its tag.
+  const onlyTagged = [...taggedIds].filter((id) => !detectorIds.has(id));
+  const onlyDetector = [...detectorIds].filter((id) => !taggedIds.has(id));
+  assert.deepStrictEqual(onlyTagged, [], `tagged in catalog but no detector: ${onlyTagged}`);
+  assert.deepStrictEqual(onlyDetector, [], `detector exists but catalog untagged: ${onlyDetector}`);
+
+  // 3. Every headline number matches the detector count.
+  const n = detectorIds.size;
+  const readme = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
+  assert.ok(readme.includes(`${n} detectors`), `README must say "${n} detectors"`);
+  assert.ok(readme.includes(`${n} of the 162`), `README must say "${n} of the 162"`);
+  assert.ok(protocol.includes(`**${n} of the 162**`), `catalog must say "${n} of the 162"`);
+  const rulesOut = execFileSync('node', [BIN, 'rules'], { encoding: 'utf8' });
+  assert.ok(rulesOut.includes(`${n} deterministic detectors`), `rules must say "${n} deterministic detectors"`);
 });
 
 // Regression guard for the ignore-path bug: a configured ignore like

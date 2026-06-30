@@ -67,6 +67,7 @@ $ npx slopscore examples/slop.tsx
 
    88 weighted   (35 lines scanned)
    5 critical   10 major   8 minor
+   by rule: 069 ×2 · 105 ×1 · 058 ×1 · 054 ×1 · 070 ×1 · 099 ×1
 
    ▶ Vibe-coded. Audit before anyone depends on it.
 ```
@@ -212,15 +213,33 @@ slopscore scan . --update-baseline # accept the current state as the new floor
 
 The baseline keys findings by content, not line number — so moving code around never registers as new slop. Commit `.slopscore-baseline.json` and your CI gate goes green today while the count only ever goes down.
 
+## Auto-fix the safe stuff
+
+Some slop has exactly one correct fix and no judgment call — a stray `console.log`, an `<img>` missing `alt`, Python's `== None`. `slopscore fix` applies those (and only those) for you:
+
+```bash
+slopscore fix . --dry-run      # preview every change, write nothing
+slopscore fix .                # apply them, then review the diff
+slopscore fix . --only 052     # just the console.logs
+slopscore fix . --except 069   # everything fixable except comment removal
+```
+
+It only ever touches the 🟢 **AUTO**-authority rules with a deterministic, behavior-preserving transform (today: `052` console.log, `069` step-narration comments, `081` `<img>` alt, `152` Python `== None`, `158` Go `fmt.Print` debug). It is conservative by design — a multi-line `console.log`, a trailing comment, or anything that needs a name or a destination is left for you. Everything else stays a propose/flag you review by hand.
+
 ## Local development
 
 ```bash
 slopscore scan . --watch       # re-scan on every save — a live conscience
 slopscore scan . --history     # record the score over time + a trend sparkline
 slopscore scan . --sarif       # inline annotations on the PR diff (code scanning)
+slopscore scan . --markdown --out slop.md   # write a UTF-8 report file directly
 ```
 
 `--history` writes `.slopscore-history.json` and prints `trend  █▃▁  0 weighted · down 100% since last run` — commit it and watch slop fall sprint over sprint.
+
+**Windows / legacy terminals.** slopscore auto-detects consoles that can't render Unicode (legacy `cmd`/PowerShell on a non-UTF-8 code page) and falls back to ASCII glyphs — force it either way with `--ascii` / `--unicode`. Prefer `--out <file>` over a `>` redirect: it writes UTF-8 straight from Node, so the report never comes out as mojibake or UTF-16.
+
+**Confidence.** Every finding carries a confidence (high / medium / low) separate from severity — precise detectors like secrets and SQL injection are high; design/copy idioms and the duplicate-block heuristic are softer. Gate CI on the strong signal with `--min-confidence high`, or just read the inline `~medium confidence` tag. Dead `slopscore-disable` directives (the finding they hid is gone) are flagged as **stale** so they don't accumulate.
 
 ## Configuration
 

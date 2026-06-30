@@ -20,7 +20,7 @@
  */
 
 const CODE = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.svelte'];
-const STYLE = ['.css', '.scss', '.sass', '.less', '.tsx', '.jsx', '.vue', '.svelte', '.html'];
+const STYLE = ['.css', '.scss', '.sass', '.less', '.ts', '.tsx', '.jsx', '.vue', '.svelte', '.html'];
 const MARKUP = ['.jsx', '.tsx', '.html', '.vue', '.svelte'];
 const TS = ['.ts', '.tsx'];
 const PY = ['.py'];
@@ -203,7 +203,12 @@ const LINE_RULES = [
   {
     id: '001', title: 'VibeCode-purple gradient', category: 'visual', severity: 'minor',
     authority: 'propose', exts: STYLE, skipTests: false, respectComments: false,
-    re: /(from-(purple|violet)-\d{2,3}\s+to-(indigo|blue|purple)-\d{2,3}|linear-gradient[^;]*(purple|indigo|violet)|#7c3aed|#4f46e5|#6d28d9)/i,
+    // Three idioms for the same lavender→indigo tell:
+    //  - Tailwind gradient classes (from-purple-500 to-indigo-500)
+    //  - any-CSS gradient (CSS, CSS-in-JS, MUI sx, styled/emotion — no semicolon
+    //    required) whose stops name a purple word OR a Tailwind violet/indigo/purple hex
+    //  - the three classic bare hexes, kept for back-compat
+    re: /(from-(purple|violet)-\d{2,3}\s+to-(indigo|blue|purple)-\d{2,3}|(?:linear|radial|conic)-gradient\([^)]*(purple|indigo|violet|#(?:a78bfa|8b5cf6|7c3aed|6d28d9|818cf8|6366f1|4f46e5|4338ca|c084fc|a855f7|9333ea|7e22ce))|#7c3aed|#4f46e5|#6d28d9)/i,
     fix: 'Pick a palette with a point of view (Escape Move 1). Not lavender→indigo. Use a token.',
   },
   {
@@ -215,7 +220,9 @@ const LINE_RULES = [
   {
     id: '003', title: 'Glassmorphism (backdrop blur)', category: 'visual', severity: 'minor',
     authority: 'propose', exts: STYLE, skipTests: false, respectComments: false,
-    re: /(backdrop-blur(-|\b)|backdrop-filter\s*:\s*blur)/,
+    // Tailwind class, CSS property, AND CSS-in-JS camelCase (MUI sx, styled, emotion):
+    // backdropFilter: "blur(12px)" / WebkitBackdropFilter: 'blur(...)'.
+    re: /(backdrop-blur(-|\b)|backdrop-filter\s*:\s*blur|(?:Webkit)?[bB]ackdropFilter\s*:\s*['"`]?\s*blur)/,
     fix: 'Use a real surface-elevation scale; reserve blur for genuine overlays. Re-check contrast.',
   },
   {
@@ -227,7 +234,9 @@ const LINE_RULES = [
   {
     id: '008', title: 'Animated gradient text', category: 'visual', severity: 'major',
     authority: 'propose', exts: STYLE, skipTests: false, respectComments: false,
-    re: /(bg-clip-text\s+text-transparent|background-clip\s*:\s*text|-webkit-text-fill-color\s*:\s*transparent)/,
+    // Tailwind, CSS, AND CSS-in-JS camelCase (MUI sx, styled, emotion):
+    // WebkitBackgroundClip: 'text' + WebkitTextFillColor: 'transparent'.
+    re: /(bg-clip-text\s+text-transparent|background-clip\s*:\s*text|-webkit-text-fill-color\s*:\s*transparent|(?:Webkit)?[bB]ackgroundClip\s*:\s*['"`]text|WebkitTextFillColor\s*:\s*['"`]transparent)/,
     fix: 'Set the headline in a solid, contrast-passing color. Verify contrast.',
   },
   {
@@ -286,7 +295,11 @@ const LINE_RULES = [
   {
     id: '078', title: 'Overly broad exception handling', category: 'code', severity: 'major',
     authority: 'propose', exts: null, skipTests: true, respectComments: true,
-    re: /(except\s*:|except\s+(Exception|BaseException)\b\s*(as\s+\w+)?\s*:|catch\s*\(\s*\w+\s*:\s*any\s*\))/,
+    // Python `except`/`except Exception:` are always statement-leading, so anchor
+    // those branches to line start — otherwise a JS object key like `except: x`
+    // reads as a bare except. The `catch (e: any)` branch stays unanchored (it's
+    // mid-line after `} `).
+    re: /(^\s*except\s*:|^\s*except\s+(Exception|BaseException)\b\s*(as\s+\w+)?\s*:|catch\s*\(\s*\w+\s*:\s*any\s*\))/,
     fix: 'Catch the specific error type you can handle; let the rest propagate with context.',
   },
   {
@@ -432,12 +445,12 @@ const LINE_RULES = [
 const META_RULES = [
   {
     id: '055', title: 'God file (oversized source file)', category: 'architecture',
-    severity: 'major', authority: 'propose',
+    severity: 'major', authority: 'propose', confidence: 'medium',
     fix: 'Split by responsibility into components/hooks/services. Preserve behavior; do it on a branch.',
   },
   {
     id: '068', title: 'Copy-pasted duplicated code block', category: 'code',
-    severity: 'major', authority: 'propose',
+    severity: 'major', authority: 'propose', confidence: 'low',
     fix: 'Extract the shared logic into a function/component/hook. This is the refactor AI skips — and the duplication that quietly multiplies every future bug fix.',
   },
   {
@@ -464,6 +477,14 @@ const META_RULES = [
 
 const META = Object.fromEntries(META_RULES.map((r) => [r.id, r]));
 
+// Confidence = how sure the detector is, separate from severity (how bad it is if
+// real). Precise syntactic detectors are 'high'; idiom-matching design/copy tells
+// and line-count/line-hash heuristics are softer, so a CI gate can filter on it
+// (--min-confidence) without changing what the scan reports. A per-rule `confidence`
+// wins; otherwise whole categories of heuristics default below 'high'.
+const CONFIDENCE_BY_CATEGORY = { visual: 'medium', copy: 'medium' };
+const confidenceOf = (rule) => rule.confidence || CONFIDENCE_BY_CATEGORY[rule.category] || 'high';
+
 const WHOLE_FILE_RULES = [
   {
     id: '053', title: 'Empty catch block (silent error swallowing)', category: 'code', severity: 'critical',
@@ -479,4 +500,4 @@ const WHOLE_FILE_RULES = [
   },
 ];
 
-module.exports = { LINE_RULES, WHOLE_FILE_RULES, META_RULES, META, CODE, STYLE, MARKUP, TS };
+module.exports = { LINE_RULES, WHOLE_FILE_RULES, META_RULES, META, confidenceOf, CODE, STYLE, MARKUP, TS };

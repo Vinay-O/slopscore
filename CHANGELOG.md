@@ -3,6 +3,62 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.6.0] — 2026-06-30
+
+Trust-and-coverage release, implementing the improvements from a real production-app
+evaluation: the score is harder to skew, the visual detectors understand CSS-in-JS,
+there's an auto-fixer, and output is safe on Windows.
+
+### Changed
+- **Scoring trust — no single detector defines the verdict.** The weighted score now
+  caps each rule's contribution at 10 findings, so a repo with 45 repeated-markup
+  blocks no longer reads as catastrophic on the strength of one detector. True counts
+  are still reported in full; the cap only affects the headline weight, and the banner
+  says so when it engages.
+- **068 is style-aware.** A duplicated block that is mostly JSX/CSS-in-JS markup (MUI
+  `sx`, className soup, status pills) scores **minor** ("repeated markup/style") — a
+  component-extraction, not a logic bug. Duplicated *logic* still scores **major**.
+
+- **Visual detectors now see CSS-in-JS, not just Tailwind.** Rules 001 (purple
+  gradient), 003 (glassmorphism), and 008 (gradient text) previously matched only
+  Tailwind classes and kebab-case CSS, so a React + MUI/styled/emotion app that ships
+  glassmorphism everywhere scored zero on the visual category. They now also match
+  camelCase CSS-in-JS (`backdropFilter: "blur(…)"`, `WebkitBackgroundClip: 'text'`) and
+  theme-token gradients (`linear-gradient(…, #8b5cf6, …)`), and apply to `.ts` files
+  (theme/styled modules), not only `.tsx`. 001 requires gradient context for the
+  expanded hexes, so a neutral gradient is not flagged.
+
+### Added
+- **Per-finding confidence + `--min-confidence`.** Every finding now carries a
+  `confidence` (high / medium / low) separate from severity — precise syntactic
+  detectors are high; idiom-matching design/copy tells and the line-hash dup
+  heuristic (068) are softer. `--min-confidence high|medium|low` filters before
+  scoring, so a CI gate can require only high-confidence signal. Shown inline
+  (`~medium confidence`) and carried in JSON / agent / SARIF output.
+- **Stale-suppression detection.** A `slopscore-disable` directive whose finding no
+  longer exists is now surfaced ("N stale suppressions — remove the directive") so
+  dead directives don't pile up. Directive parsing is anchored to the first comment,
+  so prose that merely documents the syntax isn't mistaken for a real directive.
+- **`slopscore fix` — apply the safe fixes.** A new command that auto-applies the
+  deterministic, behavior-preserving fixes for a subset of the 🟢 AUTO rules: `052`
+  (remove a standalone `console.log`), `069` (remove a full-line step-narration comment),
+  `081` (add `<img alt="">`), `152` (Python `== None` → `is None`), `158` (remove a Go
+  `fmt.Print` debug line). `--dry-run` previews; `--only`/`--except` scope it by rule. It
+  is conservative on purpose — a multi-line call, a trailing comment, or anything needing
+  a name/destination is left for a human. Idempotent.
+- **Per-rule breakdown in the summary.** The score banner now prints `by rule: 068 ×45 ·
+  055 ×2`, so you can see at a glance which detector is driving the number.
+
+### Fixed
+- **078 no longer false-positives on a JS/TS object key named `except`.** Python's bare
+  `except:` is statement-leading, so that branch is now anchored to line start; a JS
+  object literal like `{ except: x }` is no longer mistaken for broad exception handling.
+- **Windows / legacy-terminal output.** slopscore auto-detects consoles that can't render
+  Unicode (legacy `cmd`/PowerShell on a non-UTF-8 code page) and falls back to ASCII
+  glyphs for the banner, severity markers, and trend sparkline — `--ascii` / `--unicode`
+  force it either way. New `--out <file>` writes the report as UTF-8 straight from Node,
+  so it can't be mangled into UTF-16 by a shell's `>` redirect. stdout is pinned to UTF-8.
+
 ## [1.5.0]
 
 ### Added
