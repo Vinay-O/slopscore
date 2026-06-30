@@ -415,6 +415,46 @@ test('inline suppression skips the targeted rule on the next line only', () => {
   assert.ok(!r.findings.some((f) => f.id === '002'));
 });
 
+test('findings carry a confidence: precise rules high, heuristics softer', () => {
+  const high = scan(tmpFile('a.js', 'const k = "sk-abcdef0123456789abcdef";\n')).findings.find((f) => f.id === '058');
+  assert.strictEqual(high.confidence, 'high', 'a secret match is high confidence');
+  const visual = scan(tmpFile('b.tsx', 'export const C = () => <div sx={{ backdropFilter: "blur(8px)" }} />;\n')).findings.find((f) => f.id === '003');
+  assert.strictEqual(visual.confidence, 'medium', 'a visual idiom is medium');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-dup-'));
+  const block = 'function totals(items, rate) {\n  let sub = 0;\n  for (const it of items) {\n    sub += it.price * it.qty;\n  }\n  const tax = sub * rate;\n  return { sub, tax };\n}\n';
+  fs.writeFileSync(path.join(dir, 'a.js'), `${block}export const a = 1;\n`);
+  fs.writeFileSync(path.join(dir, 'b.js'), `export const b = 2;\n${block}`);
+  const dup = scan([dir], { ignoreBase: dir }).findings.find((f) => f.id === '068');
+  assert.strictEqual(dup.confidence, 'low', 'the line-hash dup heuristic is low');
+});
+
+test('--min-confidence filters out softer findings before scoring', () => {
+  const f = tmpFile('a.tsx', 'export const C = () => <div sx={{ backdropFilter: "blur(8px)" }} />;\n');
+  assert.match(runBin(['scan', f, '--no-color']), /\[003\]/);
+  assert.match(runBin(['scan', f, '--min-confidence', 'high', '--no-color']), /No slop patterns detected/);
+});
+
+test('a suppression that hides nothing is reported as stale', () => {
+  const p = tmpFile('a.js', '// slopscore-disable-next-line 052 — debug log, since removed\nconst x = 1;\nexport default x;\n');
+  const r = scan(p);
+  assert.strictEqual(r.staleSuppressions.length, 1, 'the dead directive is stale');
+  assert.deepStrictEqual(r.staleSuppressions[0].ids, ['052']);
+});
+
+test('a suppression that hides a real finding is NOT stale', () => {
+  const p = tmpFile('a.ts', '// slopscore-disable-next-line 054 — deliberate\nconst x: any = 1;\n');
+  const r = scan(p);
+  assert.strictEqual(r.staleSuppressions.length, 0, 'a working suppression is not stale');
+});
+
+test('a documented/quoted directive is not treated as a real directive', () => {
+  // The leading text of the first comment is `// slopscore-...`, i.e. another
+  // comment — this is prose ABOUT the directive, not the directive itself.
+  const p = tmpFile('a.js', '//   // slopscore-disable-next-line 052 — example in a doc comment\nconst x = 1;\n');
+  const r = scan(p);
+  assert.strictEqual(r.staleSuppressions.length, 0, 'a doc example must not register as a directive');
+});
+
 test('per-path config disables a rule under one directory only', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-pp-'));
   fs.mkdirSync(path.join(dir, 'legacy'));

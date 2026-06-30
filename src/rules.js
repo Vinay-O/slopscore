@@ -445,12 +445,12 @@ const LINE_RULES = [
 const META_RULES = [
   {
     id: '055', title: 'God file (oversized source file)', category: 'architecture',
-    severity: 'major', authority: 'propose',
+    severity: 'major', authority: 'propose', confidence: 'medium',
     fix: 'Split by responsibility into components/hooks/services. Preserve behavior; do it on a branch.',
   },
   {
     id: '068', title: 'Copy-pasted duplicated code block', category: 'code',
-    severity: 'major', authority: 'propose',
+    severity: 'major', authority: 'propose', confidence: 'low',
     fix: 'Extract the shared logic into a function/component/hook. This is the refactor AI skips — and the duplication that quietly multiplies every future bug fix.',
   },
   {
@@ -477,6 +477,14 @@ const META_RULES = [
 
 const META = Object.fromEntries(META_RULES.map((r) => [r.id, r]));
 
+// Confidence = how sure the detector is, separate from severity (how bad it is if
+// real). Precise syntactic detectors are 'high'; idiom-matching design/copy tells
+// and line-count/line-hash heuristics are softer, so a CI gate can filter on it
+// (--min-confidence) without changing what the scan reports. A per-rule `confidence`
+// wins; otherwise whole categories of heuristics default below 'high'.
+const CONFIDENCE_BY_CATEGORY = { visual: 'medium', copy: 'medium' };
+const confidenceOf = (rule) => rule.confidence || CONFIDENCE_BY_CATEGORY[rule.category] || 'high';
+
 const WHOLE_FILE_RULES = [
   {
     id: '053', title: 'Empty catch block (silent error swallowing)', category: 'code', severity: 'critical',
@@ -492,4 +500,4 @@ const WHOLE_FILE_RULES = [
   },
 ];
 
-module.exports = { LINE_RULES, WHOLE_FILE_RULES, META_RULES, META, CODE, STYLE, MARKUP, TS };
+module.exports = { LINE_RULES, WHOLE_FILE_RULES, META_RULES, META, confidenceOf, CODE, STYLE, MARKUP, TS };

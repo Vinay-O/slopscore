@@ -39,6 +39,7 @@ function parseArgs(argv) {
     else if (a === '--watch' || a === '-w') opts.watch = true;
     else if (a === '--max') { const v = parseInt(argv[++i], 10); if (Number.isInteger(v) && v >= 0) opts.max = v; }
     else if (a === '--fail-on') { opts.failOn = argv[++i]; opts.failOnSet = true; }
+    else if (a === '--min-confidence') opts.minConfidence = argv[++i];
     else if (a === '--ignore') opts.ignore.push(argv[++i]);
     else if (a === '--baseline') {
       const next = argv[i + 1];
@@ -107,9 +108,14 @@ function recordTrend(opts, s) {
 
 // One scan + report. Returns whether the run should fail the gate. Does NOT exit
 // (so --watch can call it in a loop). `record` appends to the score history.
+const CONF_RANK = { high: 3, medium: 2, low: 1 };
 function scanAndReport(opts, cfg, baseDir, failOn, record) {
   const ignore = (cfg.ignore || []).concat(opts.ignore);
   const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules: cfg.rules, paths: cfg.paths });
+  // --min-confidence gates out softer heuristics (e.g. low-confidence 068) before
+  // scoring + reporting, so CI can require only high-confidence signal.
+  const floor = CONF_RANK[opts.minConfidence];
+  if (floor) result.findings = result.findings.filter((f) => (CONF_RANK[f.confidence] || 3) >= floor);
   if (opts.baseline) {
     const existing = loadBaseline(opts.baseline);
     if (existing) {
@@ -327,6 +333,7 @@ OPTIONS
   --sarif                    SARIF 2.1.0 (GitHub code-scanning annotations)
   --format agent             compact output for feeding an AI agent
   --fail-on <level>          exit non-zero at: critical | major | minor | never  (default: major)
+  --min-confidence <level>   only report/score findings at: high | medium | low  (default: low/all)
   --baseline [file]          ratchet mode: snapshot current findings, then fail only
                              on NEW slop (default file: .slopscore-baseline.json)
   --update-baseline          re-snapshot the baseline (accept the current findings)
