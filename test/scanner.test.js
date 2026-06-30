@@ -401,6 +401,31 @@ test('--sarif emits valid SARIF 2.1.0 for code scanning', () => {
   assert.ok(r.locations[0].physicalLocation.region.startLine >= 1, 'has a line');
 });
 
+// Language-specific: Python (Category 17)
+test('Python detectors fire on the canonical tells', () => {
+  const py = tmpFile('a.py', [
+    'def f(items=[]):',
+    '    if x == None:',
+    '        return eval(inp)',
+    '    q = f"SELECT * FROM u WHERE id={uid}"',
+    '    os.system(f"rm {p}")',
+    '    try:',
+    '        go()',
+    '    except:',
+    '        pass',
+  ].join('\n') + '\n');
+  const got = ids(scan(py));
+  for (const id of ['151', '152', '153', '154', '155', '078']) {
+    assert.ok(got.includes(id), `expected Python rule ${id}`);
+  }
+});
+
+test('Python negatives: is None, parameterized SQL, args-list subprocess', () => {
+  const py = tmpFile('b.py', 'if x is None:\n    cursor.execute("SELECT 1 FROM t WHERE id = %s", (uid,))\n    subprocess.run(["rm", p])\n');
+  const got = ids(scan(py));
+  for (const id of ['151', '152', '153', '154', '155']) assert.ok(!got.includes(id), `unexpected ${id}`);
+});
+
 // `slopscore explain <id>` surfaces a single catalog entry from the CLI.
 test('explain prints a catalog entry + fix for a valid id', () => {
   const out = execFileSync('node', [BIN, 'explain', '058'], { encoding: 'utf8' });

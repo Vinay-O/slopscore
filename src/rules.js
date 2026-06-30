@@ -23,6 +23,7 @@ const CODE = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.svelte'];
 const STYLE = ['.css', '.scss', '.sass', '.less', '.tsx', '.jsx', '.vue', '.svelte', '.html'];
 const MARKUP = ['.jsx', '.tsx', '.html', '.vue', '.svelte'];
 const TS = ['.ts', '.tsx'];
+const PY = ['.py'];
 
 const LINE_RULES = [
   // ---- CATEGORY 7: code quality ----
@@ -283,7 +284,7 @@ const LINE_RULES = [
   {
     id: '078', title: 'Overly broad exception handling', category: 'code', severity: 'major',
     authority: 'propose', exts: null, skipTests: true, respectComments: true,
-    re: /(except\s+(Exception|BaseException)\b\s*(as\s+\w+)?\s*:|catch\s*\(\s*\w+\s*:\s*any\s*\))/,
+    re: /(except\s*:|except\s+(Exception|BaseException)\b\s*(as\s+\w+)?\s*:|catch\s*\(\s*\w+\s*:\s*any\s*\))/,
     fix: 'Catch the specific error type you can handle; let the rest propagate with context.',
   },
   {
@@ -338,6 +339,39 @@ const LINE_RULES = [
     authority: 'auto', exts: CODE, skipTests: false, respectComments: true,
     re: /(expect\(\s*true\s*\)\.toBe\(\s*true\s*\)|expect\(\s*1\s*\)\.toBe\(\s*1\s*\)|assert\(\s*true\s*\)|assert\.ok\(\s*true\s*\))/,
     fix: 'Assert real behavior with real inputs. A test that can never fail is coverage theater.',
+  },
+
+  // ---- CATEGORY 17: Language-specific tells — Python ----
+  {
+    id: '151', title: 'Mutable default argument (Python)', category: 'code', severity: 'major',
+    authority: 'propose', exts: PY, skipTests: false, respectComments: true,
+    re: /def\s+\w+\s*\([^)]*=\s*[[{]/,
+    fix: 'Default to None and build the list/dict inside the function — a mutable default is shared across every call.',
+  },
+  {
+    id: '152', title: 'Comparison to None with == (Python)', category: 'code', severity: 'minor',
+    authority: 'auto', exts: PY, skipTests: false, respectComments: true,
+    re: /[!=]=\s*None\b/,
+    fix: 'Use `is None` / `is not None` — None is a singleton; `==` can be overridden and is slower.',
+  },
+  {
+    id: '153', title: 'eval() / exec() on dynamic input (Python)', category: 'security', severity: 'critical',
+    authority: 'propose', exts: PY, skipTests: true, respectComments: true,
+    re: /(?<![\w.])(eval|exec)\s*\(/,
+    unless: /ast\.literal_eval/,
+    fix: 'Never eval/exec dynamic input — it is arbitrary code execution. Use ast.literal_eval or a real parser.',
+  },
+  {
+    id: '154', title: 'SQL injection via f-string (Python)', category: 'security', severity: 'critical',
+    authority: 'propose', exts: PY, skipTests: true, respectComments: true,
+    re: /f['"][^'"]*\b(SELECT\b[^'"]*\bFROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM)\b[^'"]*\{/i,
+    fix: 'Use parameterized queries (cursor.execute(sql, params)); never f-string input into SQL.',
+  },
+  {
+    id: '155', title: 'Command injection via os.system / shell=True (Python)', category: 'security', severity: 'critical',
+    authority: 'propose', exts: PY, skipTests: true, respectComments: true,
+    re: /(os\.system\s*\(\s*f['"]|os\.system\s*\([^)]*[%+]|subprocess\.\w+\([^)]*shell\s*=\s*True)/,
+    fix: 'Use subprocess with an args list and shell=False; never interpolate input into a shell string.',
   },
 ];
 

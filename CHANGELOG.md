@@ -3,6 +3,15 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- **Language coverage — Python.** New Category 17 in the catalog (now **155 patterns**)
+  with 5 automated Python detectors: 151 mutable default argument, 152 `== None`
+  (should be `is None`), 153 `eval`/`exec` on input, 154 f-string SQL injection,
+  155 `os.system`/`shell=True` command injection. Rule 078 now also catches Python's
+  bare `except:`. **59 detectors** total. (Go and Rust follow.)
+
 ## [1.4.0]
 
 ### Added
