@@ -3,11 +3,12 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.7.1] — 2026-06-30
 
 ### Fixed
 - **QA hardening — eliminated false positives and fix-engine corruption** (from a
-  4-agent adversarial sweep against realistic clean code).
+  4-agent adversarial sweep against realistic clean code, plus an independent
+  verification pass).
   - **Language-aware masking:** the comment mask was JS-only, so Python `#` comments
     and docstrings — and any string literal — were scanned as live code. New tri-state
     mask (code/comment/string) with Python `#`/docstring support; `codeOnly` rules
