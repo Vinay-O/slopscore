@@ -296,7 +296,7 @@ Each entry: **ID · Title** `SEVERITY` `AUTHORITY` — description, `DETECT` (ho
 (aesthetic tell). Authority: 🟢 AUTO · 🟡 PROPOSE · 🔴 FLAG (see §0).
 
 A `` `⚙️ slopscore scan` `` tag means **the deterministic CLI already detects this pattern** —
-`npx slopscore` flags it for you with the exact location and fix. **59 of the 155** carry this tag
+`npx slopscore` flags it for you with the exact location and fix. **66 of the 162** carry this tag
 today; the rest need an AST tool (§2.1) or human reading (layout sameness, fake features,
 architectural drift). The tags are generated from the scanner's own rule table, so they never
 drift from what the CLI actually does. Patterns *without* the tag are where you, the agent, earn
@@ -1238,6 +1238,41 @@ a classic footgun AI reproduces constantly.
 `os.system(f"rm {path}")` / `subprocess.run(cmd, shell=True)` with interpolated input.
 `DETECT:` `os.system(` with an f-string/`%`/`+` · `subprocess.*(… shell=True …)`.
 `FIX:` Use `subprocess.run([...], shell=False)` with an args list; validate inputs. Never build a shell string from data.
+
+**156 · Empty `interface{}` overuse (Go)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+`interface{}` (Go's untyped escape hatch) where a concrete type or generic belongs — discards type safety.
+`DETECT:` `interface{}` in signatures/fields/maps where the shape is actually known.
+`FIX:` Use a concrete type or a Go 1.18+ type parameter. Reserve `any`/`interface{}` for genuinely heterogeneous data.
+
+**157 · Ignored error return (Go)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+`val, _ := doThing()` — the error is discarded into `_`, so a real failure passes silently.
+`DETECT:` `, _ :=` / `, _ =` from a function call (excluding `range` and the comma-ok of maps/type assertions).
+`FIX:` Handle the error — check it, wrap it with context, or return it. Don't blank a function's error.
+
+**158 · `fmt.Print` debugging (Go)** `🟡` `🟢 AUTO` `⚙️ slopscore scan`
+`fmt.Println(...)` left in library/production code as debug output.
+`DETECT:` `fmt.Print` / `fmt.Println` / `fmt.Printf` in non-test code.
+`FIX:` Remove it, or route through `log`/a structured logger with levels. AUTO.
+
+**159 · Command injection via `exec` + `sh -c` (Go)** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+`exec.Command("sh", "-c", "rm "+path)` — input built into a shell string.
+`DETECT:` `exec.Command("sh"|"bash"|"cmd", "-c", …)`.
+`FIX:` Call the program directly: `exec.Command(prog, arg1, arg2)`. Never assemble a shell command from data.
+
+**160 · `.unwrap()` / `.expect()` (Rust)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+The canonical Rust AI tell: `.unwrap()`/`.expect()` everywhere, turning every `Result`/`Option` into a panic.
+`DETECT:` `.unwrap()` · `.expect(` in non-test code.
+`FIX:` Propagate with `?`, `match`, `.unwrap_or`/`.unwrap_or_else`, or `.ok_or` — handle the error path, don't panic.
+
+**161 · `todo!()` / `unimplemented!()` / `panic!()` (Rust)** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+`todo!()`/`unimplemented!()` are unbuilt paths that panic at runtime; `panic!()` in a library aborts the caller.
+`DETECT:` `todo!(` · `unimplemented!(` · `unreachable!(` · `panic!(`.
+`FIX:` Finish the path or flag the gap; replace `panic!` with a returned `Result`/`Error`. FLAG — a `todo!` may be a known, intentional stub.
+
+**162 · `unsafe` block (Rust)** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+An `unsafe { … }` block — sometimes necessary, often AI reaching for it to silence the borrow checker.
+`DETECT:` `unsafe {`.
+`FIX:` Justify each block with a comment proving the invariants it upholds, or replace it with safe code. FLAG for human review.
 
 ---
 

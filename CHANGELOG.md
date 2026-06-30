@@ -6,6 +6,10 @@ All notable changes to slopscore are documented here. Format based on
 ## [Unreleased]
 
 ### Added
+- **Language coverage — Go & Rust.** Catalog now **162 patterns**, **66 detectors**. Go:
+  156 empty `interface{}`, 157 ignored error (`val, _ :=`), 158 `fmt.Print` debug,
+  159 `exec` `sh -c` injection. Rust: 160 `.unwrap()`/`.expect()`, 161
+  `todo!`/`unimplemented!`/`panic!`, 162 `unsafe` block. `.rs` files are now scanned.
 - **Language coverage — Python.** New Category 17 in the catalog (now **155 patterns**)
   with 5 automated Python detectors: 151 mutable default argument, 152 `== None`
   (should be `is None`), 153 `eval`/`exec` on input, 154 f-string SQL injection,
