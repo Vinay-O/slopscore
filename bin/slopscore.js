@@ -84,6 +84,30 @@ function configStartDir(paths) {
   catch { return process.cwd(); }
 }
 
+const VALID_CATEGORIES = new Set(LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES).map((r) => r.category));
+const VALID_FAILON = new Set(['critical', 'major', 'minor', 'never']);
+const VALID_CONFIDENCE = new Set(['high', 'medium', 'low']);
+
+// Reject typo'd flag values loudly (exit 2) instead of silently doing the wrong
+// thing — a typo'd --fail-on or --category must never make a slopful repo pass CI.
+function validateOpts(opts) {
+  if (opts.failOnSet && !VALID_FAILON.has(opts.failOn)) {
+    err(`slopscore: invalid --fail-on "${opts.failOn}". Use: ${[...VALID_FAILON].join(' | ')}`);
+    process.exit(2);
+  }
+  if (opts.minConfidence != null && !VALID_CONFIDENCE.has(opts.minConfidence)) {
+    err(`slopscore: invalid --min-confidence "${opts.minConfidence}". Use: ${[...VALID_CONFIDENCE].join(' | ')}`);
+    process.exit(2);
+  }
+  if (opts.category) {
+    const bad = opts.category.filter((c) => !VALID_CATEGORIES.has(c));
+    if (bad.length) {
+      err(`slopscore: unknown categor${bad.length === 1 ? 'y' : 'ies'} ${bad.join(', ')}. Available: ${[...VALID_CATEGORIES].sort().join(', ')}`);
+      process.exit(2);
+    }
+  }
+}
+
 // Severity rank (higher = worse) and the gate each --fail-on level opens.
 // A run fails if any finding's rank meets or exceeds the gate.
 //   --fail-on critical → only critical fails
@@ -150,7 +174,12 @@ function scanAndReport(opts, cfg, baseDir, failOn, record) {
     report.captureTo(buf);
     emit();
     report.captureTo(null);
-    fs.writeFileSync(opts.out, buf.join(''), 'utf8');
+    try {
+      fs.writeFileSync(opts.out, buf.join(''), 'utf8');
+    } catch (e) {
+      err(`slopscore: cannot write ${opts.out}: ${e.message}`);
+      process.exit(2);
+    }
     out(`slopscore: wrote ${opts.format === 'terminal' ? 'report' : opts.format} to ${opts.out} (UTF-8)`);
   } else {
     emit();
@@ -182,7 +211,10 @@ function runWatch(opts, cfg, baseDir, failOn) {
 }
 
 function runScan(opts) {
-  report.setColor(opts.color && process.stdout.isTTY !== false);
+  validateOpts(opts);
+  // Color only on a real TTY (never when piped/redirected, and never into a
+  // captured --out file), so a saved/piped report can't fill with ANSI codes.
+  report.setColor(opts.color && !opts.out && process.stdout.isTTY === true);
   // Unicode glyphs unless the terminal can't render them. --ascii / --unicode
   // override the auto-detection. A captured --out file is always UTF-8, so it
   // keeps the full glyph set regardless of the live terminal.
@@ -213,7 +245,8 @@ function runScan(opts) {
 }
 
 function runFix(opts) {
-  report.setColor(opts.color && process.stdout.isTTY !== false);
+  validateOpts(opts);
+  report.setColor(opts.color && process.stdout.isTTY === true);
   report.setUnicode(opts.unicode != null ? opts.unicode : report.supportsUnicode());
   for (const p of opts.paths) {
     if (!fs.existsSync(p)) { err(`slopscore: path not found: ${p}`); process.exit(2); }
@@ -275,11 +308,12 @@ function printRules() {
 }
 
 function printExplain(arg) {
-  const id = String(arg || '').replace(/[^0-9]/g, '').padStart(3, '0');
-  if (!/^\d{3}$/.test(id)) {
+  const digits = String(arg || '').replace(/[^0-9]/g, '');
+  if (!digits || digits.length > 3) {
     err('slopscore: usage — slopscore explain <id>   e.g. slopscore explain 058');
     process.exit(2);
   }
+  const id = digits.padStart(3, '0');
   const p = path.join(__dirname, '..', 'ANTI_SLOP_PROTOCOL.md');
   if (!fs.existsSync(p)) { err('slopscore: ANTI_SLOP_PROTOCOL.md not found alongside the package.'); process.exit(2); }
   const lines = fs.readFileSync(p, 'utf8').split('\n');

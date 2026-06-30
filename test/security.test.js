@@ -65,13 +65,28 @@ test('170 flags credentials embedded in a connection string', () => {
   assert.ok(!ids(tmpFile('b.js', 'const url = "postgres://db.host:5432/app";\n')).includes('170'), 'no inline creds is fine');
 });
 
-test('171 flags SQL built by concatenation', () => {
+test('171 flags SQL concatenation but not plain-English string concat', () => {
   assert.ok(ids(tmpFile('a.js', 'const q = "SELECT id FROM users WHERE name = " + name;\n')).includes('171'));
+  assert.ok(ids(tmpFile('b.js', 'const u = "UPDATE users SET name = " + n;\n')).includes('171'));
+  assert.ok(!ids(tmpFile('c.js', 'const label = firstName + " and " + lastName;\n')).includes('171'), 'English "and" concat is not SQL');
+  assert.ok(!ids(tmpFile('d.js', 'const msg = title + " WHERE applicable";\n')).includes('171'), 'prose WHERE is not SQL');
 });
 
 test('172 flags eval / new Function', () => {
   assert.ok(ids(tmpFile('a.js', 'const r = eval(userInput);\n')).includes('172'));
   assert.ok(ids(tmpFile('b.js', 'const f = new Function("a", "return a");\n')).includes('172'));
+});
+
+test('172 does NOT flag a method call named eval (model.eval(), this.eval())', () => {
+  assert.ok(!ids(tmpFile('a.js', 'const acc = model.eval();\n')).includes('172'), 'model.eval() is a method, not global eval');
+  assert.ok(!ids(tmpFile('b.js', 'const r = this.eval(node);\n')).includes('172'));
+  assert.ok(!ids(tmpFile('c.js', 'const v = parser.evaluate(expr);\n')).includes('172'));
+});
+
+test('163 does NOT flag a generic verify=False parameter (only an HTTP-client bypass)', () => {
+  assert.ok(!ids(tmpFile('a.py', 'def sync_records(data, verify=False):\n    return data\n')).includes('163'), 'a generic param is not a TLS bypass');
+  assert.ok(ids(tmpFile('b.py', 'r = requests.get(url, verify=False)\n')).includes('163'), 'requests bypass still caught');
+  assert.ok(ids(tmpFile('c.py', 'session.verify = False\n')).includes('163'), 'session.verify = False still caught');
 });
 
 test('173 flags cleartext HTTP calls but not localhost', () => {

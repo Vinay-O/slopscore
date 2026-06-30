@@ -24,10 +24,14 @@ function fixOne(file, id) {
   return fs.readFileSync(file, 'utf8');
 }
 
-test('178 flags a Python print and fix removes a standalone one', () => {
+test('178 flags a Python print (detector only — never auto-deleted)', () => {
   assert.ok(ids(tmpFile('a.py', 'def f():\n    print("debug", x)\n    return x\n')).includes('178'));
+  // 178 has NO fixer: deleting a print can empty a Python block. The fix engine
+  // must leave the file untouched even when asked explicitly.
   const f = tmpFile('b.py', 'def f():\n    print("debug")\n    return 1\n');
-  assert.strictEqual(fixOne(f, '178'), 'def f():\n    return 1\n');
+  const before = fs.readFileSync(f, 'utf8');
+  applyPlan(planFixes(scan([path.dirname(f)], { ignoreBase: path.dirname(f) }), { only: ['178'] }));
+  assert.strictEqual(fs.readFileSync(f, 'utf8'), before, '178 is detector-only; nothing removed');
 });
 
 test('178 does not flag print used as a non-call identifier', () => {
@@ -42,18 +46,23 @@ test('179 flags == True/False and fix strips the removable forms', () => {
   assert.match(fixOne(g, '179'), /while a:/);
 });
 
-test('180 flags Rust debug macros and fix removes a standalone dbg!', () => {
+test('180 flags Rust debug macros (detector only — dbg! can be a tail expression)', () => {
   assert.ok(ids(tmpFile('a.rs', 'fn main() {\n    dbg!(state);\n}\n')).includes('180'));
   assert.ok(ids(tmpFile('b.rs', 'fn main() {\n    println!("trace {}", x);\n}\n')).includes('180'));
-  const f = tmpFile('c.rs', 'fn main() {\n    dbg!(state);\n    run();\n}\n');
-  assert.strictEqual(fixOne(f, '180'), 'fn main() {\n    run();\n}\n');
+  // 180 has NO fixer: removing dbg!(x) as a block's final expression changes the
+  // function's return value/type. Asking to fix it must not touch the file.
+  const f = tmpFile('c.rs', 'fn fib(n: u32) -> u64 {\n    dbg!(compute(n))\n}\n');
+  const before = fs.readFileSync(f, 'utf8');
+  applyPlan(planFixes(scan([path.dirname(f)], { ignoreBase: path.dirname(f) }), { only: ['180'] }));
+  assert.strictEqual(fs.readFileSync(f, 'utf8'), before, '180 is detector-only; tail expression preserved');
 });
 
 test('181 flags a Go panic', () => {
   assert.ok(ids(tmpFile('a.go', 'func load() {\n    panic("boom")\n}\n')).includes('181'));
 });
 
-test('the new language fixers are wired into the fix engine', () => {
+test('language debug-deletion rules are detector-only (no corrupting fixer)', () => {
   const { fixableIds } = require('../src/fix');
-  for (const id of ['178', '179', '180']) assert.ok(fixableIds().includes(id), `${id} is fixable`);
+  for (const id of ['158', '178', '180']) assert.ok(!fixableIds().includes(id), `${id} must NOT have a fixer (deletion is unsafe)`);
+  assert.ok(fixableIds().includes('179'), '179 (== True cleanup) is a safe, string-guarded fixer');
 });

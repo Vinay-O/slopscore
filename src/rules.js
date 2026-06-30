@@ -440,7 +440,10 @@ const LINE_RULES = [
   {
     id: '163', title: 'TLS / certificate verification disabled', category: 'security', severity: 'critical',
     authority: 'propose', exts: null, skipTests: true, respectComments: true,
-    re: /(rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*[=:]\s*['"]?0|verify\s*=\s*False|InsecureSkipVerify\s*:\s*true|ssl\._create_unverified_context|CURLOPT_SSL_VERIFY(PEER|HOST)\s*,\s*(0|false))/,
+    // The unambiguous TLS-bypass signals, plus Python `verify=False` ONLY when an
+    // HTTP-client name shares the line (or `.verify = False`). A bare keyword like
+    // `def sync(data, verify=False)` is a generic param, not a TLS bypass.
+    re: /(rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*[=:]\s*['"]?0|InsecureSkipVerify\s*:\s*true|ssl\._create_unverified_context|CURLOPT_SSL_VERIFY(?:PEER|HOST)\s*,\s*(?:0|false)|\.verify\s*=\s*False\b|\b(?:requests|httpx|aiohttp|urllib3|session|Session|SSLContext|verify_ssl)\b[^\n]*\bverify\s*=\s*False\b)/,
     fix: 'Never disable certificate verification. Fix the trust store / cert chain; for local dev use a real local CA (mkcert), not a global bypass.',
   },
   {
@@ -491,13 +494,18 @@ const LINE_RULES = [
   {
     id: '171', title: 'SQL built by string concatenation', category: 'security', severity: 'critical',
     authority: 'propose', exts: null, skipTests: true, respectComments: true, confidence: 'medium',
-    re: /(['"][^'"]*\b(?:SELECT\b[^'"]*\bFROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM)\b[^'"]*['"]\s*\+|\+\s*['"]\s*(?:WHERE|VALUES|AND|OR)\b)/i,
+    // Require real SQL structure inside the quoted string adjacent to a `+`, so a
+    // plain-English concat like `name + " and " + surname` is never mistaken for
+    // injection. (A generic `+ "WHERE…"` branch was too eager — dropped.)
+    re: /['"][^'"]*\b(?:SELECT\b[^'"]*\bFROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM)\b[^'"]*['"]\s*\+/i,
     fix: 'Use parameterized queries / prepared statements. Never build SQL by concatenating input.',
   },
   {
     id: '172', title: 'eval() / new Function() on dynamic input', category: 'security', severity: 'critical',
     authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
-    re: /\beval\s*\(|new\s+Function\s*\(/,
+    // Match the global eval(...) only — NOT a method call like model.eval() or
+    // query.evaluate(): a leading `.` or word char means it's some object's method.
+    re: /(?<![.\w$])eval\s*\(|new\s+Function\s*\(/,
     fix: 'Avoid eval / new Function — it is arbitrary code execution. Use JSON.parse, a lookup table, or a real parser.',
   },
   {
@@ -523,7 +531,9 @@ const LINE_RULES = [
   {
     id: '176', title: 'SELECT * over-fetch', category: 'performance', severity: 'minor',
     authority: 'propose', exts: null, skipTests: true, respectComments: true,
-    re: /\bSELECT\s+\*\s+FROM\b/i,
+    // All-upper or all-lower only (the two real SQL conventions). Title-case
+    // "Select * from the menu" is prose, not a query — don't flag it.
+    re: /\bSELECT\s+\*\s+FROM\b|\bselect\s+\*\s+from\b/,
     fix: 'Select only the columns you use. SELECT * over-fetches rows, breaks on schema changes, and defeats covering indexes.',
   },
   {

@@ -1352,7 +1352,7 @@ An `unsafe { … }` block — sometimes necessary, often AI reaching for it to s
 **178 · `print()` debugging (Python)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
 A bare `print(…)` left in application code — the Python cousin of a stray `console.log`. Fine as a script's real output, noise in a library or service — which is why it's PROPOSE, not AUTO.
 `DETECT:` `print(` in app code.
-`FIX:` Use the `logging` module (`logger.debug/info`) for levelled output you can silence in prod. Opt-in: `slopscore fix --only 178` removes a standalone debug `print`.
+`FIX:` Use the `logging` module (`logger.debug/info`) for levelled output you can silence in prod. (Detector only — slopscore never deletes a `print` for you, since removing one can empty a Python block.)
 
 **179 · `== True` / `== False` comparison (Python)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
 `if x == True:` is redundant — and wrong when `x` is a truthy non-bool (`[1] == True` is `False`).
@@ -1362,7 +1362,7 @@ A bare `print(…)` left in application code — the Python cousin of a stray `c
 **180 · Debug print macro (Rust)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
 `dbg!(…)` is never meant to ship; `println!`/`eprintln!` left in as diagnostics are the Rust equivalent of `console.log`.
 `DETECT:` `dbg!(` · `println!(` · `eprintln!(` · `print!(` · `eprint!(`.
-`FIX:` Use the `log`/`tracing` crate (`debug!`/`info!`); reserve `println!` for real program output. Opt-in: `slopscore fix --only 180` removes a standalone debug macro.
+`FIX:` Use the `log`/`tracing` crate (`debug!`/`info!`); reserve `println!` for real program output. (Detector only — slopscore never deletes the macro for you, since `dbg!(x)` can be a block's return value.)
 
 **181 · `panic()` in library code (Go)** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
 `panic()` unwinds and crashes the whole process — an AI shortcut where a returned `error` belongs.
