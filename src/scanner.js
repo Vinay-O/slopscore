@@ -24,7 +24,7 @@ const DEFAULT_IGNORE = [
 ];
 const TEXT_EXTS = new Set([
   '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.svelte', '.css', '.scss',
-  '.sass', '.less', '.html', '.py', '.go', '.rb', '.php',
+  '.sass', '.less', '.html', '.py', '.go', '.rb', '.php', '.rs',
 ]);
 const TEST_RE = /(\.test\.|\.spec\.|__tests__|\.stories\.|\.cy\.)/;
 const MAX_BYTES = 2 * 1024 * 1024;

@@ -426,6 +426,19 @@ test('Python negatives: is None, parameterized SQL, args-list subprocess', () =>
   for (const id of ['151', '152', '153', '154', '155']) assert.ok(!got.includes(id), `unexpected ${id}`);
 });
 
+// Language-specific: Go + Rust (Category 17)
+test('Go detectors fire on the canonical tells, not on a range loop', () => {
+  const go = tmpFile('a.go', 'func f() {\n\tvar x interface{}\n\tval, _ := strconv.Atoi(s)\n\tfmt.Println(val)\n\tcmd := exec.Command("sh", "-c", "rm "+p)\n\tfor i, _ := range items { _ = i }\n}\n');
+  const got = ids(scan(go));
+  for (const id of ['156', '157', '158', '159']) assert.ok(got.includes(id), `expected Go rule ${id}`);
+});
+
+test('Rust detectors fire on unwrap / todo! / unsafe', () => {
+  const rs = tmpFile('a.rs', 'fn main() {\n    let x = r.unwrap();\n    let y = o.expect("nope");\n    todo!();\n    unsafe { core::ptr::read(p) };\n}\n');
+  const got = ids(scan(rs));
+  for (const id of ['160', '161', '162']) assert.ok(got.includes(id), `expected Rust rule ${id}`);
+});
+
 // `slopscore explain <id>` surfaces a single catalog entry from the CLI.
 test('explain prints a catalog entry + fix for a valid id', () => {
   const out = execFileSync('node', [BIN, 'explain', '058'], { encoding: 'utf8' });

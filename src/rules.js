@@ -24,6 +24,8 @@ const STYLE = ['.css', '.scss', '.sass', '.less', '.tsx', '.jsx', '.vue', '.svel
 const MARKUP = ['.jsx', '.tsx', '.html', '.vue', '.svelte'];
 const TS = ['.ts', '.tsx'];
 const PY = ['.py'];
+const GO = ['.go'];
+const RUST = ['.rs'];
 
 const LINE_RULES = [
   // ---- CATEGORY 7: code quality ----
@@ -372,6 +374,53 @@ const LINE_RULES = [
     authority: 'propose', exts: PY, skipTests: true, respectComments: true,
     re: /(os\.system\s*\(\s*f['"]|os\.system\s*\([^)]*[%+]|subprocess\.\w+\([^)]*shell\s*=\s*True)/,
     fix: 'Use subprocess with an args list and shell=False; never interpolate input into a shell string.',
+  },
+
+  // ---- CATEGORY 17: Language-specific tells — Go ----
+  {
+    id: '156', title: 'Empty interface{} overuse (Go)', category: 'code', severity: 'major',
+    authority: 'propose', exts: GO, skipTests: true, respectComments: true,
+    re: /\binterface\s*\{\s*\}/,
+    fix: 'Use a concrete type or a generic (Go 1.18+ type parameter); interface{} discards type safety.',
+  },
+  {
+    id: '157', title: 'Ignored error return (Go)', category: 'code', severity: 'major',
+    authority: 'propose', exts: GO, skipTests: true, respectComments: true,
+    re: /,\s*_\s*:?=\s*[a-zA-Z_][\w.]*\(/,
+    unless: /\brange\b|\.\(/,
+    fix: 'Handle the error (check, wrap, or return it). Discarding it with _ hides real failures.',
+  },
+  {
+    id: '158', title: 'fmt.Print debugging (Go)', category: 'code', severity: 'minor',
+    authority: 'auto', exts: GO, skipTests: true, respectComments: true,
+    re: /\bfmt\.Print(ln|f)?\s*\(/,
+    fix: 'Remove it, or use log / a structured logger with levels.',
+  },
+  {
+    id: '159', title: 'Command injection via exec sh -c (Go)', category: 'security', severity: 'critical',
+    authority: 'propose', exts: GO, skipTests: true, respectComments: true,
+    re: /exec\.Command\s*\(\s*['"](sh|bash|cmd|powershell)['"]\s*,\s*['"][-/]?[cC]['"]/,
+    fix: 'Call the program directly: exec.Command(prog, arg1, arg2). Never build a shell string from input.',
+  },
+
+  // ---- CATEGORY 17: Language-specific tells — Rust ----
+  {
+    id: '160', title: '.unwrap() / .expect() (Rust)', category: 'code', severity: 'major',
+    authority: 'propose', exts: RUST, skipTests: true, respectComments: true,
+    re: /\.unwrap\(\)|\.expect\s*\(/,
+    fix: 'Handle the Result/Option: `?`, match, or `.unwrap_or`/`.ok_or`. unwrap panics in production.',
+  },
+  {
+    id: '161', title: 'todo!() / unimplemented!() / panic!() (Rust)', category: 'code', severity: 'major',
+    authority: 'flag', exts: RUST, skipTests: true, respectComments: true,
+    re: /\b(todo!|unimplemented!|unreachable!|panic!)\s*\(/,
+    fix: 'todo!/unimplemented! is an unbuilt path that panics at runtime — finish it or flag the gap; replace panic! with real error handling.',
+  },
+  {
+    id: '162', title: 'unsafe block (Rust)', category: 'security', severity: 'major',
+    authority: 'flag', exts: RUST, skipTests: true, respectComments: true,
+    re: /\bunsafe\s*\{/,
+    fix: 'Justify every unsafe block with a comment proving the invariants, or replace it with safe code. Needs human review.',
   },
 ];
 
