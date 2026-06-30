@@ -6,3 +6,6 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+# internal gap-analysis / roadmap — keep private
+docs/ROADMAP.md
