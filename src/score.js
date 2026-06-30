@@ -1,6 +1,9 @@
 'use strict';
 
 const WEIGHTS = { critical: 10, major: 3, minor: 1 };
+// No single rule should define the verdict: each rule contributes at most this
+// many findings to the weighted score (true counts are still reported).
+const CAP_PER_RULE = 10;
 
 const VERDICTS = [
   { max: 0, label: 'Pristine. Ship it.' },
@@ -15,8 +18,6 @@ function tally(findings) {
   for (const f of findings) if (c[f.severity] !== undefined) c[f.severity] += 1;
   return c;
 }
-
-const weigh = (c) => c.critical * WEIGHTS.critical + c.major * WEIGHTS.major + c.minor * WEIGHTS.minor;
 
 /**
  * @typedef {Object} Score
@@ -40,7 +41,20 @@ function score(result) {
   const prod = result.findings.filter((f) => f.zone !== 'test');
   const nonprodList = result.findings.filter((f) => f.zone === 'test');
   const counts = tally(prod);
-  const weighted = weigh(counts);
+  // Per-rule production counts (for the breakdown line) and the weighted score.
+  // The score CAPS each rule at CAP_PER_RULE findings so one noisy detector can't
+  // define the verdict (e.g. 45 repeated-markup blocks). Counts stay true; the
+  // breakdown makes the relationship transparent.
+  const byRule = {};
+  for (const f of prod) byRule[f.id] = (byRule[f.id] || 0) + 1;
+  const seen = {};
+  let weighted = 0;
+  let capped = false;
+  for (const f of prod) {
+    seen[f.id] = (seen[f.id] || 0) + 1;
+    if (seen[f.id] <= CAP_PER_RULE) weighted += WEIGHTS[f.severity] || 0;
+    else capped = true;
+  }
   // Density over PRODUCTION lines so the headline reflects shipped-code risk.
   const prodLines = result.productionLines != null ? result.productionLines : result.totalLines;
   const kloc = prodLines / 1000;
@@ -50,11 +64,14 @@ function score(result) {
   const density = kloc > 0 ? Math.round((weighted / kloc) * 10) / 10 : 0;
   const verdict = VERDICTS.find((v) => density <= v.max).label;
   const klocRounded = kloc >= 1 ? Math.round(kloc * 10) / 10 : Math.round(kloc * 100) / 100;
+  // Top rules by count, for the per-rule breakdown line.
+  const topRules = Object.entries(byRule).sort((a, b) => b[1] - a[1]).slice(0, 6);
   return {
     counts, weighted, density, verdict,
     kloc: klocRounded, lines: prodLines,
     nonprod: { total: nonprodList.length, counts: tally(nonprodList) },
     suppressed: result.suppressed || 0,
+    byRule, topRules, capped,
   };
 }
 

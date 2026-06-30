@@ -16,6 +16,18 @@ function isTrivialDupLine(line) {
   return s.length < 12 || /^[\s)}\];,{(]*$/.test(s) || /^(import\b|export\s*\{|from\b|\/\/|\*|\/\*|@)/.test(s);
 }
 
+// JSX markup / CSS-in-JS / style lines. Repeated *presentational* blocks (MUI `sx`,
+// status pills, className soup) are real but low-risk — a component-extraction, not a
+// logic-duplication bug — so a style-heavy duplicated block is scored minor, not major.
+function isStylingLine(line) {
+  const s = line.trim();
+  return /^<\/?[A-Za-z]/.test(s)                       // JSX element  <Box> / </Box>
+    || /^[\w-]+\s*=\s*[{"'`]/.test(s)                  // JSX/HTML attribute  prop={ / prop="
+    || /^['"]?[\w-]+['"]?\s*:\s*['"{[(]/.test(s)       // object/CSS key: '…' / { / [ / (   (sx, style)
+    || /(sx=|className=|class=|style=|css=)/.test(s)   // styling props anywhere on the line
+    || /^\.\.\.[\w]/.test(s);                          // spread props/styles
+}
+
 function checkDuplication(codeFiles, findings, metaFinding) {
   const index = new Map();
   codeFiles.forEach((cf, fi) => {
@@ -48,7 +60,13 @@ function checkDuplication(codeFiles, findings, metaFinding) {
     let ce = null;
     const flush = () => {
       if (cs == null) return;
-      const f = metaFinding('068', codeFiles[fi].file, { line: cs, snippet: `duplicated block (lines ${cs}-${ce})` });
+      const slice = codeFiles[fi].lines.slice(cs - 1, ce).filter((l) => !isTrivialDupLine(l));
+      const presentational = slice.length > 0 && slice.filter(isStylingLine).length / slice.length >= 0.6;
+      const f = metaFinding('068', codeFiles[fi].file, {
+        line: cs,
+        severity: presentational ? 'minor' : 'major',
+        snippet: `${presentational ? 'repeated markup/style' : 'duplicated code'} block (lines ${cs}-${ce})`,
+      });
       f.zone = codeFiles[fi].zone;
       findings.push(f);
     };

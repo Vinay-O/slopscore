@@ -349,6 +349,30 @@ test('142 catches current aliased model ids', () => {
   assert.ok(ids(scan(p)).includes('142'));
 });
 
+test('068 scores repeated markup as minor but logic duplication as major', () => {
+  const logic = 'function totals(items, rate) {\n  let sub = 0;\n  for (const it of items) {\n    sub += it.price * it.qty;\n  }\n  const tax = sub * rate;\n  return { sub, tax, total: sub + tax };\n}\n';
+  const ld = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-ld-'));
+  fs.writeFileSync(path.join(ld, 'a.js'), `${logic}export const a = 1;\n`);
+  fs.writeFileSync(path.join(ld, 'b.js'), `export const b = 2;\n${logic}`);
+  assert.ok(scan([ld], { ignoreBase: ld }).findings.some((f) => f.id === '068' && f.severity === 'major'), 'logic dup is major');
+
+  const mui = '      <Box sx={{ p: 2, borderRadius: 2, bgcolor: "paper", boxShadow: 1 }}>\n        <Typography variant="h6" color="text.primary" gutterBottom>\n          {title}\n        </Typography>\n        <Typography variant="body2" color="text.secondary">\n          {subtitle}\n        </Typography>\n        <Chip size="small" label={status} color="success" variant="outlined" />\n        <IconButton onClick={onClose} aria-label="close" size="small" />\n        <Divider sx={{ my: 1 }} />\n      </Box>\n';
+  const md = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-md-'));
+  fs.writeFileSync(path.join(md, 'c.tsx'), `function C(){ return (\n${mui}); }\nexport const x = 1;\n`);
+  fs.writeFileSync(path.join(md, 'd.tsx'), `export const y = 2;\nfunction D(){ return (\n${mui}); }\n`);
+  const dup = scan([md], { ignoreBase: md }).findings.filter((f) => f.id === '068');
+  assert.ok(dup.length > 0 && dup.every((f) => f.severity === 'minor'), 'repeated markup is minor');
+});
+
+test('the weighted score caps a single noisy rule', () => {
+  let src = '';
+  for (let i = 0; i < 15; i += 1) src += `console.log(${i});\n`;
+  const s = score(scan(tmpFile('a.js', src)));
+  assert.strictEqual(s.byRule['052'], 15, 'true count preserved');
+  assert.ok(s.capped, 'cap engaged');
+  assert.ok(s.weighted < 15 * 3, 'one rule cannot run the score away');
+});
+
 test('068 flags an identical block copy-pasted across files, not a unique one', () => {
   const block = 'function totals(items, rate) {\n  let sub = 0;\n  for (const it of items) {\n    sub += it.price * it.qty;\n  }\n  const tax = sub * rate;\n  return { sub, tax, total: sub + tax };\n}\n';
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-dup-'));

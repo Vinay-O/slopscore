@@ -3,6 +3,22 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- **Scoring trust — no single detector defines the verdict.** The weighted score now
+  caps each rule's contribution at 10 findings, so a repo with 45 repeated-markup
+  blocks no longer reads as catastrophic on the strength of one detector. True counts
+  are still reported in full; the cap only affects the headline weight, and the banner
+  says so when it engages.
+- **068 is style-aware.** A duplicated block that is mostly JSX/CSS-in-JS markup (MUI
+  `sx`, className soup, status pills) scores **minor** ("repeated markup/style") — a
+  component-extraction, not a logic bug. Duplicated *logic* still scores **major**.
+
+### Added
+- **Per-rule breakdown in the summary.** The score banner now prints `by rule: 068 ×45 ·
+  055 ×2`, so you can see at a glance which detector is driving the number.
+
 ## [1.5.0]
 
 ### Added
