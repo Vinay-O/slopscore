@@ -10,6 +10,7 @@ const { LINE_RULES, WHOLE_FILE_RULES, META_RULES } = require('../src/rules');
 const { fingerprint, loadBaseline, writeBaseline } = require('../src/baseline');
 const { sparkline, loadHistory, appendHistory, trendDelta } = require('../src/history');
 const { planFixes, applyPlan, autoFixableIds, optInFixableIds } = require('../src/fix');
+const { resolvePreset, presetNames } = require('../src/presets');
 
 const DEFAULT_BASELINE = '.slopscore-baseline.json';
 const DEFAULT_HISTORY = '.slopscore-history.json';
@@ -41,6 +42,7 @@ function parseArgs(argv) {
     else if (a === '--fail-on') { opts.failOn = argv[++i]; opts.failOnSet = true; }
     else if (a === '--min-confidence') opts.minConfidence = argv[++i];
     else if (a === '--category') opts.category = (argv[++i] || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+    else if (a === '--preset') opts.preset = argv[++i];
     else if (a === '--ignore') opts.ignore.push(argv[++i]);
     else if (a === '--baseline') {
       const next = argv[i + 1];
@@ -112,7 +114,11 @@ function recordTrend(opts, s) {
 const CONF_RANK = { high: 3, medium: 2, low: 1 };
 function scanAndReport(opts, cfg, baseDir, failOn, record) {
   const ignore = (cfg.ignore || []).concat(opts.ignore);
-  const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules: cfg.rules, paths: cfg.paths });
+  // A preset (--preset or .slopscore.json "preset") is a named bundle of per-rule
+  // config; the user's explicit `rules` always wins over it.
+  const preset = resolvePreset(opts.preset || cfg.preset);
+  const rules = preset ? { ...preset.rules, ...(cfg.rules || {}) } : cfg.rules;
+  const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules, paths: cfg.paths });
   // --min-confidence gates out softer heuristics (e.g. low-confidence 068) before
   // scoring + reporting, so CI can require only high-confidence signal.
   const floor = CONF_RANK[opts.minConfidence];
@@ -185,6 +191,11 @@ function runScan(opts) {
     if (!fs.existsSync(p)) { err(`slopscore: path not found: ${p}`); process.exit(2); }
   }
   const { config: cfg, baseDir } = loadConfig(configStartDir(opts.paths));
+  const presetName = opts.preset || cfg.preset;
+  if (presetName && !resolvePreset(presetName)) {
+    err(`slopscore: unknown preset "${presetName}". Available: ${presetNames().join(', ')}`);
+    process.exit(2);
+  }
   const failOn = opts.failOnSet ? opts.failOn : (cfg.failOn || opts.failOn);
 
   // Baseline snapshot is a one-shot action (write the accepted floor, then exit).
@@ -386,6 +397,8 @@ OPTIONS
   --fail-on <level>          exit non-zero at: critical | major | minor | never  (default: major)
   --min-confidence <level>   only report/score findings at: high | medium | low  (default: low/all)
   --category <names>         focus on one or more categories, e.g. security  (comma-separated)
+  --preset <name>            tune coverage to the project: library | backend | cli |
+                             web | marketing | mui | tailwind | chakra | …  (also: "preset" in config)
   --baseline [file]          ratchet mode: snapshot current findings, then fail only
                              on NEW slop (default file: .slopscore-baseline.json)
   --update-baseline          re-snapshot the baseline (accept the current findings)
