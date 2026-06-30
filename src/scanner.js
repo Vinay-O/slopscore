@@ -5,6 +5,20 @@ const path = require('path');
 const { LINE_RULES, WHOLE_FILE_RULES, META, confidenceOf } = require('./rules');
 const { checkDuplication, CODE_FOR_DUP } = require('./duplication');
 const { buildSuppressions } = require('./suppress');
+const { commentMask } = require('./mask');
+
+// Rules that detect a CODE construct (a call, an operator, a keyword): a match
+// inside a string literal or comment/docstring is always prose, never a real use,
+// so these only fire in actual code. (SQL/secret/model-string rules are NOT here —
+// their whole point is to match a string's contents.)
+const CODE_ONLY_IDS = new Set(['052', '106', '144', '152', '153', '155', '159', '172', '178', '179', '180', '181']);
+// 057 (TODO/FIXME) is the inverse: a debt marker lives in a comment, while a `TODO`
+// data value / enum case does not — so it must match ONLY inside comments.
+const COMMENTS_ONLY_IDS = new Set(['057']);
+for (const r of LINE_RULES) {
+  if (CODE_ONLY_IDS.has(r.id)) r.codeOnly = true;
+  if (COMMENTS_ONLY_IDS.has(r.id)) r.commentsOnly = true;
+}
 
 // Build a finding from a META catalog entry, allowing the bespoke check to
 // override the display title (e.g. to include a live line/dependency count) and
@@ -122,59 +136,6 @@ function walk(root, norm) {
   return files.sort();
 }
 
-// Positions where a `/` begins a regex literal rather than division — i.e. where
-// a value is expected. Heuristic (covers the real cases); not a full JS lexer.
-const REGEX_OK = new Set(['', '(', ',', '=', ':', '[', '{', ';', '!', '&', '|', '?', '+', '-', '*', '%', '<', '>', '~', '^']);
-
-// Mark character positions inside // or /* */ comments. String- and regex-literal-
-// aware: a `//` inside "http://..." or /https:\/\// isn't a comment, and a quote
-// inside a regex doesn't open a string — so real detections aren't wrongly hidden.
-// Block comments span lines; string/regex state resets each line (the safe way).
-function commentMask(lines) {
-  const mask = [];
-  let inBlock = false;
-  for (const line of lines) {
-    const flags = new Array(line.length).fill(false);
-    let i = 0;
-    let inStr = null;   // active quote char (' " `), or null
-    let prevSig = '';   // last significant (non-space) char seen
-    while (i < line.length) {
-      const ch = line[i];
-      if (inBlock) {
-        flags[i] = true;
-        if (ch === '*' && line[i + 1] === '/') { flags[i + 1] = true; inBlock = false; i += 2; prevSig = '/'; continue; }
-        i += 1; continue;
-      }
-      if (inStr) {
-        if (ch === '\\') { i += 2; continue; }
-        if (ch === inStr) { inStr = null; prevSig = ch; i += 1; continue; }
-        i += 1; continue;
-      }
-      if (ch === ' ' || ch === '\t') { i += 1; continue; } // whitespace doesn't change prevSig
-      if (ch === '"' || ch === "'" || ch === '`') { inStr = ch; prevSig = ch; i += 1; continue; }
-      if (ch === '/' && line[i + 1] === '/') { for (let j = i; j < line.length; j += 1) flags[j] = true; break; }
-      if (ch === '/' && line[i + 1] === '*') { flags[i] = flags[i + 1] = true; inBlock = true; i += 2; continue; }
-      if (ch === '/' && REGEX_OK.has(prevSig)) {
-        // Skip a regex literal: advance to the closing unescaped '/' that isn't
-        // inside a [character class]. If none on this line, treat '/' as division.
-        let j = i + 1; let inClass = false; let closed = false;
-        while (j < line.length) {
-          const c = line[j];
-          if (c === '\\') { j += 2; continue; }
-          if (c === '[') inClass = true;
-          else if (c === ']') inClass = false;
-          else if (c === '/' && !inClass) { closed = true; j += 1; break; }
-          j += 1;
-        }
-        if (closed) { i = j; prevSig = '/'; continue; }
-        prevSig = '/'; i += 1; continue;
-      }
-      prevSig = ch; i += 1;
-    }
-    mask.push(flags);
-  }
-  return mask;
-}
 
 // Build a finding from a matched rule (shared by line and whole-file scanning).
 function ruleFinding(rule, file, line, snippet) {
@@ -201,12 +162,30 @@ function scanLineRules(file, ext, isTest, text, lines, mask, findings, project) 
     const line = lines[n];
     for (const rule of active) {
       if (rule.unless && rule.unless.test(line)) continue;
-      const m = rule.re.exec(line);
-      if (!m) continue;
-      if (rule.respectComments && mask[n][m.index]) continue;
-      findings.push(ruleFinding(rule, file, n + 1, line.trim().slice(0, 120)));
+      // Find the first match in an ACCEPTABLE zone. codeOnly → must be code (not a
+      // comment or string). respectComments → must not be a comment. commentsOnly →
+      // must be inside a comment (e.g. a TODO marker, not a `TODO` data value).
+      const re = globalRe(rule);
+      re.lastIndex = 0;
+      let m; let hit = null;
+      while ((m = re.exec(line)) !== null) {
+        const k = mask[n][m.index] || 0;
+        const ok = rule.commentsOnly ? k === 1
+          : rule.codeOnly ? k === 0
+            : !(rule.respectComments && k === 1);
+        if (ok) { hit = m; break; }
+        if (m.index === re.lastIndex) re.lastIndex += 1;
+      }
+      if (hit) findings.push(ruleFinding(rule, file, n + 1, line.trim().slice(0, 120)));
     }
   }
+}
+
+// A cached global clone of a rule's regex, so we can scan past a match that landed
+// in a comment/string to a later acceptable one (the first match isn't always it).
+function globalRe(rule) {
+  if (!rule._g) rule._g = new RegExp(rule.re.source, rule.re.flags.includes('g') ? rule.re.flags : `${rule.re.flags}g`);
+  return rule._g;
 }
 
 // 1-based line number for a character offset, via binary search over the
@@ -412,7 +391,7 @@ function scan(target, options = {}) {
     totalLines += lineCount;
     if (zone === 'production') productionLines += lineCount;
     if (CODE_FOR_DUP.has(ext)) codeFiles.push({ file, lines, zone });
-    const mask = commentMask(lines);
+    const mask = commentMask(lines, ext);
     const before = findings.length;
     scanLineRules(file, ext, isTest, text, lines, mask, findings, project);
     scanWholeFileRules(file, ext, isTest, text, lines, findings);
