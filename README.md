@@ -41,45 +41,45 @@ AI slop is insidious because it *looks* finished — consistent naming, passing 
 ```text
 $ npx slopscore examples/slop.tsx
 
-  slopscore  ·  1 files  ·  0.04 kLOC
+  slopscore  ·  1 files  ·  0.03 kLOC
 
   slop.tsx
-    :5   🔴 CRIT   [058] Hardcoded secret / API key
-         const API_KEY = "sk-proj-abc123def456ghi789jkl012mno345";
-         fix: Move to an env var / secret manager. A committed secret is COMPROMISED — rotate it now.
-    :15  🔴 CRIT   [072] SQL injection via template literal
-         const q = `SELECT * FROM users WHERE id = ${data.id}`;
-         fix: Use parameterized queries / prepared statements. Never interpolate input into SQL.
-    :17  🔴 CRIT   [053] Empty catch block (silent error swallowing)
-         } catch (e) {}
-         fix: At minimum log with context; better, handle or rethrow and surface a real message.
-    :10  🟠 MAJOR  [070] Hallucinated API method
-         const data: any = fetch.get("http://localhost:3000/api/users");
-         fix: Use the real API: fetch(url,{method}); .then()/await. These methods do not exist.
-    :24  🟠 MAJOR  [041] AI buzzword copy
-         <Sparkles /> Supercharge your workflow, effortlessly!
-         fix: Replace with a concrete, specific claim: what it does, for whom, and the real outcome.
-    …
+    :5  🔴 CRIT  [058] Hardcoded secret / API key
+        const API_KEY = "sk-proj-abc123def456ghi789jkl012mno345";
+        fix: Move to an env var / secret manager. A committed secret is COMPROMISED — rotate it now.
+    :12 🔴 CRIT  [073] Auth token in localStorage
+        localStorage.setItem("auth_token", "ey.some.jwt");
+        fix: Store auth in httpOnly, Secure, SameSite cookies — not localStorage (XSS-readable).
+    :13 🔴 CRIT  [072] SQL injection via template literal
+        const q = `SELECT * FROM users WHERE id = ${data.id}`;
+        fix: Use parameterized queries / prepared statements. Never interpolate input into SQL.
+    :15 🔴 CRIT  [053] Empty catch block (silent error swallowing)
+        } catch (e) {}
+        fix: At minimum log with context; better, handle or rethrow and surface a real message.
+    :29 🔴 CRIT  [071] dangerouslySetInnerHTML / .innerHTML without sanitization
+        <div dangerouslySetInnerHTML={{ __html: data.bio }} />
+        fix: Render as text, or sanitize with DOMPurify + an allowlist before injecting.
+    … and 16 more
 
   ╔══════════════════════════════════════════╗
-  ║             S L O P   S C O R E              ║
+  ║           S L O P   S C O R E            ║
   ╚══════════════════════════════════════════╝
 
-   88 weighted   (35 lines scanned)
-   5 critical   10 major   8 minor
-   by rule: 069 ×2 · 105 ×1 · 058 ×1 · 054 ×1 · 070 ×1 · 099 ×1
+   84 weighted   (33 lines scanned)
+   5 critical   9 major   7 minor
+   by rule: 105 ×1 · 176 ×1 · 058 ×1 · 054 ×1 · 070 ×1 · 099 ×1
 
    ▶ Vibe-coded. Audit before anyone depends on it.
 ```
 
-Every finding has a **severity**, a **catalog ID**, the **exact location**, and a **fix**. No vague "code smells" — a punch list you can act on.
+Every finding has a **severity**, a **catalog ID**, a **confidence**, the **exact location**, and a **fix**. No vague "code smells" — a punch list you can act on.
 
 ## Quick start
 
 ```bash
 npx slopscore                      # scan the current directory
 npx slopscore scan src --fail-on minor
-npx slopscore examples/slop.tsx    # watch a sloppy file score 88
+npx slopscore examples/slop.tsx    # watch a sloppy file score 84
 npx slopscore . --markdown > slop.md
 ```
 
@@ -228,7 +228,7 @@ slopscore fix . --only 052     # just the console.logs
 slopscore fix . --except 069   # everything fixable except comment removal
 ```
 
-It only ever touches the 🟢 **AUTO**-authority rules with a deterministic, behavior-preserving transform (today: `052` console.log, `069` step-narration comments, `081` `<img>` alt, `152` Python `== None`, `158` Go `fmt.Print` debug). It is conservative by design — a multi-line `console.log`, a trailing comment, or anything that needs a name or a destination is left for you. Everything else stays a propose/flag you review by hand.
+It only ever touches the 🟢 **AUTO**-authority rules with a deterministic, behavior-preserving transform (today: `052` console.log, `069` step-narration comments, `081` `<img>` alt, `152` Python `== None`→`is None`, `169` `target="_blank"`→`rel="noopener"`). It is conservative by design — a multi-line `console.log`, a trailing comment, a line that's a braceless `if` body, or a comparison inside a string literal are all left alone (a fix that could change behavior or break structure is never applied). Propose-level fixers (e.g. `179` Python `== True`) apply only when you name them with `--only 179`. Everything else stays a propose/flag you review by hand.
 
 ## Local development
 
@@ -296,11 +296,13 @@ The CLI runs the deterministic subset; the [full 181-pattern catalog](ANTI_SLOP_
 
 | Category | Examples |
 |:--|:--|
-| 🔐 Security | Hardcoded secrets (incl. AWS keys, GitHub PATs, private keys) · SQL injection · command injection via interpolated shell · auth tokens in `localStorage` · secrets in URL query params · `dangerouslySetInnerHTML` · stack traces to client · committed `.env` · placeholder config values |
-| 🧱 Code quality | Empty catch blocks · overly-broad exceptions (`except Exception`, `catch (e: any)`) · `any` everywhere · double assertions · hallucinated APIs · god files · TODO/FIXME · `setTimeout` race "fixes" · tautological test assertions |
-| 📦 Supply chain | Dependency bloat · unpinned/aliased LLM model strings · source maps shipped to production · whole-library imports for one utility |
+| 🔐 Security | Hardcoded secrets (AWS keys, GitHub PATs, **PEM private keys**) · SQL injection (template **and** string-concat) · command injection · **disabled TLS verification** · **weak hashing (MD5/SHA-1) for secrets** · **insecure randomness for tokens** · **insecure deserialization** (`pickle`, `yaml.load`) · **wildcard CORS** · **`eval`/`new Function`** · **unverified JWTs** (`alg: none`) · **cleartext HTTP** · `target="_blank"` without `noopener` · auth tokens in `localStorage` · secrets in URL params · `dangerouslySetInnerHTML` · stack traces to client · committed `.env` |
+| 🧱 Code quality | Empty catch blocks · overly-broad exceptions · `any` everywhere · double assertions · hallucinated APIs · god files (cohesion-aware) · copy-pasted duplicate blocks · TODO/FIXME · `setTimeout` race "fixes" · tautological test assertions |
+| 🚀 Performance | Deep clone via `JSON.parse(JSON.stringify())` · `SELECT *` over-fetch · `forEach(async …)` (unawaited) · whole-library imports for one utility |
+| 🐍 Language-specific | **Python:** mutable default args · `== None` · `eval`/`exec` · f-string SQL · `os.system`/`shell=True` · `print` debug. **Go:** empty `interface{}` · ignored errors · `fmt.Print` · `panic()`. **Rust:** `.unwrap()`/`.expect()` · `todo!`/`panic!` · `unsafe` · `dbg!`/`println!` |
+| 📦 Supply chain | Dependency bloat · unpinned/aliased LLM model strings (date-pinned ids exempt) · source maps shipped to production |
 | ♿ Accessibility | `<img>` without alt · interactive `<div onClick>` · `outline:none` with no focus style |
-| 🎨 Visual slop | VibeCode-purple gradient · conic/mesh gradients · glassmorphism · gradient-clip text · Sparkle/Wand icons · recycled AI fonts · confetti |
+| 🎨 Visual slop | VibeCode-purple gradient · conic/mesh gradients · glassmorphism · gradient-clip text · Sparkle/Wand icons · recycled AI fonts · confetti — matched across **Tailwind classes AND CSS-in-JS** (MUI `sx`, styled, emotion) |
 | ✍️ Copy | AI buzzwords ("supercharge", "seamlessly") · exclamation-mark CTAs · "Coming soon" · "Oops!" errors · "Submit" buttons · "Click here" links · lorem ipsum |
 | 🏗️ Architecture / API | Hardcoded localhost · `window.location` nav in SPAs · `location.reload()` recovery · errors returned as HTTP 200 · destructive GET · `z-index: 9999` · `alert()`/`confirm()` |
 
@@ -325,9 +327,9 @@ This table is scoped to **AI-slop detection specifically** — it is not a quali
 
 **Will it touch my code?** The CLI only *reports*. Fixing is done by you, or by your AI agent following the protocol's fix-authority rules.
 
-**False positives?** The scanner is comment-aware (it won't flag `console.log` inside a comment), skips test files where appropriate, and excludes type-definition shims. Tune further via `.slopscore.json`. Found a bad one? [Open an issue.](../../issues)
+**Does it work for Python / Go / Rust?** Yes — there are dedicated detectors for each (Python: mutable defaults, `== None`, `eval`/`exec`, f-string SQL, `pickle`, `print`; Go: ignored errors, `fmt.Print`, `panic`, command injection; Rust: `.unwrap()`, `panic!`, `unsafe`, `dbg!`). The comment/string masking is language-aware (Python `#` comments and docstrings aren't scanned as code), and `test_*.py` / `*_test.go` are correctly treated as the test zone. Security and copy detectors run on all source; the JS/TS surface is the deepest because that's where vibe-coded slop concentrates.
 
-**Does it work for Python / Go / etc.?** Security and copy detectors run on all source; many patterns are JS/TS-shaped because that's where vibe-coded slop concentrates. The protocol is language-agnostic by design.
+**How accurate is it / false positives?** Low by design, and rigorously tested: clean, idiomatic code reliably scores zero. The scanner is comment- and string-aware (it won't flag `eval()` in a docstring, `console.log` in a comment, or `firstName + " and " + lastName` as SQL), skips test files, exempts ORM `Column == None` and date-pinned model ids, and ships **143 tests** including a clean-code battery. `slopscore fix` is verified non-corrupting — it never deletes a line that would break structure or rewrites inside a string. Found a bad finding? [Open an issue.](../../issues)
 
 ## Contributing
 
@@ -335,7 +337,7 @@ Adding a detector is one object in [`src/rules.js`](src/rules.js) + a test. See 
 
 ```bash
 git clone https://github.com/Vinay-O/slopscore && cd slopscore
-npm test          # 40 tests, zero dependencies
+npm test          # 143 tests, zero dependencies
 npm run demo      # scan the sloppy fixture
 npm run selfcheck # prove the repo passes its own audit
 ```
