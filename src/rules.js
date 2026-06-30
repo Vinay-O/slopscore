@@ -20,7 +20,7 @@
  */
 
 const CODE = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.svelte'];
-const STYLE = ['.css', '.scss', '.sass', '.less', '.tsx', '.jsx', '.vue', '.svelte', '.html'];
+const STYLE = ['.css', '.scss', '.sass', '.less', '.ts', '.tsx', '.jsx', '.vue', '.svelte', '.html'];
 const MARKUP = ['.jsx', '.tsx', '.html', '.vue', '.svelte'];
 const TS = ['.ts', '.tsx'];
 const PY = ['.py'];
@@ -203,7 +203,12 @@ const LINE_RULES = [
   {
     id: '001', title: 'VibeCode-purple gradient', category: 'visual', severity: 'minor',
     authority: 'propose', exts: STYLE, skipTests: false, respectComments: false,
-    re: /(from-(purple|violet)-\d{2,3}\s+to-(indigo|blue|purple)-\d{2,3}|linear-gradient[^;]*(purple|indigo|violet)|#7c3aed|#4f46e5|#6d28d9)/i,
+    // Three idioms for the same lavender→indigo tell:
+    //  - Tailwind gradient classes (from-purple-500 to-indigo-500)
+    //  - any-CSS gradient (CSS, CSS-in-JS, MUI sx, styled/emotion — no semicolon
+    //    required) whose stops name a purple word OR a Tailwind violet/indigo/purple hex
+    //  - the three classic bare hexes, kept for back-compat
+    re: /(from-(purple|violet)-\d{2,3}\s+to-(indigo|blue|purple)-\d{2,3}|(?:linear|radial|conic)-gradient\([^)]*(purple|indigo|violet|#(?:a78bfa|8b5cf6|7c3aed|6d28d9|818cf8|6366f1|4f46e5|4338ca|c084fc|a855f7|9333ea|7e22ce))|#7c3aed|#4f46e5|#6d28d9)/i,
     fix: 'Pick a palette with a point of view (Escape Move 1). Not lavender→indigo. Use a token.',
   },
   {
@@ -215,7 +220,9 @@ const LINE_RULES = [
   {
     id: '003', title: 'Glassmorphism (backdrop blur)', category: 'visual', severity: 'minor',
     authority: 'propose', exts: STYLE, skipTests: false, respectComments: false,
-    re: /(backdrop-blur(-|\b)|backdrop-filter\s*:\s*blur)/,
+    // Tailwind class, CSS property, AND CSS-in-JS camelCase (MUI sx, styled, emotion):
+    // backdropFilter: "blur(12px)" / WebkitBackdropFilter: 'blur(...)'.
+    re: /(backdrop-blur(-|\b)|backdrop-filter\s*:\s*blur|(?:Webkit)?[bB]ackdropFilter\s*:\s*['"`]?\s*blur)/,
     fix: 'Use a real surface-elevation scale; reserve blur for genuine overlays. Re-check contrast.',
   },
   {
@@ -227,7 +234,9 @@ const LINE_RULES = [
   {
     id: '008', title: 'Animated gradient text', category: 'visual', severity: 'major',
     authority: 'propose', exts: STYLE, skipTests: false, respectComments: false,
-    re: /(bg-clip-text\s+text-transparent|background-clip\s*:\s*text|-webkit-text-fill-color\s*:\s*transparent)/,
+    // Tailwind, CSS, AND CSS-in-JS camelCase (MUI sx, styled, emotion):
+    // WebkitBackgroundClip: 'text' + WebkitTextFillColor: 'transparent'.
+    re: /(bg-clip-text\s+text-transparent|background-clip\s*:\s*text|-webkit-text-fill-color\s*:\s*transparent|(?:Webkit)?[bB]ackgroundClip\s*:\s*['"`]text|WebkitTextFillColor\s*:\s*['"`]transparent)/,
     fix: 'Set the headline in a solid, contrast-passing color. Verify contrast.',
   },
   {
