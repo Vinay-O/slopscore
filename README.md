@@ -113,7 +113,9 @@ slopscore scan . --format agent    # compact, context-window-friendly output for
 slopscore explain 058              # look up any one pattern + its fix, by id
 ```
 
-The scanner finds it. The protocol fixes it. The CI gate keeps it out.
+**Make agents use it automatically.** You shouldn't have to remind your agent every session. `slopscore init` writes an **`AGENTS.md`** (the cross-tool standard that Cursor, Codex, Claude Code, Aider, Windsurf, and Cline all read) that tells the agent to load `npx slopscore protocol`, follow it, and gate on `npx slopscore scan` before declaring done — so the protocol is adopted on its own, no copy-paste required. If you already have an `AGENTS.md` or `CLAUDE.md`, it appends the section (idempotently) instead of overwriting.
+
+The scanner finds it. The protocol fixes it. The CI gate keeps it out. And `AGENTS.md` makes your agent do all three without being asked.
 
 ## The Slop Score
 

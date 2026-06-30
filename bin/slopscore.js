@@ -309,12 +309,56 @@ const CONFIG_JSON = `{
 }
 `;
 
+// A self-contained agent directive. Any coding agent that reads AGENTS.md /
+// CLAUDE.md (Cursor, Codex, Claude Code, Aider, Windsurf, Cline…) auto-adopts the
+// protocol — no need to tell it "use slopscore" by hand each session.
+const AGENTS_MARKER = '<!-- slopscore:anti-slop -->';
+function agentsSection() {
+  const n = LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES).length;
+  return `${AGENTS_MARKER}
+## Anti-Slop Protocol (slopscore)
+
+This repository is guarded by [slopscore](https://github.com/Vinay-O/slopscore) — a
+catalog of 180+ AI-slop patterns, ${n} of them auto-checked. Before you finish ANY task:
+
+1. Load the full catalog once per session: \`npx slopscore protocol\` — it lists every
+   pattern with a DETECT, a FIX, and a fix authority (🟢 auto · 🟡 propose · 🔴 flag).
+   Follow it. The untagged patterns (architecture, fake features, most design tells) are
+   yours to apply by reading the code; the ⚙️-tagged ones the scanner checks for you.
+2. Before declaring done, run \`npx slopscore scan . --fail-on major\` and drive
+   production critical + major findings to **0**. Auto-fix the safe ones with
+   \`npx slopscore fix .\`.
+3. Don't add new slop: no purple gradients, no \`console.log\`, no \`any\`, no fake stats,
+   no \`eval\`, no disabled TLS, no god files. When in doubt, run the scan.
+
+Run \`npx slopscore scan . --format agent\` for compact, machine-readable output.
+${AGENTS_MARKER}
+`;
+}
+
+function ensureAgentsFile(file) {
+  const section = agentsSection();
+  if (!fs.existsSync(file)) {
+    fs.writeFileSync(file, `# Agent Instructions\n\n${section}`);
+    out(`  wrote ${file}`);
+    return;
+  }
+  const existing = fs.readFileSync(file, 'utf8');
+  if (existing.includes(AGENTS_MARKER)) { out(`  skip  ${file} (already has the slopscore section)`); return; }
+  fs.writeFileSync(file, `${existing.replace(/\s*$/, '')}\n\n${section}`);
+  out(`  updated ${file} (appended the slopscore section)`);
+}
+
 function runInit() {
   writeIfAbsent('.slopscore.json', CONFIG_JSON);
   const dir = path.join('.github', 'workflows');
   fs.mkdirSync(dir, { recursive: true });
   writeIfAbsent(path.join(dir, 'anti-slop.yml'), ACTION_YML);
-  out('slopscore initialized. Commit .slopscore.json and .github/workflows/anti-slop.yml to gate every PR.');
+  // Teach the repo's agents to use the protocol automatically. AGENTS.md is the
+  // cross-tool standard; also extend CLAUDE.md if the repo already has one.
+  ensureAgentsFile('AGENTS.md');
+  if (fs.existsSync('CLAUDE.md')) ensureAgentsFile('CLAUDE.md');
+  out('slopscore initialized. Commit .slopscore.json, the workflow, and AGENTS.md so every PR — and every agent — follows the protocol.');
 }
 
 function writeIfAbsent(file, contents) {
@@ -332,7 +376,7 @@ USAGE
   slopscore protocol            print the full 181-pattern protocol (pipe to your agent)
   slopscore rules               list the deterministic detectors this CLI runs
   slopscore explain <id>        print one catalog pattern + its fix (e.g. explain 058)
-  slopscore init                write .slopscore.json + a GitHub Action PR gate
+  slopscore init                scaffold .slopscore.json + a PR gate + AGENTS.md (agent auto-adoption)
 
 OPTIONS
   --json                     machine-readable findings + score
