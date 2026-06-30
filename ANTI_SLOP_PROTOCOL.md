@@ -296,7 +296,7 @@ Each entry: **ID · Title** `SEVERITY` `AUTHORITY` — description, `DETECT` (ho
 (aesthetic tell). Authority: 🟢 AUTO · 🟡 PROPOSE · 🔴 FLAG (see §0).
 
 A `` `⚙️ slopscore scan` `` tag means **the deterministic CLI already detects this pattern** —
-`npx slopscore` flags it for you with the exact location and fix. **81 of the 177** carry this tag
+`npx slopscore` flags it for you with the exact location and fix. **85 of the 181** carry this tag
 today; the rest need an AST tool (§2.1) or human reading (layout sameness, fake features,
 architectural drift). The tags are generated from the scanner's own rule table, so they never
 drift from what the CLI actually does. Patterns *without* the tag are where you, the agent, earn
@@ -1348,6 +1348,26 @@ The canonical Rust AI tell: `.unwrap()`/`.expect()` everywhere, turning every `R
 An `unsafe { … }` block — sometimes necessary, often AI reaching for it to silence the borrow checker.
 `DETECT:` `unsafe {`.
 `FIX:` Justify each block with a comment proving the invariants it upholds, or replace it with safe code. FLAG for human review.
+
+**178 · `print()` debugging (Python)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+A bare `print(…)` left in application code — the Python cousin of a stray `console.log`. Fine as a script's real output, noise in a library or service — which is why it's PROPOSE, not AUTO.
+`DETECT:` `print(` in app code.
+`FIX:` Use the `logging` module (`logger.debug/info`) for levelled output you can silence in prod. Opt-in: `slopscore fix --only 178` removes a standalone debug `print`.
+
+**179 · `== True` / `== False` comparison (Python)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+`if x == True:` is redundant — and wrong when `x` is a truthy non-bool (`[1] == True` is `False`).
+`DETECT:` `== True` / `== False` / `!= True` / `!= False`.
+`FIX:` Compare by truthiness: `if x:` / `if not x:`. Opt-in: `slopscore fix --only 179` strips the removable `== True` / `!= False` forms.
+
+**180 · Debug print macro (Rust)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+`dbg!(…)` is never meant to ship; `println!`/`eprintln!` left in as diagnostics are the Rust equivalent of `console.log`.
+`DETECT:` `dbg!(` · `println!(` · `eprintln!(` · `print!(` · `eprint!(`.
+`FIX:` Use the `log`/`tracing` crate (`debug!`/`info!`); reserve `println!` for real program output. Opt-in: `slopscore fix --only 180` removes a standalone debug macro.
+
+**181 · `panic()` in library code (Go)** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+`panic()` unwinds and crashes the whole process — an AI shortcut where a returned `error` belongs.
+`DETECT:` `panic(`.
+`FIX:` Return an `error` and let the caller decide. Reserve `panic` for genuinely unrecoverable init failures. FLAG.
 
 ---
 

@@ -3,16 +3,28 @@
 const fs = require('fs');
 const path = require('path');
 const { FIXERS } = require('./fixers');
+const { LINE_RULES, WHOLE_FILE_RULES, META_RULES } = require('./rules');
+
+const AUTHORITY = {};
+for (const r of LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES)) AUTHORITY[r.id] = r.authority;
 
 const fixableIds = () => Object.keys(FIXERS).sort();
+// Fixers that run on a plain `slopscore fix`: the rule is AUTO-authority, so the
+// transform is behavior-preserving in every case the detector matches.
+const autoFixableIds = () => fixableIds().filter((id) => AUTHORITY[id] === 'auto');
+// Fixers that exist but are opt-in via --only, because the rule is propose/flag
+// (the fix is context-dependent — e.g. removing a Python print that's real output).
+const optInFixableIds = () => fixableIds().filter((id) => AUTHORITY[id] !== 'auto');
 
-// Turn a scan result into a per-file edit plan. Only findings whose rule has a
-// fixer (and passes the --only/--except filter) are considered, and at most one
-// edit lands per source line so two rules can't fight over the same line.
+// Turn a scan result into a per-file edit plan. A fixer is applied when the rule
+// is AUTO-authority (safe by default) OR the user named it explicitly with --only.
+// At most one edit lands per source line so two rules can't fight over the same line.
 function planFixes(result, opts = {}) {
   const only = opts.only && opts.only.length ? new Set(opts.only) : null;
   const except = opts.except && opts.except.length ? new Set(opts.except) : null;
-  const wanted = (id) => FIXERS[id] && (!only || only.has(id)) && (!except || !except.has(id));
+  const wanted = (id) => FIXERS[id]
+    && (only ? only.has(id) : AUTHORITY[id] === 'auto')
+    && (!except || !except.has(id));
 
   const byFile = new Map();
   for (const f of result.findings) {
@@ -60,4 +72,4 @@ function applyPlan(plan) {
   }
 }
 
-module.exports = { planFixes, applyPlan, fixableIds };
+module.exports = { planFixes, applyPlan, fixableIds, autoFixableIds, optInFixableIds };

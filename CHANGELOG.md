@@ -21,7 +21,15 @@ All notable changes to slopscore are documented here. Format based on
 - **Performance detectors (new `performance` category).** `175` deep-clone via
   `JSON.parse(JSON.stringify())`, `176` `SELECT *` over-fetch, `177` `forEach` with an
   async callback (unawaited work / swallowed errors). `093` (whole-library import) is
-  now grouped under performance too. Catalog is now **177 patterns / 81 detectors**.
+  now grouped under performance too.
+- **Deeper Python / Go / Rust coverage (178–181).** `178` Python `print()` debugging,
+  `179` Python `== True` / `== False`, `180` Rust debug macros (`dbg!`/`println!`/…),
+  `181` Go `panic()` in library code. Catalog is now **181 patterns / 85 detectors**.
+- **Opt-in fixers.** `slopscore fix` still applies only the behavior-preserving AUTO
+  fixers by default, but propose-level fixers (Python `print` removal `178`, `== True`
+  cleanup `179`, Rust debug-macro removal `180`) can now be applied explicitly with
+  `--only <id>` — so the language fixes are available without auto-rewriting code that
+  might be intentional.
 
 ### Changed
 - The count-invariant test now derives the catalog total instead of hardcoding it,

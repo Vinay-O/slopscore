@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { scan } = require('../src/scanner');
-const { planFixes, applyPlan, fixableIds } = require('../src/fix');
+const { planFixes, applyPlan } = require('../src/fix');
 
 function tmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-fix-'));
@@ -83,16 +83,27 @@ test('fixing is idempotent — a second pass finds nothing', () => {
   assert.strictEqual(second.length, 0, 'nothing left to fix');
 });
 
-test('every fixable id is a real authority:auto detector', () => {
+test('every fixable id is a real detector; the default set is exactly the auto rules', () => {
   const rules = require('../src/rules');
-  const auto = new Set(
-    rules.LINE_RULES.concat(rules.WHOLE_FILE_RULES, rules.META_RULES)
-      .filter((r) => r.authority === 'auto')
-      .map((r) => r.id),
-  );
-  for (const id of fixableIds()) {
-    assert.ok(auto.has(id), `fixer ${id} must correspond to an authority:auto rule`);
-  }
+  const { fixableIds, autoFixableIds, optInFixableIds } = require('../src/fix');
+  const byId = {};
+  for (const r of rules.LINE_RULES.concat(rules.WHOLE_FILE_RULES, rules.META_RULES)) byId[r.id] = r;
+  for (const id of fixableIds()) assert.ok(byId[id], `fixer ${id} maps to a real rule`);
+  // A plain `slopscore fix` may only touch behavior-preserving AUTO rules.
+  for (const id of autoFixableIds()) assert.strictEqual(byId[id].authority, 'auto', `${id} default-fixable so must be auto`);
+  // Opt-in fixers are the propose/flag ones, applied only with --only.
+  for (const id of optInFixableIds()) assert.notStrictEqual(byId[id].authority, 'auto', `${id} is opt-in so must not be auto`);
+});
+
+test('a plain fix run skips an opt-in (propose) fixer; --only applies it', () => {
+  const dir = tmpDir();
+  fs.writeFileSync(path.join(dir, 'a.py'), 'def f():\n    print("debug")\n    return 1\n');
+  // default run: 178 is propose, so nothing is fixed
+  applyPlan(planFixes(scan([dir], { ignoreBase: dir }), {}));
+  assert.match(fs.readFileSync(path.join(dir, 'a.py'), 'utf8'), /print\("debug"\)/, 'default run leaves the print');
+  // explicit opt-in removes it
+  applyPlan(planFixes(scan([dir], { ignoreBase: dir }), { only: ['178'] }));
+  assert.ok(!fs.readFileSync(path.join(dir, 'a.py'), 'utf8').includes('print('), '--only 178 removes it');
 });
 
 test('applying the fixes drives those findings out of the next scan', () => {

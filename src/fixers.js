@@ -61,6 +61,19 @@ const FIXERS = {
     const replace = line.replace(/(<a\b[^>]*?)(\s*\/?>)/, (_match, head, close) => `${head} rel="noopener noreferrer"${close}`);
     return replace !== line ? { replace } : null;
   },
+
+  // 178 — a standalone Python print() debug statement: remove it.
+  '178': (line) => (/^\s*print\s*\([^]*\)\s*$/.test(line) && balanced(line) ? { remove: true } : null),
+
+  // 179 — Python `== True` / `!= False` are pure-removable (the `== False` /
+  // `!= True` forms need a `not` and are left for a human).
+  '179': (line) => {
+    const replace = line.replace(/\s*==\s*True\b/g, '').replace(/\s*!=\s*False\b/g, '');
+    return replace !== line ? { replace } : null;
+  },
+
+  // 180 — a standalone Rust debug-print macro (dbg!/println!/…): remove it.
+  '180': (line) => (/^\s*(?:dbg!|println!|eprintln!|print!|eprint!)\s*\([^]*\)\s*;?\s*$/.test(line) && balanced(line) ? { remove: true } : null),
 };
 
 module.exports = { FIXERS, balanced };

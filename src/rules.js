@@ -532,6 +532,32 @@ const LINE_RULES = [
     re: /\.forEach\s*\(\s*async\b/,
     fix: 'forEach ignores returned promises — they run unawaited and errors are swallowed. Use for...of with await, or Promise.all(items.map(...)).',
   },
+
+  // ---- CATEGORY 17 expansion: deeper language coverage (178–181) ----
+  {
+    id: '178', title: 'print() debugging (Python)', category: 'code', severity: 'major',
+    authority: 'propose', exts: PY, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\bprint\s*\(/,
+    fix: 'Use the logging module (logger.debug/info) for levelled output you can turn off. Remove stray debug prints.',
+  },
+  {
+    id: '179', title: '== True / == False comparison (Python)', category: 'code', severity: 'minor',
+    authority: 'propose', exts: PY, skipTests: true, respectComments: true,
+    re: /[!=]=\s*(True|False)\b/,
+    fix: 'Compare by truthiness: `if x:` / `if not x:`. `== True` is redundant and wrong for truthy non-bool values.',
+  },
+  {
+    id: '180', title: 'Debug print macro (Rust)', category: 'code', severity: 'major',
+    authority: 'propose', exts: RUST, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\b(dbg!|println!|eprintln!|print!|eprint!)\s*\(/,
+    fix: 'Use the log / tracing crate (debug!/info!) for diagnostics; reserve println! for real program output. Remove dbg!/stray prints.',
+  },
+  {
+    id: '181', title: 'panic() in library code (Go)', category: 'code', severity: 'major',
+    authority: 'flag', exts: GO, skipTests: true, respectComments: true,
+    re: /\bpanic\s*\(/,
+    fix: 'Return an error and let the caller decide. panic() takes down the whole process; reserve it for truly unrecoverable init failures.',
+  },
 ];
 
 // Detectors implemented as bespoke checks in scanner.js — file size, repo-level

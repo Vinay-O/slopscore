@@ -5,8 +5,6 @@ import { Sparkles } from "lucide-react";
 const API_KEY = "sk-proj-abc123def456ghi789jkl012mno345";
 
 export default function Dashboard() {
-  // Step 1: get the data
-  // Step 2: render it
   const data: any = fetch.get("http://localhost:3000/api/users");
 
   function handleSave() {
@@ -23,7 +21,7 @@ export default function Dashboard() {
       <h1 className="bg-clip-text text-transparent">
         <Sparkles /> Supercharge your workflow, effortlessly!
       </h1>
-      <img src="/hero.png" />
+      <img src="/hero.png" alt="" />
       <div onClick={handleSave}>Click here</div>
       <p>Something went wrong. Oops!</p>
       <button>Submit</button>

@@ -9,7 +9,7 @@ const report = require('../src/report');
 const { LINE_RULES, WHOLE_FILE_RULES, META_RULES } = require('../src/rules');
 const { fingerprint, loadBaseline, writeBaseline } = require('../src/baseline');
 const { sparkline, loadHistory, appendHistory, trendDelta } = require('../src/history');
-const { planFixes, applyPlan, fixableIds } = require('../src/fix');
+const { planFixes, applyPlan, autoFixableIds, optInFixableIds } = require('../src/fix');
 
 const DEFAULT_BASELINE = '.slopscore-baseline.json';
 const DEFAULT_HISTORY = '.slopscore-history.json';
@@ -213,7 +213,9 @@ function runFix(opts) {
   const plan = planFixes(result, { only: opts.only, except: opts.except });
 
   if (plan.length === 0) {
-    out(`slopscore: nothing to auto-fix (${fixableIds().join(', ')} are the auto-fixable rules).`);
+    out(`slopscore: nothing to auto-fix (auto rules: ${autoFixableIds().join(', ')}).`);
+    const optIn = optInFixableIds();
+    if (optIn.length) out(`Opt-in fixers (apply with --only): ${optIn.join(', ')}.`);
     out('Everything else is a propose/flag — run `slopscore scan` and review those by hand.');
     process.exit(0);
   }
@@ -250,7 +252,7 @@ function printProtocol() {
 
 function printRules() {
   const all = LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES);
-  out(`slopscore ships ${all.length} deterministic detectors. The full 177-pattern catalog`);
+  out(`slopscore ships ${all.length} deterministic detectors. The full 181-pattern catalog`);
   out('(including visual, architectural, and judgment-heavy patterns) lives in ANTI_SLOP_PROTOCOL.md.\n');
   const byCat = {};
   for (const r of all) (byCat[r.category] = byCat[r.category] || []).push(r);
@@ -271,7 +273,7 @@ function printExplain(arg) {
   if (!fs.existsSync(p)) { err('slopscore: ANTI_SLOP_PROTOCOL.md not found alongside the package.'); process.exit(2); }
   const lines = fs.readFileSync(p, 'utf8').split('\n');
   const start = lines.findIndex((l) => l.startsWith(`**${id} · `));
-  if (start === -1) { err(`slopscore: no catalog entry ${id} (ids run 001–177). Try: slopscore protocol`); process.exit(2); }
+  if (start === -1) { err(`slopscore: no catalog entry ${id} (ids run 001–181). Try: slopscore protocol`); process.exit(2); }
   const block = [lines[start]];
   for (let i = start + 1; i < lines.length; i += 1) {
     if (/^\*\*\d{3} · /.test(lines[i])) break; // next entry
@@ -327,7 +329,7 @@ slopscore v${pkg.version} — scan your codebase for AI slop, get a Slop Score, 
 USAGE
   slopscore [scan] [paths...] [options]
   slopscore fix [paths...]      auto-apply the safe (🟢 AUTO) fixes; --dry-run to preview
-  slopscore protocol            print the full 177-pattern protocol (pipe to your agent)
+  slopscore protocol            print the full 181-pattern protocol (pipe to your agent)
   slopscore rules               list the deterministic detectors this CLI runs
   slopscore explain <id>        print one catalog pattern + its fix (e.g. explain 058)
   slopscore init                write .slopscore.json + a GitHub Action PR gate
