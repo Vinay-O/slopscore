@@ -219,9 +219,12 @@ The baseline keys findings by content, not line number — so moving code around
 slopscore scan . --watch       # re-scan on every save — a live conscience
 slopscore scan . --history     # record the score over time + a trend sparkline
 slopscore scan . --sarif       # inline annotations on the PR diff (code scanning)
+slopscore scan . --markdown --out slop.md   # write a UTF-8 report file directly
 ```
 
 `--history` writes `.slopscore-history.json` and prints `trend  █▃▁  0 weighted · down 100% since last run` — commit it and watch slop fall sprint over sprint.
+
+**Windows / legacy terminals.** slopscore auto-detects consoles that can't render Unicode (legacy `cmd`/PowerShell on a non-UTF-8 code page) and falls back to ASCII glyphs — force it either way with `--ascii` / `--unicode`. Prefer `--out <file>` over a `>` redirect: it writes UTF-8 straight from Node, so the report never comes out as mojibake or UTF-16.
 
 ## Configuration
 

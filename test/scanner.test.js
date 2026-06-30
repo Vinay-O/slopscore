@@ -487,6 +487,43 @@ test('explain prints a catalog entry + fix for a valid id', () => {
   assert.match(out, /Automated/);
 });
 
+// The demo file scores high, so `scan` exits non-zero; execFileSync throws but
+// still carries the captured stdout. This grabs output regardless of exit code.
+function runBin(args, opts = {}) {
+  try {
+    return execFileSync('node', [BIN, ...args], { encoding: 'utf8', ...opts });
+  } catch (e) {
+    return e.stdout != null ? e.stdout : '';
+  }
+}
+
+test('--ascii renders slopscore chrome with no non-ASCII bytes (legacy Windows console)', () => {
+  // An ASCII-only source, so any non-ASCII byte in the output is slopscore's own
+  // chrome (box-drawing / emoji), not quoted user content.
+  const src = tmpFile('a.js', 'function f(){ console.log("x"); }\nconst y: any = 1;\n');
+  const out = runBin(['scan', src, '--ascii', '--no-color']);
+  // eslint-disable-next-line no-control-regex
+  assert.ok(!/[^\x00-\x7F]/.test(out), 'ASCII mode must not emit any non-ASCII glyph');
+  assert.match(out, /S L O P {3}S C O R E/); // the banner still draws, in ASCII
+  assert.match(out, /\+={3,}\+/); // ASCII box border, not Unicode ═
+});
+
+test('the default report uses Unicode glyphs', () => {
+  const out = runBin(['scan', path.join(__dirname, '..', 'examples', 'slop.tsx'), '--unicode', '--no-color']);
+  assert.ok(/[╔╗╚╝═║▶]/.test(out), 'Unicode mode draws the box-drawing banner');
+});
+
+test('--out writes a UTF-8 report file (not shell-dependent encoding)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-out-'));
+  const file = path.join(dir, 'report.md');
+  runBin(['scan', path.join(__dirname, '..', 'examples', 'slop.tsx'), '--markdown', '--out', file]);
+  const buf = fs.readFileSync(file);
+  assert.ok(buf.length > 0, 'file written');
+  // A UTF-8 file has no UTF-16 BOM (0xFF 0xFE) and round-trips its emoji.
+  assert.ok(!(buf[0] === 0xFF && buf[1] === 0xFE), 'must not be UTF-16');
+  assert.match(buf.toString('utf8'), /Slop Report/);
+});
+
 test('explain errors (exit 2) on an out-of-range id', () => {
   assert.throws(
     () => execFileSync('node', [BIN, 'explain', '999'], { encoding: 'utf8', stdio: 'pipe' }),

@@ -1,7 +1,12 @@
 'use strict';
 
 const pkg = require('../package.json');
-const out = (s) => process.stdout.write(s + '\n');
+
+// Output goes to stdout by default, but can be captured (e.g. so `--out file`
+// writes a UTF-8 file directly, sidestepping PowerShell's UTF-16 `>` redirect).
+let sink = null;
+const out = (s) => { if (sink) sink(s + '\n'); else process.stdout.write(s + '\n'); };
+const captureTo = (arr) => { sink = arr ? (s) => arr.push(s) : null; };
 
 const C = {
   reset: '\x1b[0m', bold: '\x1b[1m', dim: '\x1b[2m',
@@ -12,8 +17,39 @@ let useColor = true;
 const paint = (code, s) => (useColor ? code + s + C.reset : s);
 const setColor = (on) => { useColor = on; };
 
+// Many Windows consoles (legacy cmd/PowerShell on a non-UTF-8 code page) render
+// emoji and box-drawing as mojibake. When Unicode isn't safe, every glyph falls
+// back to an ASCII equivalent. Detection mirrors the well-known is-unicode-supported
+// heuristic: non-Windows is fine; on Windows, only modern hosts (Windows Terminal,
+// VS Code, ConEmu, CI) are trusted.
+function supportsUnicode() {
+  if (process.platform !== 'win32') return true;
+  return Boolean(
+    process.env.CI
+    || process.env.WT_SESSION
+    || process.env.TERMINUS_SUBLIME
+    || process.env.ConEmuTask === '{cmd::Cmder}'
+    || process.env.TERM_PROGRAM === 'vscode'
+    || process.env.TERM === 'xterm-256color'
+    || process.env.TERM === 'alacritty',
+  );
+}
+let useUnicode = true;
+const setUnicode = (on) => { useUnicode = on; };
+// [unicode, ascii] for each glyph the terminal report draws.
+const GLYPH = {
+  tl: ['╔', '+'], tr: ['╗', '+'], bl: ['╚', '+'], br: ['╝', '+'], h: ['═', '='], v: ['║', '|'],
+  arrow: ['▶', '>'], check: ['✓', '*'], dot: ['·', '-'], ellipsis: ['…', '...'],
+  red: ['🔴', '[X]'], orange: ['🟠', '[!]'], yellow: ['🟡', '[-]'], green: ['🟢', '[+]'],
+};
+const g = (k) => GLYPH[k][useUnicode ? 0 : 1];
+
 const SEV_COLOR = { critical: C.red, major: C.yellow, minor: C.gray };
-const SEV_LABEL = { critical: '🔴 CRIT', major: '🟠 MAJOR', minor: '🟡 MINOR' };
+const sevLabel = (sev) => (
+  sev === 'critical' ? `${g('red')} CRIT`
+    : sev === 'major' ? `${g('orange')} MAJOR`
+      : `${g('yellow')} MINOR`
+);
 const SEV_TAG = { critical: 'CRIT', major: 'MAJOR', minor: 'MINOR' };
 const SEV_ORDER = { critical: 0, major: 1, minor: 2 };
 
@@ -34,9 +70,9 @@ function scoreBanner(s) {
   const padL = Math.floor((INNER - title.length) / 2);
   const padR = INNER - title.length - padL;
   out('');
-  out(paint(C.bold, '  ╔' + '═'.repeat(INNER) + '╗'));
-  out(paint(C.bold, '  ║' + ' '.repeat(padL) + title + ' '.repeat(padR) + '║'));
-  out(paint(C.bold, '  ╚' + '═'.repeat(INNER) + '╝'));
+  out(paint(C.bold, '  ' + g('tl') + g('h').repeat(INNER) + g('tr')));
+  out(paint(C.bold, '  ' + g('v') + ' '.repeat(padL) + title + ' '.repeat(padR) + g('v')));
+  out(paint(C.bold, '  ' + g('bl') + g('h').repeat(INNER) + g('br')));
   out('');
   const showDensity = s.lines >= 200;
   out('   ' + paint(color, paint(C.bold, `${s.weighted}`)) + paint(C.dim, ` weighted`)
@@ -58,7 +94,7 @@ function scoreBanner(s) {
     out('   ' + paint(C.dim, '(score caps each rule so one detector can\'t define the verdict)'));
   }
   out('');
-  out('   ' + paint(C.bold, paint(color, '▶ ' + s.verdict)));
+  out('   ' + paint(C.bold, paint(color, g('arrow') + ' ' + s.verdict)));
   if (s.suppressed > 0) {
     out('   ' + paint(C.dim, `${s.suppressed} finding${s.suppressed === 1 ? '' : 's'} suppressed inline`));
   }
@@ -68,13 +104,13 @@ function scoreBanner(s) {
 function terminalReport(result, s, options = {}) {
   const findings = sortFindings(result.findings);
   out('');
-  out(paint(C.cyan, paint(C.bold, '  slopscore')) + paint(C.dim, `  ·  ${result.fileCount} files  ·  ${s.kloc} kLOC`));
+  out(paint(C.cyan, paint(C.bold, '  slopscore')) + paint(C.dim, `  ${g('dot')}  ${result.fileCount} files  ${g('dot')}  ${s.kloc} kLOC`));
   if (result.baseline) {
-    out('  ' + paint(C.dim, `against baseline · ${result.baseline.known} known finding${result.baseline.known === 1 ? '' : 's'} hidden · showing only what's new`));
+    out('  ' + paint(C.dim, `against baseline ${g('dot')} ${result.baseline.known} known finding${result.baseline.known === 1 ? '' : 's'} hidden ${g('dot')} showing only what's new`));
   }
   if (findings.length === 0) {
     out('');
-    out('   ' + paint(C.green, paint(C.bold, '✓ No slop patterns detected. Pristine.')));
+    out('   ' + paint(C.green, paint(C.bold, `${g('check')} No slop patterns detected. Pristine.`)));
     scoreBanner(s);
     return;
   }
@@ -83,14 +119,14 @@ function terminalReport(result, s, options = {}) {
   const max = options.max || findings.length;
   for (const f of findings.slice(0, max)) {
     if (f.file !== lastFile) { out('  ' + paint(C.bold, f.file)); lastFile = f.file; }
-    const sev = paint(SEV_COLOR[f.severity], SEV_LABEL[f.severity]);
+    const sev = paint(SEV_COLOR[f.severity], sevLabel(f.severity));
     out(`    ${paint(C.dim, ':' + f.line)}  ${sev}  ${paint(C.dim, '[' + f.id + ']')} ${f.title}`);
     out(`        ${paint(C.dim, f.snippet)}`);
     out(`        ${paint(C.cyan, 'fix:')} ${f.fix}`);
   }
-  if (findings.length > max) out(paint(C.dim, `\n  … and ${findings.length - max} more (raise --max to see all)`));
+  if (findings.length > max) out(paint(C.dim, `\n  ${g('ellipsis')} and ${findings.length - max} more (raise --max to see all)`));
   scoreBanner(s);
-  out(paint(C.dim, '  Authority: 🟢 auto-fixable  ·  🟡 propose (review)  ·  🔴 flag (human decision)'));
+  out(paint(C.dim, `  Authority: ${g('green')} auto-fixable  ${g('dot')}  ${g('yellow')} propose (review)  ${g('dot')}  ${g('red')} flag (human decision)`));
   out(paint(C.dim, '  Full catalog + fix authority for all 162 patterns: ANTI_SLOP_PROTOCOL.md'));
   out('');
 }
@@ -178,4 +214,9 @@ function sarifReport(result) {
   }, null, 2));
 }
 
-module.exports = { terminalReport, jsonReport, markdownReport, agentReport, sarifReport, setColor };
+module.exports = {
+  terminalReport, jsonReport, markdownReport, agentReport, sarifReport,
+  setColor, setUnicode, supportsUnicode, captureTo,
+  unicodeEnabled: () => useUnicode,
+  glyph: g,
+};
