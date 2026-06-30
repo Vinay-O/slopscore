@@ -480,7 +480,7 @@ function scan(target, options = {}) {
   const displayRoot = roots.length === 1 ? path.resolve(roots[0]) : process.cwd();
   const baseDir = safeIsDir(displayRoot) ? displayRoot : path.dirname(displayRoot);
   for (const f of effective) f.file = path.relative(baseDir, f.file) || path.basename(f.file);
-  return { findings: effective, fileCount: files.length, totalLines, productionLines, suppressed };
+  return { findings: effective, fileCount: files.length, totalLines, productionLines, suppressed, baseDir };
 }
 
 function safeIsDir(p) {

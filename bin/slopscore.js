@@ -9,6 +9,7 @@ const report = require('../src/report');
 const { LINE_RULES, WHOLE_FILE_RULES, META_RULES } = require('../src/rules');
 const { fingerprint, loadBaseline, writeBaseline } = require('../src/baseline');
 const { sparkline, loadHistory, appendHistory, trendDelta } = require('../src/history');
+const { planFixes, applyPlan, fixableIds } = require('../src/fix');
 
 const DEFAULT_BASELINE = '.slopscore-baseline.json';
 const DEFAULT_HISTORY = '.slopscore-history.json';
@@ -32,6 +33,9 @@ function parseArgs(argv) {
     else if (a === '--ascii') opts.unicode = false;
     else if (a === '--unicode') opts.unicode = true;
     else if (a === '--out') opts.out = argv[++i];
+    else if (a === '--dry-run' || a === '-n') opts.dryRun = true;
+    else if (a === '--only') opts.only = (argv[++i] || '').split(',').map((s) => s.trim()).filter(Boolean);
+    else if (a === '--except') opts.except = (argv[++i] || '').split(',').map((s) => s.trim()).filter(Boolean);
     else if (a === '--watch' || a === '-w') opts.watch = true;
     else if (a === '--max') { const v = parseInt(argv[++i], 10); if (Number.isInteger(v) && v >= 0) opts.max = v; }
     else if (a === '--fail-on') { opts.failOn = argv[++i]; opts.failOnSet = true; }
@@ -186,6 +190,47 @@ function runScan(opts) {
   process.exit(scanAndReport(opts, cfg, baseDir, failOn, true) ? 1 : 0);
 }
 
+function runFix(opts) {
+  report.setColor(opts.color && process.stdout.isTTY !== false);
+  report.setUnicode(opts.unicode != null ? opts.unicode : report.supportsUnicode());
+  for (const p of opts.paths) {
+    if (!fs.existsSync(p)) { err(`slopscore: path not found: ${p}`); process.exit(2); }
+  }
+  const { config: cfg, baseDir } = loadConfig(configStartDir(opts.paths));
+  const ignore = (cfg.ignore || []).concat(opts.ignore);
+  const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules: cfg.rules, paths: cfg.paths });
+  const plan = planFixes(result, { only: opts.only, except: opts.except });
+
+  if (plan.length === 0) {
+    out(`slopscore: nothing to auto-fix (${fixableIds().join(', ')} are the auto-fixable rules).`);
+    out('Everything else is a propose/flag — run `slopscore scan` and review those by hand.');
+    process.exit(0);
+  }
+
+  const arrow = report.glyph('arrow');
+  let changed = 0;
+  for (const file of plan) {
+    out('');
+    out(`  ${file.rel}`);
+    for (const e of file.edits) {
+      changed += 1;
+      if (e.after === null) out(`    -${e.line}  [${e.id}]  ${e.before.trim()}`);
+      else {
+        out(`    ~${e.line}  [${e.id}]  ${e.before.trim()}`);
+        out(`         ${arrow} ${e.after.trim()}`);
+      }
+    }
+  }
+  out('');
+  if (opts.dryRun) {
+    out(`slopscore: ${changed} fix${changed === 1 ? '' : 'es'} across ${plan.length} file${plan.length === 1 ? '' : 's'} — dry run, nothing written. Drop --dry-run to apply.`);
+    process.exit(0);
+  }
+  applyPlan(plan);
+  out(`slopscore: applied ${changed} fix${changed === 1 ? '' : 'es'} across ${plan.length} file${plan.length === 1 ? '' : 's'}. Re-scan to confirm, then review the diff before committing.`);
+  process.exit(0);
+}
+
 function printProtocol() {
   const p = path.join(__dirname, '..', 'ANTI_SLOP_PROTOCOL.md');
   if (fs.existsSync(p)) out(fs.readFileSync(p, 'utf8'));
@@ -270,6 +315,7 @@ slopscore v${pkg.version} — scan your codebase for AI slop, get a Slop Score, 
 
 USAGE
   slopscore [scan] [paths...] [options]
+  slopscore fix [paths...]      auto-apply the safe (🟢 AUTO) fixes; --dry-run to preview
   slopscore protocol            print the full 162-pattern protocol (pipe to your agent)
   slopscore rules               list the deterministic detectors this CLI runs
   slopscore explain <id>        print one catalog pattern + its fix (e.g. explain 058)
@@ -289,11 +335,16 @@ OPTIONS
   --max <n>                  max findings to print in the terminal     (default: 40)
   --ignore <path>            extra path to ignore (repeatable)
   --out <file>               write the report to a UTF-8 file (avoids shell-redirect
-                             encoding issues, e.g. PowerShell's UTF-16 `>`)
+                             encoding issues, e.g. PowerShell's UTF-16 redirect)
   --watch, -w                re-scan on every file change (live local conscience)
   --no-color                 disable ANSI color
   --ascii                    ASCII-only glyphs (auto-enabled on legacy Windows consoles)
   --unicode                  force Unicode glyphs (override the auto-detection)
+
+FIX OPTIONS (slopscore fix)
+  --dry-run, -n              preview the fixes without writing any file
+  --only <ids>               fix only these rule ids (comma-separated)
+  --except <ids>             fix everything fixable except these ids
 
 EXAMPLES
   npx slopscore                         scan the current directory
@@ -317,6 +368,7 @@ function main() {
   if (cmd === 'rules') { printRules(); return; }
   if (cmd === 'explain') { printExplain(argv[1]); return; }
   if (cmd === 'init') { runInit(); return; }
+  if (cmd === 'fix') { runFix(parseArgs(argv.slice(1))); return; }
   const rest = cmd === 'scan' ? argv.slice(1) : argv;
   runScan(parseArgs(rest));
 }
