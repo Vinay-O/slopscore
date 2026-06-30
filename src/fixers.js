@@ -27,15 +27,35 @@ function balanced(line) {
   return depth === 0;
 }
 
+// The line with every string-literal's contents blanked (length preserved), so a
+// rewrite fixer can confirm its target is real code, not text inside a string.
+function codePortion(line) {
+  let out = '';
+  let q = null;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (q) {
+      if (ch === '\\') { out += '  '; i += 1; continue; }
+      out += ' ';
+      if (ch === q) q = null;
+    } else if (ch === '"' || ch === "'" || ch === '`') { q = ch; out += ' '; } else out += ch;
+  }
+  return out;
+}
+
+// NOTE: only behavior-preserving, structurally-safe fixers live here.
+// Deletion fixers for Python `print` (178), Rust debug macros (180), and Go
+// `fmt.Print` (158) were intentionally REMOVED: removing such a line can empty a
+// Python block (IndentationError), drop a Rust tail expression (changes the return
+// value), or delete a CLI's real output. Those rules stay detector-only.
 const FIXERS = {
-  // 052 — a standalone console.* debug statement on one line: remove it.
+  // 052 — a standalone console.* debug statement on one line: remove it. (JS empty
+  // blocks are valid; the engine's removal guard handles braceless-control bodies.)
   '052': (line) => (/^\s*console\.\w+\([^]*\)\s*;?\s*$/.test(line) && balanced(line) ? { remove: true } : null),
 
-  // 158 — a standalone fmt.Print/Printf/Println debug statement (Go): remove it.
-  '158': (line) => (/^\s*fmt\.Print(f|ln)?\([^]*\)\s*$/.test(line) && balanced(line) ? { remove: true } : null),
-
   // 069 — a full-line step-narration comment: remove it. Trailing comments (code
-  // then //…) are left alone so we never delete code.
+  // then //…) are left alone so we never delete code. Removing a comment can never
+  // change behavior.
   '069': (line) => (/^\s*\/\//.test(line) ? { remove: true } : null),
 
   // 081 — <img> without alt: add alt="" (decorative default; a human can describe it).
@@ -45,9 +65,10 @@ const FIXERS = {
     return replace !== line ? { replace } : null;
   },
 
-  // 152 — Python identity check written with ==/!= None: use is / is not (the
-  // canonical, semantically-correct idiom). Only the `expr == None` form.
+  // 152 — Python identity check written with ==/!= None: use is / is not. Only when
+  // the comparison is real code (not text inside a string literal).
   '152': (line) => {
+    if (!/[!=]=\s*None\b/.test(codePortion(line))) return null;
     const replace = line
       .replace(/!=\s*None\b/g, 'is not None')
       .replace(/==\s*None\b/g, 'is None');
@@ -62,18 +83,13 @@ const FIXERS = {
     return replace !== line ? { replace } : null;
   },
 
-  // 178 — a standalone Python print() debug statement: remove it.
-  '178': (line) => (/^\s*print\s*\([^]*\)\s*$/.test(line) && balanced(line) ? { remove: true } : null),
-
   // 179 — Python `== True` / `!= False` are pure-removable (the `== False` /
-  // `!= True` forms need a `not` and are left for a human).
+  // `!= True` forms need a `not` and are left for a human). Code only, not strings.
   '179': (line) => {
+    if (!/[!=]=\s*(?:True|False)\b/.test(codePortion(line))) return null;
     const replace = line.replace(/\s*==\s*True\b/g, '').replace(/\s*!=\s*False\b/g, '');
     return replace !== line ? { replace } : null;
   },
-
-  // 180 — a standalone Rust debug-print macro (dbg!/println!/…): remove it.
-  '180': (line) => (/^\s*(?:dbg!|println!|eprintln!|print!|eprint!)\s*\([^]*\)\s*;?\s*$/.test(line) && balanced(line) ? { remove: true } : null),
 };
 
-module.exports = { FIXERS, balanced };
+module.exports = { FIXERS, balanced, codePortion };

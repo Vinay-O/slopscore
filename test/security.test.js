@@ -33,6 +33,12 @@ test('165 flags Math.random used for a security value', () => {
   assert.ok(!ids(tmpFile('b.js', 'const jitter = Math.random() * 100;\n')).includes('165'), 'non-security randomness is fine');
 });
 
+test('153 ignores a Python method named eval/exec but flags a real call', () => {
+  assert.ok(!ids(tmpFile('a.py', 'class M:\n    def eval(self):\n        return self.w\n')).includes('153'), 'def eval(self) is a method, not a call');
+  assert.ok(!ids(tmpFile('b.py', 'class M:\n    def exec(self, q):\n        return q\n')).includes('153'));
+  assert.ok(ids(tmpFile('c.py', 'r = eval(user_input)\n')).includes('153'), 'a real eval() call still fires');
+});
+
 test('166 flags a hardcoded private key', () => {
   assert.ok(ids(tmpFile('a.js', 'const k = "-----BEGIN RSA PRIVATE KEY-----";\n')).includes('166'));
 });
@@ -65,13 +71,37 @@ test('170 flags credentials embedded in a connection string', () => {
   assert.ok(!ids(tmpFile('b.js', 'const url = "postgres://db.host:5432/app";\n')).includes('170'), 'no inline creds is fine');
 });
 
-test('171 flags SQL built by concatenation', () => {
+test('171 flags SQL concatenation but not plain-English string concat', () => {
   assert.ok(ids(tmpFile('a.js', 'const q = "SELECT id FROM users WHERE name = " + name;\n')).includes('171'));
+  assert.ok(ids(tmpFile('b.js', 'const u = "UPDATE users SET name = " + n;\n')).includes('171'));
+  assert.ok(!ids(tmpFile('c.js', 'const label = firstName + " and " + lastName;\n')).includes('171'), 'English "and" concat is not SQL');
+  assert.ok(!ids(tmpFile('d.js', 'const msg = title + " WHERE applicable";\n')).includes('171'), 'prose WHERE is not SQL');
 });
 
 test('172 flags eval / new Function', () => {
   assert.ok(ids(tmpFile('a.js', 'const r = eval(userInput);\n')).includes('172'));
   assert.ok(ids(tmpFile('b.js', 'const f = new Function("a", "return a");\n')).includes('172'));
+});
+
+test('172 does NOT flag a method call named eval (model.eval(), this.eval())', () => {
+  assert.ok(!ids(tmpFile('a.js', 'const acc = model.eval();\n')).includes('172'), 'model.eval() is a method, not global eval');
+  assert.ok(!ids(tmpFile('b.js', 'const r = this.eval(node);\n')).includes('172'));
+  assert.ok(!ids(tmpFile('c.js', 'const v = parser.evaluate(expr);\n')).includes('172'));
+});
+
+test('172/106 do NOT flag a function or method DEFINITION named eval/confirm', () => {
+  assert.ok(!ids(tmpFile('a.js', 'const o = { eval(x) { return x; } };\n')).includes('172'), 'method shorthand named eval');
+  assert.ok(!ids(tmpFile('a2.ts', 'interface Rule { eval(ctx: number): boolean; }\n')).includes('172'), 'TS signature named eval');
+  assert.ok(!ids(tmpFile('b.js', 'function evalRule(){}\n')).includes('172'));
+  assert.ok(!ids(tmpFile('c.js', 'export function confirm(opts) { return show(opts); }\n')).includes('106'), 'a custom confirm() wrapper');
+  assert.ok(ids(tmpFile('d.js', 'const r = eval(userInput);\n')).includes('172'), 'a real eval call still fires');
+  assert.ok(ids(tmpFile('e.js', 'const ok = confirm("sure?");\n')).includes('106'), 'a bare confirm() call still fires');
+});
+
+test('163 does NOT flag a generic verify=False parameter (only an HTTP-client bypass)', () => {
+  assert.ok(!ids(tmpFile('a.py', 'def sync_records(data, verify=False):\n    return data\n')).includes('163'), 'a generic param is not a TLS bypass');
+  assert.ok(ids(tmpFile('b.py', 'r = requests.get(url, verify=False)\n')).includes('163'), 'requests bypass still caught');
+  assert.ok(ids(tmpFile('c.py', 'session.verify = False\n')).includes('163'), 'session.verify = False still caught');
 });
 
 test('173 flags cleartext HTTP calls but not localhost', () => {
@@ -83,6 +113,12 @@ test('173 flags cleartext HTTP calls but not localhost', () => {
 test('174 flags an unverified JWT', () => {
   assert.ok(ids(tmpFile('a.js', "jwt.verify(t, key, { algorithms: ['none'] });\n")).includes('174'));
   assert.ok(ids(tmpFile('b.py', 'claims = jwt.decode(t, verify=False)\n')).includes('174'));
+});
+
+test('142 exempts a date-pinned model id (the recommended practice)', () => {
+  assert.ok(!ids(tmpFile('a.ts', "const m = 'claude-3-5-sonnet-20241022';\n")).includes('142'), 'YYYYMMDD-pinned id is fine');
+  assert.ok(!ids(tmpFile('b.ts', "const m = 'gpt-4o-2024-08-06';\n")).includes('142'), 'YYYY-MM-DD-pinned id is fine');
+  assert.ok(ids(tmpFile('c.ts', "const m = 'gpt-4o';\n")).includes('142'), 'a bare floating alias is flagged');
 });
 
 test('all 12 new security patterns are categorized security and tagged in the catalog', () => {

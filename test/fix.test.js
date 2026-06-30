@@ -97,13 +97,13 @@ test('every fixable id is a real detector; the default set is exactly the auto r
 
 test('a plain fix run skips an opt-in (propose) fixer; --only applies it', () => {
   const dir = tmpDir();
-  fs.writeFileSync(path.join(dir, 'a.py'), 'def f():\n    print("debug")\n    return 1\n');
-  // default run: 178 is propose, so nothing is fixed
+  fs.writeFileSync(path.join(dir, 'a.py'), 'value = compute()\nif value == True:\n    run()\n');
+  // default run: 179 is propose, so nothing is fixed
   applyPlan(planFixes(scan([dir], { ignoreBase: dir }), {}));
-  assert.match(fs.readFileSync(path.join(dir, 'a.py'), 'utf8'), /print\("debug"\)/, 'default run leaves the print');
-  // explicit opt-in removes it
-  applyPlan(planFixes(scan([dir], { ignoreBase: dir }), { only: ['178'] }));
-  assert.ok(!fs.readFileSync(path.join(dir, 'a.py'), 'utf8').includes('print('), '--only 178 removes it');
+  assert.match(fs.readFileSync(path.join(dir, 'a.py'), 'utf8'), /== True/, 'default run leaves the comparison');
+  // explicit opt-in strips it
+  applyPlan(planFixes(scan([dir], { ignoreBase: dir }), { only: ['179'] }));
+  assert.ok(!fs.readFileSync(path.join(dir, 'a.py'), 'utf8').includes('== True'), '--only 179 strips it');
 });
 
 test('applying the fixes drives those findings out of the next scan', () => {
@@ -114,4 +114,21 @@ test('applying the fixes drives those findings out of the next scan', () => {
   fixDir(dir);
   const after = scan([dir], { ignoreBase: dir }).findings.filter((f) => f.id === '052').length;
   assert.strictEqual(after, 0, 'both console.logs gone');
+});
+
+test('the removal guard refuses to orphan a braceless control body', () => {
+  const dir = tmpDir();
+  const src = 'function f(x) {\n  if (x)\n    console.log(x);\n  return x;\n}\n';
+  fs.writeFileSync(path.join(dir, 'a.js'), src);
+  fixDir(dir);
+  assert.strictEqual(fs.readFileSync(path.join(dir, 'a.js'), 'utf8'), src, 'a braceless-if body is never deleted');
+});
+
+test('152/179 fixers never rewrite a comparison that lives inside a string', () => {
+  const dir = tmpDir();
+  fs.writeFileSync(path.join(dir, 'a.py'), 'MSG = "x == None is invalid"\nif y == None:\n    pass\n');
+  applyPlan(planFixes(scan([dir], { ignoreBase: dir }), {})); // 152 is auto
+  const out = fs.readFileSync(path.join(dir, 'a.py'), 'utf8');
+  assert.match(out, /"x == None is invalid"/, 'string literal is untouched');
+  assert.match(out, /if y is None:/, 'real code is fixed');
 });

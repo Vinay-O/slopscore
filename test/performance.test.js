@@ -21,9 +21,11 @@ test('175 flags JSON deep-clone round-trip', () => {
   assert.ok(!ids(tmpFile('b.js', 'const data = JSON.parse(text);\n')).includes('175'), 'a plain parse is fine');
 });
 
-test('176 flags SELECT *', () => {
+test('176 flags SELECT * (upper or lower) but not title-case prose', () => {
   assert.ok(ids(tmpFile('a.js', 'const q = "SELECT * FROM orders";\n')).includes('176'));
-  assert.ok(!ids(tmpFile('b.js', 'const q = "SELECT id, total FROM orders";\n')).includes('176'), 'explicit columns are fine');
+  assert.ok(ids(tmpFile('b.js', 'const q = "select * from orders";\n')).includes('176'), 'lowercase SQL too');
+  assert.ok(!ids(tmpFile('c.js', 'const q = "SELECT id, total FROM orders";\n')).includes('176'), 'explicit columns are fine');
+  assert.ok(!ids(tmpFile('d.js', 'const help = "Select * from the dropdown to pick all";\n')).includes('176'), 'UI prose is not a query');
 });
 
 test('177 flags forEach with an async callback', () => {
