@@ -23,6 +23,9 @@ const CODE = ['.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.svelte'];
 const STYLE = ['.css', '.scss', '.sass', '.less', '.tsx', '.jsx', '.vue', '.svelte', '.html'];
 const MARKUP = ['.jsx', '.tsx', '.html', '.vue', '.svelte'];
 const TS = ['.ts', '.tsx'];
+const PY = ['.py'];
+const GO = ['.go'];
+const RUST = ['.rs'];
 
 const LINE_RULES = [
   // ---- CATEGORY 7: code quality ----
@@ -283,7 +286,7 @@ const LINE_RULES = [
   {
     id: '078', title: 'Overly broad exception handling', category: 'code', severity: 'major',
     authority: 'propose', exts: null, skipTests: true, respectComments: true,
-    re: /(except\s+(Exception|BaseException)\b\s*(as\s+\w+)?\s*:|catch\s*\(\s*\w+\s*:\s*any\s*\))/,
+    re: /(except\s*:|except\s+(Exception|BaseException)\b\s*(as\s+\w+)?\s*:|catch\s*\(\s*\w+\s*:\s*any\s*\))/,
     fix: 'Catch the specific error type you can handle; let the rest propagate with context.',
   },
   {
@@ -338,6 +341,86 @@ const LINE_RULES = [
     authority: 'auto', exts: CODE, skipTests: false, respectComments: true,
     re: /(expect\(\s*true\s*\)\.toBe\(\s*true\s*\)|expect\(\s*1\s*\)\.toBe\(\s*1\s*\)|assert\(\s*true\s*\)|assert\.ok\(\s*true\s*\))/,
     fix: 'Assert real behavior with real inputs. A test that can never fail is coverage theater.',
+  },
+
+  // ---- CATEGORY 17: Language-specific tells — Python ----
+  {
+    id: '151', title: 'Mutable default argument (Python)', category: 'code', severity: 'major',
+    authority: 'propose', exts: PY, skipTests: false, respectComments: true,
+    re: /def\s+\w+\s*\([^)]*=\s*[[{]/,
+    fix: 'Default to None and build the list/dict inside the function — a mutable default is shared across every call.',
+  },
+  {
+    id: '152', title: 'Comparison to None with == (Python)', category: 'code', severity: 'minor',
+    authority: 'auto', exts: PY, skipTests: false, respectComments: true,
+    re: /[!=]=\s*None\b/,
+    fix: 'Use `is None` / `is not None` — None is a singleton; `==` can be overridden and is slower.',
+  },
+  {
+    id: '153', title: 'eval() / exec() on dynamic input (Python)', category: 'security', severity: 'critical',
+    authority: 'propose', exts: PY, skipTests: true, respectComments: true,
+    re: /(?<![\w.])(eval|exec)\s*\(/,
+    unless: /ast\.literal_eval/,
+    fix: 'Never eval/exec dynamic input — it is arbitrary code execution. Use ast.literal_eval or a real parser.',
+  },
+  {
+    id: '154', title: 'SQL injection via f-string (Python)', category: 'security', severity: 'critical',
+    authority: 'propose', exts: PY, skipTests: true, respectComments: true,
+    re: /f['"][^'"]*\b(SELECT\b[^'"]*\bFROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM)\b[^'"]*\{/i,
+    fix: 'Use parameterized queries (cursor.execute(sql, params)); never f-string input into SQL.',
+  },
+  {
+    id: '155', title: 'Command injection via os.system / shell=True (Python)', category: 'security', severity: 'critical',
+    authority: 'propose', exts: PY, skipTests: true, respectComments: true,
+    re: /(os\.system\s*\(\s*f['"]|os\.system\s*\([^)]*[%+]|subprocess\.\w+\([^)]*shell\s*=\s*True)/,
+    fix: 'Use subprocess with an args list and shell=False; never interpolate input into a shell string.',
+  },
+
+  // ---- CATEGORY 17: Language-specific tells — Go ----
+  {
+    id: '156', title: 'Empty interface{} overuse (Go)', category: 'code', severity: 'major',
+    authority: 'propose', exts: GO, skipTests: true, respectComments: true,
+    re: /\binterface\s*\{\s*\}/,
+    fix: 'Use a concrete type or a generic (Go 1.18+ type parameter); interface{} discards type safety.',
+  },
+  {
+    id: '157', title: 'Ignored error return (Go)', category: 'code', severity: 'major',
+    authority: 'propose', exts: GO, skipTests: true, respectComments: true,
+    re: /,\s*_\s*:?=\s*[a-zA-Z_][\w.]*\(/,
+    unless: /\brange\b|\.\(/,
+    fix: 'Handle the error (check, wrap, or return it). Discarding it with _ hides real failures.',
+  },
+  {
+    id: '158', title: 'fmt.Print debugging (Go)', category: 'code', severity: 'minor',
+    authority: 'auto', exts: GO, skipTests: true, respectComments: true,
+    re: /\bfmt\.Print(ln|f)?\s*\(/,
+    fix: 'Remove it, or use log / a structured logger with levels.',
+  },
+  {
+    id: '159', title: 'Command injection via exec sh -c (Go)', category: 'security', severity: 'critical',
+    authority: 'propose', exts: GO, skipTests: true, respectComments: true,
+    re: /exec\.Command\s*\(\s*['"](sh|bash|cmd|powershell)['"]\s*,\s*['"][-/]?[cC]['"]/,
+    fix: 'Call the program directly: exec.Command(prog, arg1, arg2). Never build a shell string from input.',
+  },
+
+  // ---- CATEGORY 17: Language-specific tells — Rust ----
+  {
+    id: '160', title: '.unwrap() / .expect() (Rust)', category: 'code', severity: 'major',
+    authority: 'propose', exts: RUST, skipTests: true, respectComments: true,
+    re: /\.unwrap\(\)|\.expect\s*\(/,
+    fix: 'Handle the Result/Option: `?`, match, or `.unwrap_or`/`.ok_or`. unwrap panics in production.',
+  },
+  {
+    id: '161', title: 'todo!() / unimplemented!() / panic!() (Rust)', category: 'code', severity: 'major',
+    authority: 'flag', exts: RUST, skipTests: true, respectComments: true,
+    re: /\b(todo!|unimplemented!|unreachable!|panic!)\s*\(/,
+    fix: 'todo!/unimplemented! is an unbuilt path that panics at runtime — finish it or flag the gap; replace panic! with real error handling.',
+  },
+  {
+    id: '162', title: 'unsafe block (Rust)', category: 'security', severity: 'major',
+    authority: 'flag', exts: RUST, skipTests: true, respectComments: true,
+    re: /\bunsafe\s*\{/,
+    fix: 'Justify every unsafe block with a comment proving the invariants, or replace it with safe code. Needs human review.',
   },
 ];
 

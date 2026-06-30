@@ -84,7 +84,7 @@ function terminalReport(result, s, options = {}) {
   if (findings.length > max) out(paint(C.dim, `\n  … and ${findings.length - max} more (raise --max to see all)`));
   scoreBanner(s);
   out(paint(C.dim, '  Authority: 🟢 auto-fixable  ·  🟡 propose (review)  ·  🔴 flag (human decision)'));
-  out(paint(C.dim, '  Full catalog + fix authority for all 150 patterns: ANTI_SLOP_PROTOCOL.md'));
+  out(paint(C.dim, '  Full catalog + fix authority for all 162 patterns: ANTI_SLOP_PROTOCOL.md'));
   out('');
 }
 

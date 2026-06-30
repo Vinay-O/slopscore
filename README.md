@@ -4,7 +4,7 @@
 
 ### Scan your codebase for AI slop. Get a Slop Score. Ship clean.
 
-**A zero-dependency CLI + a 150-pattern protocol for AI coding agents.**
+**A zero-dependency CLI + a 162-pattern protocol for AI coding agents.**
 The antidote to vibe-coded software: turn *generation* into *governance*.
 
 [![CI](https://github.com/Vinay-O/slopscore/actions/workflows/ci.yml/badge.svg)](https://github.com/Vinay-O/slopscore/actions/workflows/ci.yml)
@@ -94,15 +94,15 @@ slopscore ships **two halves of the same idea**: a deterministic scanner you run
 
 ### 1. The scanner (deterministic, zero-dependency)
 
-Runs **54 detectors** locally in milliseconds — secrets, SQL injection, empty catches, `any`, hallucinated APIs, missing `alt`, the VibeCode-purple gradient, AI buzzword copy, god files, and more. No LLM, no network, no dependencies.
+Runs **66 detectors** locally in milliseconds — secrets, SQL injection, empty catches, `any`, hallucinated APIs, missing `alt`, the VibeCode-purple gradient, AI buzzword copy, god files, and more. No LLM, no network, no dependencies.
 
 ### 2. The protocol (for your coding agent)
 
-[`ANTI_SLOP_PROTOCOL.md`](ANTI_SLOP_PROTOCOL.md) is a **150-pattern operating manual** for AI agents. Hand it to Claude Code, Cursor, Codex CLI, Aider, Copilot, Windsurf, or Cline and say:
+[`ANTI_SLOP_PROTOCOL.md`](ANTI_SLOP_PROTOCOL.md) is a **162-pattern operating manual** for AI agents. Hand it to Claude Code, Cursor, Codex CLI, Aider, Copilot, Windsurf, or Cline and say:
 
 > **"Check the system."**
 
-The agent runs a defined loop — orient → scan → score → triage → **fix** → verify → report — where every pattern carries a `DETECT`, a `FIX`, and a **fix authority** (🟢 auto-fix · 🟡 propose · 🔴 flag-for-human) so it knows what it may change on its own versus what needs your call. The **54 patterns the CLI already automates are tagged `⚙️ slopscore scan`** right in the catalog (generated from the scanner's own rule table, so the two halves never drift) — the untagged ones are where the agent earns its keep.
+The agent runs a defined loop — orient → scan → score → triage → **fix** → verify → report — where every pattern carries a `DETECT`, a `FIX`, and a **fix authority** (🟢 auto-fix · 🟡 propose · 🔴 flag-for-human) so it knows what it may change on its own versus what needs your call. The **66 patterns the CLI already automates are tagged `⚙️ slopscore scan`** right in the catalog (generated from the scanner's own rule table, so the two halves never drift) — the untagged ones are where the agent earns its keep.
 
 ```bash
 slopscore protocol | pbcopy        # copy the protocol to paste into your agent
@@ -256,9 +256,9 @@ const config = data as any;
 
 A bare `// slopscore-disable-next-line` (no id) suppresses every rule on the next line; `slopscore-disable-line <id>` works on the same line. The terminal report prints how many findings were suppressed, so they don't rot.
 
-## What it detects (54 of the 150)
+## What it detects (66 of the 162)
 
-The CLI runs the deterministic subset; the [full 150-pattern catalog](ANTI_SLOP_PROTOCOL.md) (including visual, architectural, and judgment-heavy patterns) is what you hand your agent.
+The CLI runs the deterministic subset; the [full 162-pattern catalog](ANTI_SLOP_PROTOCOL.md) (including visual, architectural, and judgment-heavy patterns) is what you hand your agent.
 
 | Category | Examples |
 |:--|:--|
