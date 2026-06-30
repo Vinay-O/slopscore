@@ -3,7 +3,11 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.7.0] — 2026-06-30
+
+Security-and-reach release: a best-in-class security pass, performance detectors,
+deeper Python/Go/Rust coverage with opt-in fixers, project presets, and automatic
+agent adoption via `AGENTS.md`. Catalog grows from 162 to **181 patterns / 85 detectors**.
 
 ### Added
 - **Agent auto-adoption — `slopscore init` now writes `AGENTS.md`.** Any coding agent
