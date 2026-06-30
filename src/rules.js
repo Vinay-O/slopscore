@@ -303,7 +303,7 @@ const LINE_RULES = [
     fix: 'Catch the specific error type you can handle; let the rest propagate with context.',
   },
   {
-    id: '093', title: 'Whole-library import for one utility', category: 'code', severity: 'minor',
+    id: '093', title: 'Whole-library import for one utility', category: 'performance', severity: 'minor',
     authority: 'auto', exts: CODE, skipTests: true, respectComments: true,
     re: /(import\s+(_|\*\s+as\s+_)\s+from\s+['"]lodash['"]|require\(\s*['"]lodash['"]\s*\))/,
     fix: 'Import the single function (lodash/throttle) or use a native equivalent; the whole lib bloats the bundle.',
@@ -511,6 +511,26 @@ const LINE_RULES = [
     authority: 'propose', exts: null, skipTests: true, respectComments: true,
     re: /(algorithms?\s*[=:]\s*\[?\s*['"]none['"]|jwt\.decode\s*\([^)]*verify\s*=\s*False|\.verify\s*\([^)]*algorithms?\s*:\s*\[\s*['"]none['"])/i,
     fix: 'Always verify JWT signatures against a fixed allow-list of strong algorithms. Never allow "none" or verify=False.',
+  },
+
+  // ---- CATEGORY 9 expansion: performance (175–177) ----
+  {
+    id: '175', title: 'Deep clone via JSON round-trip', category: 'performance', severity: 'minor',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /JSON\.parse\s*\(\s*JSON\.stringify\s*\(/,
+    fix: 'Use structuredClone() (or a targeted copy). JSON.parse(JSON.stringify(x)) is slow and silently drops Dates, Maps, Sets, undefined, and functions.',
+  },
+  {
+    id: '176', title: 'SELECT * over-fetch', category: 'performance', severity: 'minor',
+    authority: 'propose', exts: null, skipTests: true, respectComments: true,
+    re: /\bSELECT\s+\*\s+FROM\b/i,
+    fix: 'Select only the columns you use. SELECT * over-fetches rows, breaks on schema changes, and defeats covering indexes.',
+  },
+  {
+    id: '177', title: 'forEach with an async callback', category: 'performance', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /\.forEach\s*\(\s*async\b/,
+    fix: 'forEach ignores returned promises — they run unawaited and errors are swallowed. Use for...of with await, or Promise.all(items.map(...)).',
   },
 ];
 
