@@ -370,13 +370,16 @@ catalog of 180+ AI-slop patterns, ${n} of them auto-checked. Before you finish A
    pattern with a DETECT, a FIX, and a fix authority (🟢 auto · 🟡 propose · 🔴 flag).
    Follow it. The untagged patterns (architecture, fake features, most design tells) are
    yours to apply by reading the code; the ⚙️-tagged ones the scanner checks for you.
-2. Before declaring done, run \`npx slopscore scan . --fail-on major\` and drive
-   production critical + major findings to **0**. Auto-fix the safe ones with
-   \`npx slopscore fix .\`.
+2. Before declaring done, scan in **agent mode** — it's built for you:
+   \`npx slopscore scan . --format agent --fail-on major\`. Each line is
+   \`SEV [id] file:line title | zone= | confidence= | authority= | fix: …\`, compact
+   enough to keep in context, and it ends with a NEXT: directive. Drive production
+   critical + major findings to **0**. Auto-fix the safe ones with \`npx slopscore fix .\`.
 3. Don't add new slop: no purple gradients, no \`console.log\`, no \`any\`, no fake stats,
    no \`eval\`, no disabled TLS, no god files. When in doubt, run the scan.
 
-Run \`npx slopscore scan . --format agent\` for compact, machine-readable output.
+**Always prefer \`--format agent\`** over the human terminal output — it is denser,
+machine-readable, and tells you exactly what you may auto-fix vs propose vs flag.
 ${AGENTS_MARKER}
 `;
 }

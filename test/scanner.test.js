@@ -124,6 +124,15 @@ test('flags a sprawling god file but not a large cohesive one', () => {
   assert.ok(!ids(scan(tmpFile('data.js', data))).includes('055'));
 });
 
+test('a god file is never CRITICAL — capped at major, consistent with its confidence', () => {
+  let huge = '';
+  for (let i = 0; i < 60; i += 1) huge += `function unit${i}() {\n${'  doThing();\n'.repeat(15)}}\n`;
+  const f = scan(tmpFile('huge.js', huge)).findings.find((x) => x.id === '055');
+  assert.ok(f, '055 fires on a 900+ line sprawling file');
+  assert.strictEqual(f.severity, 'major', 'never critical on a line-count heuristic');
+  assert.strictEqual(f.confidence, 'medium');
+});
+
 test('071 ignores a constant innerHTML and an === comparison', () => {
   assert.ok(ids(scan(tmpFile('a.js', 'el.innerHTML = userInput;\n'))).includes('071'));
   assert.ok(!ids(scan(tmpFile('b.js', 'el.innerHTML = "<b>static</b>";\n'))).includes('071'));
