@@ -3,7 +3,7 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.7.2] — 2026-06-30
 
 ### Fixed
 - **`163` no longer false-positives on a `session` parameter.** A clean-install test of
