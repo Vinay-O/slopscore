@@ -34,8 +34,11 @@ test('178 flags a Python print (detector only — never auto-deleted)', () => {
   assert.strictEqual(fs.readFileSync(f, 'utf8'), before, '178 is detector-only; nothing removed');
 });
 
-test('178 does not flag print used as a non-call identifier', () => {
+test('178 does not flag print used as a non-call identifier, a method, or a def', () => {
   assert.ok(!ids(tmpFile('a.py', 'pprinter = make_printer()\n')).includes('178'), 'pprinter is not print(');
+  assert.ok(!ids(tmpFile('b.py', 'log.print("x")\n')).includes('178'), 'a .print() method call is not the builtin');
+  assert.ok(!ids(tmpFile('c.py', 'class L:\n    def print(self, m):\n        self.out.append(m)\n')).includes('178'), 'a def print(self) method');
+  assert.ok(ids(tmpFile('d.py', 'print("real debug")\n')).includes('178'), 'the builtin print still fires');
 });
 
 test('179 flags == True/False and fix strips the removable forms', () => {

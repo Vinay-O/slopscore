@@ -558,7 +558,8 @@ const LINE_RULES = [
   {
     id: '178', title: 'print() debugging (Python)', category: 'code', severity: 'major',
     authority: 'propose', exts: PY, skipTests: true, respectComments: true, confidence: 'medium',
-    re: /\bprint\s*\(/,
+    // The builtin print only — not a `.print()` method call, not a `def print(` method.
+    re: /(?<![\w.])(?<!def\s)print\s*\(/,
     fix: 'Use the logging module (logger.debug/info) for levelled output you can turn off. Remove stray debug prints.',
   },
   {
@@ -578,7 +579,8 @@ const LINE_RULES = [
   {
     id: '181', title: 'panic() instead of returning an error (Go)', category: 'code', severity: 'major',
     authority: 'flag', exts: GO, skipTests: true, respectComments: true, confidence: 'medium',
-    re: /\bpanic\s*\(/,
+    // The builtin panic only — not a method/func named panic.
+    re: /(?<![\w.])(?<!func\s)panic\s*\(/,
     fix: 'Prefer returning an error so the caller decides — panic() takes down the whole process. Fair only for a truly unrecoverable init failure (FLAG: a human should confirm which this is).',
   },
 ];
