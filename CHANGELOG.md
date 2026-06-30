@@ -3,6 +3,54 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.7.0] — 2026-06-30
+
+Security-and-reach release: a best-in-class security pass, performance detectors,
+deeper Python/Go/Rust coverage with opt-in fixers, project presets, and automatic
+agent adoption via `AGENTS.md`. Catalog grows from 162 to **181 patterns / 85 detectors**.
+
+### Added
+- **Agent auto-adoption — `slopscore init` now writes `AGENTS.md`.** Any coding agent
+  that reads `AGENTS.md` / `CLAUDE.md` (Cursor, Codex, Claude Code, Aider, Windsurf,
+  Cline) now auto-discovers the protocol: load `npx slopscore protocol`, follow it, and
+  gate on `npx slopscore scan` before finishing — no need to tell the agent "use
+  slopscore" each session. Idempotent: appends to an existing file (guarded by a marker)
+  instead of overwriting.
+- **Security detector expansion — 12 new high-signal checks (163–174).** TLS/cert
+  verification disabled (`rejectUnauthorized: false`, `verify=False`,
+  `InsecureSkipVerify`), weak hashing for security (MD5/SHA-1, scoped so a content
+  checksum isn't flagged), insecure randomness for tokens/OTPs (`Math.random`),
+  hardcoded private keys (PEM), insecure Python deserialization (`pickle.loads`,
+  `yaml.load`), wildcard CORS origin, `target="_blank"` without `rel="noopener"`
+  (auto-fixable), credentials in connection strings, SQL by string concatenation,
+  `eval`/`new Function`, cleartext HTTP calls, and unverified JWTs (`alg: none` /
+  `verify=False`). Catalog is now **174 patterns / 78 detectors**.
+- **`--category <names>` focus filter.** Run a focused audit — e.g.
+  `slopscore scan . --category security` — scoring and reporting only the categories
+  you name (comma-separated).
+- **Project presets (`--preset` / `"preset"` config).** Tune coverage to the project so
+  you're not fighting irrelevant findings: `library`/`backend` turn off the visual, copy,
+  and a11y categories; `cli` also silences stdout-debug rules; `web`/`marketing` keep
+  everything on; framework aliases (`mui`, `tailwind`, `chakra`, `mantine`, `emotion`,
+  `styled-components`, `vanilla-extract`) confirm a web UI (the visual detectors are
+  framework-agnostic). Your explicit `rules` always win over the preset.
+- **Performance detectors (new `performance` category).** `175` deep-clone via
+  `JSON.parse(JSON.stringify())`, `176` `SELECT *` over-fetch, `177` `forEach` with an
+  async callback (unawaited work / swallowed errors). `093` (whole-library import) is
+  now grouped under performance too.
+- **Deeper Python / Go / Rust coverage (178–181).** `178` Python `print()` debugging,
+  `179` Python `== True` / `== False`, `180` Rust debug macros (`dbg!`/`println!`/…),
+  `181` Go `panic()` in library code. Catalog is now **181 patterns / 85 detectors**.
+- **Opt-in fixers.** `slopscore fix` still applies only the behavior-preserving AUTO
+  fixers by default, but propose-level fixers (Python `print` removal `178`, `== True`
+  cleanup `179`, Rust debug-macro removal `180`) can now be applied explicitly with
+  `--only <id>` — so the language fixes are available without auto-rewriting code that
+  might be intentional.
+
+### Changed
+- The count-invariant test now derives the catalog total instead of hardcoding it,
+  so growing the catalog only requires updating the prose it pins.
+
 ## [1.6.0] — 2026-06-30
 
 Trust-and-coverage release, implementing the improvements from a real production-app

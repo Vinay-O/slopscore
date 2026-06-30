@@ -129,7 +129,7 @@ function terminalReport(result, s, options = {}) {
   if (findings.length > max) out(paint(C.dim, `\n  ${g('ellipsis')} and ${findings.length - max} more (raise --max to see all)`));
   scoreBanner(s);
   out(paint(C.dim, `  Authority: ${g('green')} auto-fixable  ${g('dot')}  ${g('yellow')} propose (review)  ${g('dot')}  ${g('red')} flag (human decision)`));
-  out(paint(C.dim, '  Full catalog + fix authority for all 162 patterns: ANTI_SLOP_PROTOCOL.md'));
+  out(paint(C.dim, '  Full catalog + fix authority for all 181 patterns: ANTI_SLOP_PROTOCOL.md'));
   staleSection(result);
   out('');
 }

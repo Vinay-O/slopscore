@@ -9,7 +9,8 @@ const report = require('../src/report');
 const { LINE_RULES, WHOLE_FILE_RULES, META_RULES } = require('../src/rules');
 const { fingerprint, loadBaseline, writeBaseline } = require('../src/baseline');
 const { sparkline, loadHistory, appendHistory, trendDelta } = require('../src/history');
-const { planFixes, applyPlan, fixableIds } = require('../src/fix');
+const { planFixes, applyPlan, autoFixableIds, optInFixableIds } = require('../src/fix');
+const { resolvePreset, presetNames } = require('../src/presets');
 
 const DEFAULT_BASELINE = '.slopscore-baseline.json';
 const DEFAULT_HISTORY = '.slopscore-history.json';
@@ -40,6 +41,8 @@ function parseArgs(argv) {
     else if (a === '--max') { const v = parseInt(argv[++i], 10); if (Number.isInteger(v) && v >= 0) opts.max = v; }
     else if (a === '--fail-on') { opts.failOn = argv[++i]; opts.failOnSet = true; }
     else if (a === '--min-confidence') opts.minConfidence = argv[++i];
+    else if (a === '--category') opts.category = (argv[++i] || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+    else if (a === '--preset') opts.preset = argv[++i];
     else if (a === '--ignore') opts.ignore.push(argv[++i]);
     else if (a === '--baseline') {
       const next = argv[i + 1];
@@ -111,11 +114,19 @@ function recordTrend(opts, s) {
 const CONF_RANK = { high: 3, medium: 2, low: 1 };
 function scanAndReport(opts, cfg, baseDir, failOn, record) {
   const ignore = (cfg.ignore || []).concat(opts.ignore);
-  const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules: cfg.rules, paths: cfg.paths });
+  // A preset (--preset or .slopscore.json "preset") is a named bundle of per-rule
+  // config; the user's explicit `rules` always wins over it.
+  const preset = resolvePreset(opts.preset || cfg.preset);
+  const rules = preset ? { ...preset.rules, ...(cfg.rules || {}) } : cfg.rules;
+  const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules, paths: cfg.paths });
   // --min-confidence gates out softer heuristics (e.g. low-confidence 068) before
   // scoring + reporting, so CI can require only high-confidence signal.
   const floor = CONF_RANK[opts.minConfidence];
   if (floor) result.findings = result.findings.filter((f) => (CONF_RANK[f.confidence] || 3) >= floor);
+  // --category focuses the run on one or more categories (e.g. a security-only audit).
+  if (opts.category && opts.category.length) {
+    result.findings = result.findings.filter((f) => opts.category.includes(f.category));
+  }
   if (opts.baseline) {
     const existing = loadBaseline(opts.baseline);
     if (existing) {
@@ -180,6 +191,11 @@ function runScan(opts) {
     if (!fs.existsSync(p)) { err(`slopscore: path not found: ${p}`); process.exit(2); }
   }
   const { config: cfg, baseDir } = loadConfig(configStartDir(opts.paths));
+  const presetName = opts.preset || cfg.preset;
+  if (presetName && !resolvePreset(presetName)) {
+    err(`slopscore: unknown preset "${presetName}". Available: ${presetNames().join(', ')}`);
+    process.exit(2);
+  }
   const failOn = opts.failOnSet ? opts.failOn : (cfg.failOn || opts.failOn);
 
   // Baseline snapshot is a one-shot action (write the accepted floor, then exit).
@@ -208,7 +224,9 @@ function runFix(opts) {
   const plan = planFixes(result, { only: opts.only, except: opts.except });
 
   if (plan.length === 0) {
-    out(`slopscore: nothing to auto-fix (${fixableIds().join(', ')} are the auto-fixable rules).`);
+    out(`slopscore: nothing to auto-fix (auto rules: ${autoFixableIds().join(', ')}).`);
+    const optIn = optInFixableIds();
+    if (optIn.length) out(`Opt-in fixers (apply with --only): ${optIn.join(', ')}.`);
     out('Everything else is a propose/flag — run `slopscore scan` and review those by hand.');
     process.exit(0);
   }
@@ -245,7 +263,7 @@ function printProtocol() {
 
 function printRules() {
   const all = LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES);
-  out(`slopscore ships ${all.length} deterministic detectors. The full 162-pattern catalog`);
+  out(`slopscore ships ${all.length} deterministic detectors. The full 181-pattern catalog`);
   out('(including visual, architectural, and judgment-heavy patterns) lives in ANTI_SLOP_PROTOCOL.md.\n');
   const byCat = {};
   for (const r of all) (byCat[r.category] = byCat[r.category] || []).push(r);
@@ -266,7 +284,7 @@ function printExplain(arg) {
   if (!fs.existsSync(p)) { err('slopscore: ANTI_SLOP_PROTOCOL.md not found alongside the package.'); process.exit(2); }
   const lines = fs.readFileSync(p, 'utf8').split('\n');
   const start = lines.findIndex((l) => l.startsWith(`**${id} · `));
-  if (start === -1) { err(`slopscore: no catalog entry ${id} (ids run 001–162). Try: slopscore protocol`); process.exit(2); }
+  if (start === -1) { err(`slopscore: no catalog entry ${id} (ids run 001–181). Try: slopscore protocol`); process.exit(2); }
   const block = [lines[start]];
   for (let i = start + 1; i < lines.length; i += 1) {
     if (/^\*\*\d{3} · /.test(lines[i])) break; // next entry
@@ -302,12 +320,56 @@ const CONFIG_JSON = `{
 }
 `;
 
+// A self-contained agent directive. Any coding agent that reads AGENTS.md /
+// CLAUDE.md (Cursor, Codex, Claude Code, Aider, Windsurf, Cline…) auto-adopts the
+// protocol — no need to tell it "use slopscore" by hand each session.
+const AGENTS_MARKER = '<!-- slopscore:anti-slop -->';
+function agentsSection() {
+  const n = LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES).length;
+  return `${AGENTS_MARKER}
+## Anti-Slop Protocol (slopscore)
+
+This repository is guarded by [slopscore](https://github.com/Vinay-O/slopscore) — a
+catalog of 180+ AI-slop patterns, ${n} of them auto-checked. Before you finish ANY task:
+
+1. Load the full catalog once per session: \`npx slopscore protocol\` — it lists every
+   pattern with a DETECT, a FIX, and a fix authority (🟢 auto · 🟡 propose · 🔴 flag).
+   Follow it. The untagged patterns (architecture, fake features, most design tells) are
+   yours to apply by reading the code; the ⚙️-tagged ones the scanner checks for you.
+2. Before declaring done, run \`npx slopscore scan . --fail-on major\` and drive
+   production critical + major findings to **0**. Auto-fix the safe ones with
+   \`npx slopscore fix .\`.
+3. Don't add new slop: no purple gradients, no \`console.log\`, no \`any\`, no fake stats,
+   no \`eval\`, no disabled TLS, no god files. When in doubt, run the scan.
+
+Run \`npx slopscore scan . --format agent\` for compact, machine-readable output.
+${AGENTS_MARKER}
+`;
+}
+
+function ensureAgentsFile(file) {
+  const section = agentsSection();
+  if (!fs.existsSync(file)) {
+    fs.writeFileSync(file, `# Agent Instructions\n\n${section}`);
+    out(`  wrote ${file}`);
+    return;
+  }
+  const existing = fs.readFileSync(file, 'utf8');
+  if (existing.includes(AGENTS_MARKER)) { out(`  skip  ${file} (already has the slopscore section)`); return; }
+  fs.writeFileSync(file, `${existing.replace(/\s*$/, '')}\n\n${section}`);
+  out(`  updated ${file} (appended the slopscore section)`);
+}
+
 function runInit() {
   writeIfAbsent('.slopscore.json', CONFIG_JSON);
   const dir = path.join('.github', 'workflows');
   fs.mkdirSync(dir, { recursive: true });
   writeIfAbsent(path.join(dir, 'anti-slop.yml'), ACTION_YML);
-  out('slopscore initialized. Commit .slopscore.json and .github/workflows/anti-slop.yml to gate every PR.');
+  // Teach the repo's agents to use the protocol automatically. AGENTS.md is the
+  // cross-tool standard; also extend CLAUDE.md if the repo already has one.
+  ensureAgentsFile('AGENTS.md');
+  if (fs.existsSync('CLAUDE.md')) ensureAgentsFile('CLAUDE.md');
+  out('slopscore initialized. Commit .slopscore.json, the workflow, and AGENTS.md so every PR — and every agent — follows the protocol.');
 }
 
 function writeIfAbsent(file, contents) {
@@ -322,10 +384,10 @@ slopscore v${pkg.version} — scan your codebase for AI slop, get a Slop Score, 
 USAGE
   slopscore [scan] [paths...] [options]
   slopscore fix [paths...]      auto-apply the safe (🟢 AUTO) fixes; --dry-run to preview
-  slopscore protocol            print the full 162-pattern protocol (pipe to your agent)
+  slopscore protocol            print the full 181-pattern protocol (pipe to your agent)
   slopscore rules               list the deterministic detectors this CLI runs
   slopscore explain <id>        print one catalog pattern + its fix (e.g. explain 058)
-  slopscore init                write .slopscore.json + a GitHub Action PR gate
+  slopscore init                scaffold .slopscore.json + a PR gate + AGENTS.md (agent auto-adoption)
 
 OPTIONS
   --json                     machine-readable findings + score
@@ -334,6 +396,9 @@ OPTIONS
   --format agent             compact output for feeding an AI agent
   --fail-on <level>          exit non-zero at: critical | major | minor | never  (default: major)
   --min-confidence <level>   only report/score findings at: high | medium | low  (default: low/all)
+  --category <names>         focus on one or more categories, e.g. security  (comma-separated)
+  --preset <name>            tune coverage to the project: library | backend | cli |
+                             web | marketing | mui | tailwind | chakra | …  (also: "preset" in config)
   --baseline [file]          ratchet mode: snapshot current findings, then fail only
                              on NEW slop (default file: .slopscore-baseline.json)
   --update-baseline          re-snapshot the baseline (accept the current findings)

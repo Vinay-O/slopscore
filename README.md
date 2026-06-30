@@ -4,7 +4,7 @@
 
 ### Scan your codebase for AI slop. Get a Slop Score. Ship clean.
 
-**A zero-dependency CLI + a 162-pattern protocol for AI coding agents.**
+**A zero-dependency CLI + a 181-pattern protocol for AI coding agents.**
 The antidote to vibe-coded software: turn *generation* into *governance*.
 
 [![CI](https://github.com/Vinay-O/slopscore/actions/workflows/ci.yml/badge.svg)](https://github.com/Vinay-O/slopscore/actions/workflows/ci.yml)
@@ -95,15 +95,17 @@ slopscore ships **two halves of the same idea**: a deterministic scanner you run
 
 ### 1. The scanner (deterministic, zero-dependency)
 
-Runs **66 detectors** locally in milliseconds — secrets, SQL injection, empty catches, `any`, hallucinated APIs, missing `alt`, the VibeCode-purple gradient, AI buzzword copy, god files, and more. No LLM, no network, no dependencies.
+Runs **85 detectors** locally in milliseconds — a hardened **security pass** (secrets, SQL/command injection, disabled TLS verification, weak hashing, insecure randomness, hardcoded private keys, insecure deserialization, wildcard CORS, `eval`, unverified JWTs, cleartext HTTP), plus empty catches, `any`, hallucinated APIs, missing `alt`, the VibeCode-purple gradient, AI buzzword copy, and god files. No LLM, no network, no dependencies.
+
+Run a focused security audit with `slopscore scan . --category security`.
 
 ### 2. The protocol (for your coding agent)
 
-[`ANTI_SLOP_PROTOCOL.md`](ANTI_SLOP_PROTOCOL.md) is a **162-pattern operating manual** for AI agents. Hand it to Claude Code, Cursor, Codex CLI, Aider, Copilot, Windsurf, or Cline and say:
+[`ANTI_SLOP_PROTOCOL.md`](ANTI_SLOP_PROTOCOL.md) is a **181-pattern operating manual** for AI agents. Hand it to Claude Code, Cursor, Codex CLI, Aider, Copilot, Windsurf, or Cline and say:
 
 > **"Check the system."**
 
-The agent runs a defined loop — orient → scan → score → triage → **fix** → verify → report — where every pattern carries a `DETECT`, a `FIX`, and a **fix authority** (🟢 auto-fix · 🟡 propose · 🔴 flag-for-human) so it knows what it may change on its own versus what needs your call. The **66 patterns the CLI already automates are tagged `⚙️ slopscore scan`** right in the catalog (generated from the scanner's own rule table, so the two halves never drift) — the untagged ones are where the agent earns its keep.
+The agent runs a defined loop — orient → scan → score → triage → **fix** → verify → report — where every pattern carries a `DETECT`, a `FIX`, and a **fix authority** (🟢 auto-fix · 🟡 propose · 🔴 flag-for-human) so it knows what it may change on its own versus what needs your call. The **85 patterns the CLI already automates are tagged `⚙️ slopscore scan`** right in the catalog (generated from the scanner's own rule table, so the two halves never drift) — the untagged ones are where the agent earns its keep.
 
 ```bash
 slopscore protocol | pbcopy        # copy the protocol to paste into your agent
@@ -111,7 +113,9 @@ slopscore scan . --format agent    # compact, context-window-friendly output for
 slopscore explain 058              # look up any one pattern + its fix, by id
 ```
 
-The scanner finds it. The protocol fixes it. The CI gate keeps it out.
+**Make agents use it automatically.** You shouldn't have to remind your agent every session. `slopscore init` writes an **`AGENTS.md`** (the cross-tool standard that Cursor, Codex, Claude Code, Aider, Windsurf, and Cline all read) that tells the agent to load `npx slopscore protocol`, follow it, and gate on `npx slopscore scan` before declaring done — so the protocol is adopted on its own, no copy-paste required. If you already have an `AGENTS.md` or `CLAUDE.md`, it appends the section (idempotently) instead of overwriting.
+
+The scanner finds it. The protocol fixes it. The CI gate keeps it out. And `AGENTS.md` makes your agent do all three without being asked.
 
 ## The Slop Score
 
@@ -247,6 +251,7 @@ slopscore scan . --markdown --out slop.md   # write a UTF-8 report file directly
 
 ```json
 {
+  "preset": "library",
   "ignore": ["examples", "legacy", "src/generated"],
   "failOn": "major",
   "rules": {
@@ -261,10 +266,20 @@ slopscore scan . --markdown --out slop.md   # write a UTF-8 report file directly
 
 | Option | Meaning |
 |:--|:--|
+| `preset` | Tune coverage to the project type (see below). Your `rules` always win over the preset. |
 | `ignore` | Extra paths to skip (added to the built-in `node_modules`, `dist`, etc.) |
 | `failOn` | Exit non-zero at `critical`, `major`, `minor`, or `never` |
 | `rules` | Per-rule overrides — `false`/`"off"` disables a rule; `"critical"`/`"major"`/`"minor"` overrides its severity |
 | `paths` | Per-directory overrides — same shape as `rules`, plus `"*"` to target every rule under a path (e.g. soften all of `legacy/`) |
+
+**Presets** (`--preset <name>` or the `preset` config key) tune coverage so you're not fighting irrelevant findings:
+
+| Preset | Effect |
+|:--|:--|
+| `web` / `marketing` | A styled web UI — everything on (the default). |
+| `library` / `backend` | No UI surface — turns off the **visual**, **copy**, and **a11y** categories; keeps code, security, and performance. |
+| `cli` | Like `library`, and also silences the stdout-debug rules (`console.log`, Python `print`, Rust `println!`) — stdout is the product. |
+| `mui` / `tailwind` / `chakra` / `mantine` / `emotion` / `styled-components` / `vanilla-extract` | Styling-framework aliases. slopscore's visual detectors are framework-agnostic (they match Tailwind classes **and** CSS-in-JS / MUI `sx` / styled / emotion alike), so these just confirm "web UI, all checks on." |
 
 **Suppress one finding inline** with a directive (require a reason for your future self):
 
@@ -275,9 +290,9 @@ const config = data as any;
 
 A bare `// slopscore-disable-next-line` (no id) suppresses every rule on the next line; `slopscore-disable-line <id>` works on the same line. The terminal report prints how many findings were suppressed, so they don't rot.
 
-## What it detects (66 of the 162)
+## What it detects (85 of the 181)
 
-The CLI runs the deterministic subset; the [full 162-pattern catalog](ANTI_SLOP_PROTOCOL.md) (including visual, architectural, and judgment-heavy patterns) is what you hand your agent.
+The CLI runs the deterministic subset; the [full 181-pattern catalog](ANTI_SLOP_PROTOCOL.md) (including visual, architectural, and judgment-heavy patterns) is what you hand your agent.
 
 | Category | Examples |
 |:--|:--|

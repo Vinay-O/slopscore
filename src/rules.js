@@ -303,7 +303,7 @@ const LINE_RULES = [
     fix: 'Catch the specific error type you can handle; let the rest propagate with context.',
   },
   {
-    id: '093', title: 'Whole-library import for one utility', category: 'code', severity: 'minor',
+    id: '093', title: 'Whole-library import for one utility', category: 'performance', severity: 'minor',
     authority: 'auto', exts: CODE, skipTests: true, respectComments: true,
     re: /(import\s+(_|\*\s+as\s+_)\s+from\s+['"]lodash['"]|require\(\s*['"]lodash['"]\s*\))/,
     fix: 'Import the single function (lodash/throttle) or use a native equivalent; the whole lib bloats the bundle.',
@@ -434,6 +434,129 @@ const LINE_RULES = [
     authority: 'flag', exts: RUST, skipTests: true, respectComments: true,
     re: /\bunsafe\s*\{/,
     fix: 'Justify every unsafe block with a comment proving the invariants, or replace it with safe code. Needs human review.',
+  },
+
+  // ---- CATEGORY 14 expansion: security hardening (163–174) ----
+  {
+    id: '163', title: 'TLS / certificate verification disabled', category: 'security', severity: 'critical',
+    authority: 'propose', exts: null, skipTests: true, respectComments: true,
+    re: /(rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*[=:]\s*['"]?0|verify\s*=\s*False|InsecureSkipVerify\s*:\s*true|ssl\._create_unverified_context|CURLOPT_SSL_VERIFY(PEER|HOST)\s*,\s*(0|false))/,
+    fix: 'Never disable certificate verification. Fix the trust store / cert chain; for local dev use a real local CA (mkcert), not a global bypass.',
+  },
+  {
+    id: '164', title: 'Weak hash (MD5 / SHA-1) for security', category: 'security', severity: 'major',
+    authority: 'propose', exts: null, skipTests: true, respectComments: true, confidence: 'medium',
+    // Only when a security word shares the line — md5/sha1 for a cache key / ETag /
+    // content fingerprint is fine, so a blanket flag would be noise.
+    re: /(?:createHash\s*\(\s*['"](?:md5|sha1)['"]|hashlib\.(?:md5|sha1)\s*\(|MessageDigest\.getInstance\s*\(\s*['"](?:MD5|SHA-?1)['"])[^\n]*\b(?:password|passwd|secret|token|signature|sign|auth|credential|hmac|salt)\b|\b(?:password|passwd|secret|token|credential|signature)\w*\b[^\n]*(?:createHash\s*\(\s*['"](?:md5|sha1)|hashlib\.(?:md5|sha1)\s*\()/i,
+    fix: 'MD5/SHA-1 are broken for security. Use SHA-256+ for integrity and bcrypt/scrypt/argon2 for passwords. (Fine for non-security checksums.)',
+  },
+  {
+    id: '165', title: 'Insecure randomness for a security value', category: 'security', severity: 'critical',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /(Math\.random\([^)]*\)[^\n]*\b(token|secret|password|passwd|otp|nonce|salt|sessionid|session_id|api[_-]?key|csrf|reset)\b|\b(token|secret|password|passwd|otp|nonce|salt|sessionid|session_id|api[_-]?key|csrf|reset)\w*\s*[=:][^\n]*Math\.random\()/i,
+    fix: 'Math.random() is not cryptographically secure. Use crypto.randomBytes / crypto.randomUUID / getRandomValues for any security value.',
+  },
+  {
+    id: '166', title: 'Hardcoded private key in source', category: 'security', severity: 'critical',
+    authority: 'flag', exts: null, skipTests: true, respectComments: false,
+    re: /-----BEGIN\s+(?:RSA\s+|EC\s+|DSA\s+|OPENSSH\s+|PGP\s+)?PRIVATE\s+KEY-----/,
+    fix: 'Remove the private key from source and rotate it now (it is compromised). Load keys from a secret manager / env at runtime.',
+  },
+  {
+    id: '167', title: 'Insecure deserialization (Python)', category: 'security', severity: 'critical',
+    authority: 'propose', exts: PY, skipTests: true, respectComments: true,
+    re: /(\bpickle\.loads?\s*\(|\bcPickle\.loads?\s*\(|\bmarshal\.loads?\s*\(|\byaml\.load\s*\((?![^)]*Loader\s*=))/,
+    fix: 'Never deserialize untrusted data with pickle/marshal/yaml.load. Use yaml.safe_load; for interchange use JSON.',
+  },
+  {
+    id: '168', title: 'Wildcard CORS origin', category: 'security', severity: 'major',
+    authority: 'propose', exts: null, skipTests: true, respectComments: true,
+    re: /(Access-Control-Allow-Origin['"]?\s*[:,]\s*['"]\*|\borigin\s*:\s*['"]\*['"])/i,
+    fix: 'Don\'t reflect a wildcard origin on anything with credentials or state. Allow-list explicit origins.',
+  },
+  {
+    id: '169', title: 'target="_blank" without rel="noopener"', category: 'security', severity: 'major',
+    authority: 'auto', exts: MARKUP, skipTests: true, respectComments: true,
+    re: /<a\b[^>]*\btarget\s*=\s*['"]_blank['"][^>]*>/i,
+    unless: /\brel\s*=\s*['"][^'"]*noopener/i,
+    fix: 'Add rel="noopener noreferrer" — a target="_blank" link otherwise lets the opened page reach window.opener (reverse tabnabbing).',
+  },
+  {
+    id: '170', title: 'Credentials in a connection string', category: 'security', severity: 'critical',
+    authority: 'flag', exts: null, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\b(?:mongodb(?:\+srv)?|postgres(?:ql)?|mysql|mariadb|redis|amqps?|ftp|ldaps?):\/\/[^\s:'"/]+:[^\s:'"@/]+@/i,
+    fix: 'Move the username/password out of the URL into env / a secret manager. An inline password leaks into logs, history, and process listings.',
+  },
+  {
+    id: '171', title: 'SQL built by string concatenation', category: 'security', severity: 'critical',
+    authority: 'propose', exts: null, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /(['"][^'"]*\b(?:SELECT\b[^'"]*\bFROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM)\b[^'"]*['"]\s*\+|\+\s*['"]\s*(?:WHERE|VALUES|AND|OR)\b)/i,
+    fix: 'Use parameterized queries / prepared statements. Never build SQL by concatenating input.',
+  },
+  {
+    id: '172', title: 'eval() / new Function() on dynamic input', category: 'security', severity: 'critical',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /\beval\s*\(|new\s+Function\s*\(/,
+    fix: 'Avoid eval / new Function — it is arbitrary code execution. Use JSON.parse, a lookup table, or a real parser.',
+  },
+  {
+    id: '173', title: 'Cleartext HTTP for a network call', category: 'security', severity: 'major',
+    authority: 'propose', exts: null, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\b(?:fetch|axios(?:\.\w+)?|requests\.(?:get|post|put|delete|patch)|http\.(?:get|request))\s*\(\s*['"`]http:\/\/(?!localhost|127\.0\.0\.1|0\.0\.0\.0)/i,
+    fix: 'Use HTTPS. Cleartext HTTP exposes data and tokens to anyone on the network path.',
+  },
+  {
+    id: '174', title: 'JWT signature not verified', category: 'security', severity: 'critical',
+    authority: 'propose', exts: null, skipTests: true, respectComments: true,
+    re: /(algorithms?\s*[=:]\s*\[?\s*['"]none['"]|jwt\.decode\s*\([^)]*verify\s*=\s*False|\.verify\s*\([^)]*algorithms?\s*:\s*\[\s*['"]none['"])/i,
+    fix: 'Always verify JWT signatures against a fixed allow-list of strong algorithms. Never allow "none" or verify=False.',
+  },
+
+  // ---- CATEGORY 9 expansion: performance (175–177) ----
+  {
+    id: '175', title: 'Deep clone via JSON round-trip', category: 'performance', severity: 'minor',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /JSON\.parse\s*\(\s*JSON\.stringify\s*\(/,
+    fix: 'Use structuredClone() (or a targeted copy). JSON.parse(JSON.stringify(x)) is slow and silently drops Dates, Maps, Sets, undefined, and functions.',
+  },
+  {
+    id: '176', title: 'SELECT * over-fetch', category: 'performance', severity: 'minor',
+    authority: 'propose', exts: null, skipTests: true, respectComments: true,
+    re: /\bSELECT\s+\*\s+FROM\b/i,
+    fix: 'Select only the columns you use. SELECT * over-fetches rows, breaks on schema changes, and defeats covering indexes.',
+  },
+  {
+    id: '177', title: 'forEach with an async callback', category: 'performance', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /\.forEach\s*\(\s*async\b/,
+    fix: 'forEach ignores returned promises — they run unawaited and errors are swallowed. Use for...of with await, or Promise.all(items.map(...)).',
+  },
+
+  // ---- CATEGORY 17 expansion: deeper language coverage (178–181) ----
+  {
+    id: '178', title: 'print() debugging (Python)', category: 'code', severity: 'major',
+    authority: 'propose', exts: PY, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\bprint\s*\(/,
+    fix: 'Use the logging module (logger.debug/info) for levelled output you can turn off. Remove stray debug prints.',
+  },
+  {
+    id: '179', title: '== True / == False comparison (Python)', category: 'code', severity: 'minor',
+    authority: 'propose', exts: PY, skipTests: true, respectComments: true,
+    re: /[!=]=\s*(True|False)\b/,
+    fix: 'Compare by truthiness: `if x:` / `if not x:`. `== True` is redundant and wrong for truthy non-bool values.',
+  },
+  {
+    id: '180', title: 'Debug print macro (Rust)', category: 'code', severity: 'major',
+    authority: 'propose', exts: RUST, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\b(dbg!|println!|eprintln!|print!|eprint!)\s*\(/,
+    fix: 'Use the log / tracing crate (debug!/info!) for diagnostics; reserve println! for real program output. Remove dbg!/stray prints.',
+  },
+  {
+    id: '181', title: 'panic() in library code (Go)', category: 'code', severity: 'major',
+    authority: 'flag', exts: GO, skipTests: true, respectComments: true,
+    re: /\bpanic\s*\(/,
+    fix: 'Return an error and let the caller decide. panic() takes down the whole process; reserve it for truly unrecoverable init failures.',
   },
 ];
 

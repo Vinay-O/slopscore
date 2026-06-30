@@ -296,7 +296,7 @@ Each entry: **ID · Title** `SEVERITY` `AUTHORITY` — description, `DETECT` (ho
 (aesthetic tell). Authority: 🟢 AUTO · 🟡 PROPOSE · 🔴 FLAG (see §0).
 
 A `` `⚙️ slopscore scan` `` tag means **the deterministic CLI already detects this pattern** —
-`npx slopscore` flags it for you with the exact location and fix. **66 of the 162** carry this tag
+`npx slopscore` flags it for you with the exact location and fix. **85 of the 181** carry this tag
 today; the rest need an AST tool (§2.1) or human reading (layout sameness, fake features,
 architectural drift). The tags are generated from the scanner's own rule table, so they never
 drift from what the CLI actually does. Patterns *without* the tag are where you, the agent, earn
@@ -889,6 +889,21 @@ Landing + dashboard + admin all loaded on first visit.
 `DETECT:` no dynamic imports in routes · single bundle output · no chunk splitting in config.
 `FIX:` Route-level code splitting + vendor chunking via the bundler. PROPOSE; verify with a bundle analyzer. (This is the build-config side; 092 is the missing runtime `React.lazy`/`Suspense`.)
 
+**175 · Deep clone via JSON round-trip** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+`JSON.parse(JSON.stringify(obj))` is the copy-paste deep clone — slow (full serialize + parse) and lossy: it silently drops `Date`, `Map`, `Set`, `undefined`, and functions, turning bugs into mysteries.
+`DETECT:` `JSON.parse(JSON.stringify(`.
+`FIX:` `structuredClone(obj)` for a correct deep copy, or a targeted shallow copy (`{ ...obj }`) when that's all you need.
+
+**176 · `SELECT *` over-fetch** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+`SELECT * FROM …` pulls every column over the wire whether you use it or not — extra IO, broken assumptions when the schema changes, and a covering index that no longer covers.
+`DETECT:` `SELECT * FROM`.
+`FIX:` Name the columns you actually read. It documents intent and keeps the query fast as the table grows.
+
+**177 · `forEach` with an async callback** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+`array.forEach(async (x) => …)` looks like it awaits but doesn't — `forEach` throws the returned promises away, so the work runs unsequenced and any rejection is swallowed. A classic AI-introduced race.
+`DETECT:` `.forEach(async`.
+`FIX:` `for (const x of array) { await … }` for sequential work, or `await Promise.all(array.map(async …))` to run them in parallel and surface errors.
+
 ---
 
 ### CATEGORY 10 — Architecture Anti-Patterns
@@ -1095,6 +1110,66 @@ No CSP, no `helmet()`, missing `X-Frame-Options`/`X-Content-Type-Options`.
 `DETECT:` `error.stack`/`err.stack` in responses · internal details sent to client · no NODE_ENV gate.
 `FIX:` Return a generic message + an error id; log the full trace server-side only; gate any detail behind a dev-env check. AUTO.
 
+**163 · TLS / certificate verification disabled** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+`rejectUnauthorized: false`, `verify=False`, `InsecureSkipVerify: true`, `NODE_TLS_REJECT_UNAUTHORIZED=0` — every one turns off the check that stops a man-in-the-middle. AI reaches for it the moment a cert error appears in dev.
+`DETECT:` `rejectUnauthorized: false` · `NODE_TLS_REJECT_UNAUTHORIZED=0` · `verify=False` · `InsecureSkipVerify: true` · `ssl._create_unverified_context`.
+`FIX:` Never disable verification. Fix the trust store / cert chain; for local dev issue a real cert with a local CA (mkcert), not a global bypass.
+
+**164 · Weak hash (MD5 / SHA-1) for security** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+MD5 and SHA-1 are broken — collidable, and far too fast for password storage. Flagged only when a security word (`password`, `token`, `signature`…) shares the line, because md5/sha1 for a cache key or content fingerprint is perfectly fine.
+`DETECT:` `createHash('md5'|'sha1')` / `hashlib.md5|sha1` / `MessageDigest.getInstance("MD5"|"SHA-1")` near a credential.
+`FIX:` SHA-256+ for integrity; bcrypt/scrypt/argon2 for passwords. Leave non-security checksums alone.
+
+**165 · Insecure randomness for a security value** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+`Math.random()` is not cryptographically secure — its output is predictable. Using it to build a token, OTP, password-reset code, nonce, or salt hands an attacker the keys.
+`DETECT:` `Math.random()` on a line that also names a `token`/`secret`/`otp`/`nonce`/`salt`/`session`/`api_key`/`csrf`/`reset`.
+`FIX:` `crypto.randomBytes` / `crypto.randomUUID` / `crypto.getRandomValues` for anything security-relevant.
+
+**166 · Hardcoded private key in source** `🔴` `🔴 FLAG` `⚙️ slopscore scan`
+A `-----BEGIN … PRIVATE KEY-----` block committed to the repo is compromised the instant it lands in git history.
+`DETECT:` a PEM `PRIVATE KEY` header (RSA/EC/DSA/OPENSSH/PGP) anywhere in tracked source.
+`FIX:` Remove it and **rotate the key now**. Load keys at runtime from a secret manager / env; scrub git history.
+
+**167 · Insecure deserialization (Python)** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+`pickle.loads`, `marshal.loads`, and `yaml.load` (without `SafeLoader`) execute arbitrary code from the payload — a direct RCE on untrusted input.
+`DETECT:` `pickle.loads(` · `cPickle.loads(` · `marshal.loads(` · `yaml.load(` without a `Loader=` argument.
+`FIX:` `yaml.safe_load`; for interchange use JSON. Never unpickle data you didn't produce.
+
+**168 · Wildcard CORS origin** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+`Access-Control-Allow-Origin: *` (or `origin: '*'`) on an authenticated, state-changing API lets any site call it with the user's session.
+`DETECT:` `Access-Control-Allow-Origin: *` · `origin: '*'` in a CORS config.
+`FIX:` Allow-list explicit origins; reserve `*` for genuinely public, credential-free, read-only endpoints.
+
+**169 · `target="_blank"` without `rel="noopener"`** `🟠` `🟢 AUTO` `⚙️ slopscore scan`
+An external link opened with `target="_blank"` can reach back through `window.opener` and navigate your tab to a phishing page (reverse tabnabbing).
+`DETECT:` `<a … target="_blank" …>` with no `rel` containing `noopener`.
+`FIX:` Add `rel="noopener noreferrer"`. AUTO — `slopscore fix` adds it.
+
+**170 · Credentials in a connection string** `🔴` `🔴 FLAG` `⚙️ slopscore scan`
+`postgres://user:password@host` (Mongo, MySQL, Redis, AMQP, FTP, LDAP…) bakes a live credential into source — and it leaks into logs, shell history, and process listings.
+`DETECT:` a `scheme://user:pass@host` URL for a known database / service protocol.
+`FIX:` Move the username/password into env / a secret manager and reference them at runtime; rotate the exposed credential.
+
+**171 · SQL built by string concatenation** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+`"SELECT … WHERE id = " + id` is injection by another name — the template-literal cousin (`072`) without the backticks.
+`DETECT:` a quoted SQL fragment (`SELECT…FROM`, `INSERT INTO`, `UPDATE…SET`, `DELETE FROM`) adjacent to a `+`, or `+ "WHERE/VALUES/AND/OR …"`.
+`FIX:` Parameterized queries / prepared statements. Never concatenate input into SQL.
+
+**172 · `eval()` / `new Function()` on dynamic input** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+`eval` and `new Function` execute whatever string they're given — arbitrary code execution if any of it is attacker-influenced.
+`DETECT:` `eval(` · `new Function(` in app code.
+`FIX:` `JSON.parse` for data, a lookup table for dispatch, or a real expression parser. Remove `eval` outright where you can.
+
+**173 · Cleartext HTTP for a network call** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+`fetch("http://api…")` / `requests.get("http://…")` sends data and tokens in the clear for anyone on the path to read or tamper with.
+`DETECT:` `fetch`/`axios`/`requests`/`http.get` called with an `http://` URL (localhost excepted).
+`FIX:` Use `https://`. If a service is HTTP-only, front it with TLS termination.
+
+**174 · JWT signature not verified** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+`algorithms: ['none']` or `verify=False` accepts a forged token — anyone can mint an admin session.
+`DETECT:` `algorithms: ['none']` · `jwt.decode(token, verify=False)` · a verify call allow-listing `none`.
+`FIX:` Always verify against a fixed allow-list of strong algorithms (e.g. `RS256`/`ES256`). Never `none`, never `verify=False`.
+
 ---
 
 ### CATEGORY 15 — Miscellaneous & Structural Tells
@@ -1273,6 +1348,26 @@ The canonical Rust AI tell: `.unwrap()`/`.expect()` everywhere, turning every `R
 An `unsafe { … }` block — sometimes necessary, often AI reaching for it to silence the borrow checker.
 `DETECT:` `unsafe {`.
 `FIX:` Justify each block with a comment proving the invariants it upholds, or replace it with safe code. FLAG for human review.
+
+**178 · `print()` debugging (Python)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+A bare `print(…)` left in application code — the Python cousin of a stray `console.log`. Fine as a script's real output, noise in a library or service — which is why it's PROPOSE, not AUTO.
+`DETECT:` `print(` in app code.
+`FIX:` Use the `logging` module (`logger.debug/info`) for levelled output you can silence in prod. Opt-in: `slopscore fix --only 178` removes a standalone debug `print`.
+
+**179 · `== True` / `== False` comparison (Python)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+`if x == True:` is redundant — and wrong when `x` is a truthy non-bool (`[1] == True` is `False`).
+`DETECT:` `== True` / `== False` / `!= True` / `!= False`.
+`FIX:` Compare by truthiness: `if x:` / `if not x:`. Opt-in: `slopscore fix --only 179` strips the removable `== True` / `!= False` forms.
+
+**180 · Debug print macro (Rust)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+`dbg!(…)` is never meant to ship; `println!`/`eprintln!` left in as diagnostics are the Rust equivalent of `console.log`.
+`DETECT:` `dbg!(` · `println!(` · `eprintln!(` · `print!(` · `eprint!(`.
+`FIX:` Use the `log`/`tracing` crate (`debug!`/`info!`); reserve `println!` for real program output. Opt-in: `slopscore fix --only 180` removes a standalone debug macro.
+
+**181 · `panic()` in library code (Go)** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+`panic()` unwinds and crashes the whole process — an AI shortcut where a returned `error` belongs.
+`DETECT:` `panic(`.
+`FIX:` Return an `error` and let the caller decide. Reserve `panic` for genuinely unrecoverable init failures. FLAG.
 
 ---
 
