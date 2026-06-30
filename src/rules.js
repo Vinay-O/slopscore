@@ -450,10 +450,12 @@ const LINE_RULES = [
   {
     id: '163', title: 'TLS / certificate verification disabled', category: 'security', severity: 'critical',
     authority: 'propose', exts: null, skipTests: true, respectComments: true,
-    // The unambiguous TLS-bypass signals, plus Python `verify=False` ONLY when an
-    // HTTP-client name shares the line (or `.verify = False`). A bare keyword like
-    // `def sync(data, verify=False)` is a generic param, not a TLS bypass.
-    re: /(rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*[=:]\s*['"]?0|InsecureSkipVerify\s*:\s*true|ssl\._create_unverified_context|CURLOPT_SSL_VERIFY(?:PEER|HOST)\s*,\s*(?:0|false)|\.verify\s*=\s*False\b|\b(?:requests|httpx|aiohttp|urllib3|session|Session|SSLContext|verify_ssl)\b[^\n]*\bverify\s*=\s*False\b)/,
+    // The unambiguous TLS-bypass signals, plus Python `verify=False` ONLY when it's
+    // clearly an HTTP request — a known client lib on the line, a `.get(…verify=False)`
+    // method call, `.verify = False`, or aiohttp's unambiguous `verify_ssl=False`. A
+    // generic param like `def active(session, verify=False)` is NOT flagged (`session`
+    // is far too common a name to treat as a TLS signal).
+    re: /(rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED\s*[=:]\s*['"]?0|InsecureSkipVerify\s*:\s*true|ssl\._create_unverified_context|CURLOPT_SSL_VERIFY(?:PEER|HOST)\s*,\s*(?:0|false)|verify_ssl\s*=\s*False\b|\.verify\s*=\s*False\b|\b(?:requests|httpx|aiohttp|urllib3)\b[^\n]*\bverify\s*=\s*False\b|\.(?:get|post|put|delete|patch|request|head|send|Session|Client)\s*\([^\n]*\bverify\s*=\s*False\b)/,
     fix: 'Never disable certificate verification. Fix the trust store / cert chain; for local dev use a real local CA (mkcert), not a global bypass.',
   },
   {

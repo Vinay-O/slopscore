@@ -100,8 +100,12 @@ test('172/106 do NOT flag a function or method DEFINITION named eval/confirm', (
 
 test('163 does NOT flag a generic verify=False parameter (only an HTTP-client bypass)', () => {
   assert.ok(!ids(tmpFile('a.py', 'def sync_records(data, verify=False):\n    return data\n')).includes('163'), 'a generic param is not a TLS bypass');
+  // `session` is a very common param name (DB session) — must NOT make it a TLS signal
+  assert.ok(!ids(tmpFile('a2.py', 'def active(session, verify=False):\n    return session\n')).includes('163'), 'a `session` param is not a TLS bypass');
   assert.ok(ids(tmpFile('b.py', 'r = requests.get(url, verify=False)\n')).includes('163'), 'requests bypass still caught');
   assert.ok(ids(tmpFile('c.py', 'session.verify = False\n')).includes('163'), 'session.verify = False still caught');
+  assert.ok(ids(tmpFile('d.py', 's = session.get(url, verify=False)\n')).includes('163'), 'session.get(…verify=False) still caught');
+  assert.ok(ids(tmpFile('e.py', 'c = httpx.Client(verify=False)\n')).includes('163'), 'httpx.Client bypass still caught');
 });
 
 test('173 flags cleartext HTTP calls but not localhost', () => {
