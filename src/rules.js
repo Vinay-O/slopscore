@@ -31,13 +31,14 @@ const LINE_RULES = [
   // ---- CATEGORY 7: code quality ----
   {
     id: '052', title: 'console.log in production path', category: 'code', severity: 'major',
-    authority: 'auto', exts: CODE, skipTests: true, respectComments: true,
+    authority: 'auto', exts: CODE, skipTests: true, respectComments: true, eslint: 'no-console',
     re: /\bconsole\.(log|dir|table|debug)\s*\(/,
     fix: 'Remove it, or route through a real logger with levels.',
   },
   {
     id: '054', title: 'TypeScript `any`', category: 'code', severity: 'major',
     authority: 'propose', exts: TS, skipTests: false, respectComments: true,
+    eslint: '@typescript-eslint/no-explicit-any',
     unlessFile: /\.d\.ts$/,
     // `catch (e: any)` is owned by rule 078 — don't double-flag the same line.
     unless: /catch\s*\(\s*\w+\s*:\s*any\b/,
