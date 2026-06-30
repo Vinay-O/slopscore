@@ -29,6 +29,9 @@ function parseArgs(argv) {
     else if (a === '--sarif') opts.format = 'sarif';
     else if (a === '--format') opts.format = argv[++i];
     else if (a === '--no-color') opts.color = false;
+    else if (a === '--ascii') opts.unicode = false;
+    else if (a === '--unicode') opts.unicode = true;
+    else if (a === '--out') opts.out = argv[++i];
     else if (a === '--watch' || a === '-w') opts.watch = true;
     else if (a === '--max') { const v = parseInt(argv[++i], 10); if (Number.isInteger(v) && v >= 0) opts.max = v; }
     else if (a === '--fail-on') { opts.failOn = argv[++i]; opts.failOnSet = true; }
@@ -92,7 +95,9 @@ function recordTrend(opts, s) {
   const runs = appendHistory(opts.history, entry);
   if (opts.format && opts.format !== 'terminal') return; // only narrate in terminal mode
   const delta = trendDelta(prev, s.weighted);
-  out(`  trend  ${sparkline(runs.map((r) => r.weighted))}  ${s.weighted} weighted${delta ? ` · ${delta} since last run` : ''} · ${runs.length} runs`);
+  const ascii = !report.unicodeEnabled();
+  const dot = report.glyph('dot');
+  out(`  trend  ${sparkline(runs.map((r) => r.weighted), ascii)}  ${s.weighted} weighted${delta ? ` ${dot} ${delta} since last run` : ''} ${dot} ${runs.length} runs`);
   out('');
 }
 
@@ -110,11 +115,25 @@ function scanAndReport(opts, cfg, baseDir, failOn, record) {
     }
   }
   const s = score(result);
-  if (opts.format === 'json') report.jsonReport(result, s);
-  else if (opts.format === 'markdown') report.markdownReport(result, s);
-  else if (opts.format === 'agent') report.agentReport(result, s);
-  else if (opts.format === 'sarif') report.sarifReport(result, s);
-  else report.terminalReport(result, s, { max: opts.max });
+  const emit = () => {
+    if (opts.format === 'json') report.jsonReport(result, s);
+    else if (opts.format === 'markdown') report.markdownReport(result, s);
+    else if (opts.format === 'agent') report.agentReport(result, s);
+    else if (opts.format === 'sarif') report.sarifReport(result, s);
+    else report.terminalReport(result, s, { max: opts.max });
+  };
+  if (opts.out) {
+    // Write the report straight to a UTF-8 file from Node, so it can't be mangled
+    // into UTF-16 by a shell's `>` redirect (the Windows PowerShell failure mode).
+    const buf = [];
+    report.captureTo(buf);
+    emit();
+    report.captureTo(null);
+    fs.writeFileSync(opts.out, buf.join(''), 'utf8');
+    out(`slopscore: wrote ${opts.format === 'terminal' ? 'report' : opts.format} to ${opts.out} (UTF-8)`);
+  } else {
+    emit();
+  }
   if (record && opts.history) recordTrend(opts, s);
   // The gate fails on PRODUCTION findings only (test/tooling is reported, not gated)
   // — and, under --baseline, only on findings new since the snapshot.
@@ -143,6 +162,10 @@ function runWatch(opts, cfg, baseDir, failOn) {
 
 function runScan(opts) {
   report.setColor(opts.color && process.stdout.isTTY !== false);
+  // Unicode glyphs unless the terminal can't render them. --ascii / --unicode
+  // override the auto-detection. A captured --out file is always UTF-8, so it
+  // keeps the full glyph set regardless of the live terminal.
+  report.setUnicode(opts.unicode != null ? opts.unicode : (opts.out ? true : report.supportsUnicode()));
   for (const p of opts.paths) {
     if (!fs.existsSync(p)) { err(`slopscore: path not found: ${p}`); process.exit(2); }
   }
@@ -265,8 +288,12 @@ OPTIONS
                              (default file: .slopscore-history.json)
   --max <n>                  max findings to print in the terminal     (default: 40)
   --ignore <path>            extra path to ignore (repeatable)
+  --out <file>               write the report to a UTF-8 file (avoids shell-redirect
+                             encoding issues, e.g. PowerShell's UTF-16 `>`)
   --watch, -w                re-scan on every file change (live local conscience)
   --no-color                 disable ANSI color
+  --ascii                    ASCII-only glyphs (auto-enabled on legacy Windows consoles)
+  --unicode                  force Unicode glyphs (override the auto-detection)
 
 EXAMPLES
   npx slopscore                         scan the current directory
@@ -280,6 +307,8 @@ ANTI_SLOP_PROTOCOL.md to your coding agent and say "check the system."
 `;
 
 function main() {
+  // Emit UTF-8 bytes regardless of the platform default (matters on Windows).
+  if (process.stdout.setDefaultEncoding) try { process.stdout.setDefaultEncoding('utf8'); } catch { /* non-fatal */ }
   const argv = process.argv.slice(2);
   const cmd = argv[0];
   if (cmd === '--version' || cmd === '-v') { out(pkg.version); return; }

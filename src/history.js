@@ -3,12 +3,15 @@
 const fs = require('fs');
 
 const SPARK = '▁▂▃▄▅▆▇█';
+const SPARK_ASCII = '.-:=+*#@';
 
-// A tiny ASCII sparkline of a numeric series, scaled to its own max.
-function sparkline(values) {
+// A tiny sparkline of a numeric series, scaled to its own max. Falls back to a
+// pure-ASCII ramp on terminals that can't render the Unicode block elements.
+function sparkline(values, ascii = false) {
   if (!values.length) return '';
+  const ramp = ascii ? SPARK_ASCII : SPARK;
   const max = Math.max(...values, 1);
-  return values.map((v) => SPARK[Math.min(SPARK.length - 1, Math.round((v / max) * (SPARK.length - 1)))]).join('');
+  return values.map((v) => ramp[Math.min(ramp.length - 1, Math.round((v / max) * (ramp.length - 1)))]).join('');
 }
 
 function loadHistory(file) {

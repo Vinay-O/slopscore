@@ -27,6 +27,11 @@ All notable changes to slopscore are documented here. Format based on
 ### Added
 - **Per-rule breakdown in the summary.** The score banner now prints `by rule: 068 ×45 ·
   055 ×2`, so you can see at a glance which detector is driving the number.
+- **Windows / legacy-terminal output.** slopscore auto-detects consoles that can't render
+  Unicode (legacy `cmd`/PowerShell on a non-UTF-8 code page) and falls back to ASCII
+  glyphs for the banner, severity markers, and trend sparkline — `--ascii` / `--unicode`
+  force it either way. New `--out <file>` writes the report as UTF-8 straight from Node,
+  so it can't be mangled into UTF-16 by a shell's `>` redirect. stdout is pinned to UTF-8.
 
 ## [1.5.0]
 
