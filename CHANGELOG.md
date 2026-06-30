@@ -24,6 +24,12 @@ All notable changes to slopscore are documented here. Format based on
 - **`--category <names>` focus filter.** Run a focused audit — e.g.
   `slopscore scan . --category security` — scoring and reporting only the categories
   you name (comma-separated).
+- **Project presets (`--preset` / `"preset"` config).** Tune coverage to the project so
+  you're not fighting irrelevant findings: `library`/`backend` turn off the visual, copy,
+  and a11y categories; `cli` also silences stdout-debug rules; `web`/`marketing` keep
+  everything on; framework aliases (`mui`, `tailwind`, `chakra`, `mantine`, `emotion`,
+  `styled-components`, `vanilla-extract`) confirm a web UI (the visual detectors are
+  framework-agnostic). Your explicit `rules` always win over the preset.
 - **Performance detectors (new `performance` category).** `175` deep-clone via
   `JSON.parse(JSON.stringify())`, `176` `SELECT *` over-fetch, `177` `forEach` with an
   async callback (unawaited work / swallowed errors). `093` (whole-library import) is

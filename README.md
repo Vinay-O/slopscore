@@ -251,6 +251,7 @@ slopscore scan . --markdown --out slop.md   # write a UTF-8 report file directly
 
 ```json
 {
+  "preset": "library",
   "ignore": ["examples", "legacy", "src/generated"],
   "failOn": "major",
   "rules": {
@@ -265,10 +266,20 @@ slopscore scan . --markdown --out slop.md   # write a UTF-8 report file directly
 
 | Option | Meaning |
 |:--|:--|
+| `preset` | Tune coverage to the project type (see below). Your `rules` always win over the preset. |
 | `ignore` | Extra paths to skip (added to the built-in `node_modules`, `dist`, etc.) |
 | `failOn` | Exit non-zero at `critical`, `major`, `minor`, or `never` |
 | `rules` | Per-rule overrides — `false`/`"off"` disables a rule; `"critical"`/`"major"`/`"minor"` overrides its severity |
 | `paths` | Per-directory overrides — same shape as `rules`, plus `"*"` to target every rule under a path (e.g. soften all of `legacy/`) |
+
+**Presets** (`--preset <name>` or the `preset` config key) tune coverage so you're not fighting irrelevant findings:
+
+| Preset | Effect |
+|:--|:--|
+| `web` / `marketing` | A styled web UI — everything on (the default). |
+| `library` / `backend` | No UI surface — turns off the **visual**, **copy**, and **a11y** categories; keeps code, security, and performance. |
+| `cli` | Like `library`, and also silences the stdout-debug rules (`console.log`, Python `print`, Rust `println!`) — stdout is the product. |
+| `mui` / `tailwind` / `chakra` / `mantine` / `emotion` / `styled-components` / `vanilla-extract` | Styling-framework aliases. slopscore's visual detectors are framework-agnostic (they match Tailwind classes **and** CSS-in-JS / MUI `sx` / styled / emotion alike), so these just confirm "web UI, all checks on." |
 
 **Suppress one finding inline** with a directive (require a reason for your future self):
 
