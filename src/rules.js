@@ -69,7 +69,7 @@ const LINE_RULES = [
   {
     id: '058', title: 'Hardcoded secret / API key', category: 'security', severity: 'critical',
     authority: 'flag', exts: null, skipTests: true, respectComments: false,
-    re: /((api[_-]?key|secret|password|access[_-]?token)\s*[:=]\s*['"][^'"]{12,}['"]|\bsk-[A-Za-z0-9]{16,}|\bBearer\s+[A-Za-z0-9._-]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN[A-Z ]*PRIVATE KEY-----)/i,
+    re: /((api[_-]?key|secret|password|access[_-]?token)\s*[:=]\s*['"][^'"\s]{12,}['"]|\bsk-[A-Za-z0-9]{16,}|\bBearer\s+[A-Za-z0-9._-]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN[A-Z ]*PRIVATE KEY-----)/i,
     unless: /process\.env|import\.meta\.env|getenv|REPLACE|YOUR_|example|placeholder|\*{4,}|xxxx/i,
     fix: 'Move to an env var / secret manager. A committed secret is COMPROMISED — rotate it now.',
   },
@@ -730,10 +730,12 @@ const LINE_RULES = [
   },
   {
     id: '198', title: 'JSON.parse of external data without a guard', category: 'robustness', severity: 'major',
-    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
-    // Parsing an awaited response, storage, env, or request body that can be
-    // malformed — an unguarded JSON.parse throws a SyntaxError and crashes the path.
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'low',
+    // Parsing an awaited response, storage, env, or request body that can be malformed.
+    // Low confidence: a regex can't see a surrounding try/catch, so this is a soft nudge
+    // (gate it out with --min-confidence medium). Inline `try` on the same line is exempt.
     re: /JSON\.parse\s*\(\s*(await\b|localStorage|sessionStorage|process\.env|req\.|request\.|res\.|response\.)/,
+    unless: /\btry\b/,
     fix: 'Wrap external JSON.parse in try/catch and handle the malformed case — untrusted/awaited data is not guaranteed to be valid JSON.',
   },
 
@@ -900,13 +902,13 @@ const LINE_RULES = [
   },
   {
     id: '223', title: '`var` instead of `const` / `let`', category: 'code', severity: 'minor',
-    authority: 'propose', exts: CODE, skipTests: false, respectComments: true, confidence: 'medium',
+    authority: 'propose', exts: CODE, skipTests: false, respectComments: true, confidence: 'low',
     re: /\bvar\s+\w/,
-    fix: 'Use const (or let). `var` is function-scoped and hoisted — a source of subtle scope bugs the block-scoped keywords remove.',
+    fix: 'Use const (or let). `var` is function-scoped and hoisted — a source of subtle scope bugs the block-scoped keywords remove. (Low confidence: common in pre-ES6 hand-written code, not an AI-slop tell — gate it out with --min-confidence medium.)',
   },
   {
     id: '224', title: 'Loose equality (== / !=)', category: 'code', severity: 'minor',
-    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'low',
     // Flags == / != but not === / !== / <= / >=, and exempts the accepted `== null`
     // / `!= null` idiom (a deliberate null-AND-undefined check).
     re: /(?<![=!<>])(==|!=)(?!=)(?!\s*(null|undefined)\b)/,
@@ -1033,9 +1035,11 @@ const LINE_RULES = [
   },
   {
     id: '244', title: 'rm -rf on an unquoted/variable path', category: 'robustness', severity: 'major',
-    authority: 'flag', exts: SHELL, skipTests: false, respectComments: true,
+    authority: 'flag', exts: SHELL, skipTests: false, respectComments: true, confidence: 'medium',
     re: /\brm\s+-[rf]{1,2}[a-z]*\s+["']?\$/i,
-    fix: 'An empty or mis-set variable turns `rm -rf $DIR/` into `rm -rf /`. Quote it, set `set -u`, and guard against an empty value before deleting.',
+    // Exempt the safe idioms: `${VAR:?}` (errors if unset) and `${VAR:-default}`.
+    unless: /\$\{[^}]*:[?=-]/,
+    fix: 'An empty or mis-set variable turns `rm -rf $DIR/` into `rm -rf /`. Quote it and guard the value: `rm -rf "${DIR:?}"` (aborts if unset).',
   },
   {
     id: '245', title: 'chmod 777 (world-writable)', category: 'security', severity: 'major',

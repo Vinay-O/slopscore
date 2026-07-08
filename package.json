@@ -11,6 +11,7 @@
     "scan": "node bin/slopscore.js scan .",
     "selfcheck": "node bin/slopscore.js scan . --fail-on minor",
     "bench": "node scripts/benchmark.js",
+    "teardown": "node scripts/scan-repos.js",
     "demo": "node bin/slopscore.js scan examples/slop.tsx"
   },
   "files": [
