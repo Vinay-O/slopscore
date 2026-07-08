@@ -59,15 +59,15 @@ $ npx slopscore examples/slop.tsx
     :29 🔴 CRIT  [071] dangerouslySetInnerHTML / .innerHTML without sanitization
         <div dangerouslySetInnerHTML={{ __html: data.bio }} />
         fix: Render as text, or sanitize with DOMPurify + an allowlist before injecting.
-    … and 16 more
+    … and 18 more
 
   ╔══════════════════════════════════════════╗
   ║           S L O P   S C O R E            ║
   ╚══════════════════════════════════════════╝
 
-   84 weighted   (33 lines scanned)
-   5 critical   9 major   7 minor
-   by rule: 105 ×1 · 176 ×1 · 058 ×1 · 054 ×1 · 070 ×1 · 099 ×1
+   86 weighted   (33 lines scanned)
+   5 critical   9 major   9 minor
+   by rule: 105 ×1 · 176 ×1 · 216 ×1 · 220 ×1 · 058 ×1 · 054 ×1
 
    ▶ Vibe-coded. Audit before anyone depends on it.
 ```
@@ -79,7 +79,7 @@ Every finding has a **severity**, a **catalog ID**, a **confidence**, the **exac
 ```bash
 npx slopscore                      # scan the current directory
 npx slopscore scan src --fail-on minor
-npx slopscore examples/slop.tsx    # watch a sloppy file score 84
+npx slopscore examples/slop.tsx    # watch a sloppy file score 86
 npx slopscore . --markdown > slop.md
 ```
 
@@ -235,8 +235,12 @@ It only ever touches the 🟢 **AUTO**-authority rules with a deterministic, beh
 ```bash
 slopscore scan . --watch       # re-scan on every save — a live conscience
 slopscore scan . --history     # record the score over time + a trend sparkline
+slopscore gate                 # pre-ship gate: fail only on production security + robustness crit/major
+slopscore scan . --changed     # scan only what git says changed (fast local + CI)
+slopscore doctor               # diagnose config, ignored paths, stale suppressions
 slopscore scan . --sarif       # inline annotations on the PR diff (code scanning)
-slopscore scan . --markdown --out slop.md   # write a UTF-8 report file directly
+slopscore scan . --format junit --out slop.xml   # JUnit XML for CI test-report panels
+slopscore scan . --markdown --out slop.md        # write a UTF-8 report file directly
 ```
 
 `--history` writes `.slopscore-history.json` and prints `trend  █▃▁  0 weighted · down 100% since last run` — commit it and watch slop fall sprint over sprint.
@@ -301,7 +305,11 @@ The CLI runs the deterministic subset; the [full 250-pattern catalog](ANTI_SLOP_
 | 🔐 Security | Hardcoded secrets (AWS keys, GitHub PATs, **PEM private keys**) · SQL injection (template **and** string-concat) · command injection · **disabled TLS verification** · **weak hashing (MD5/SHA-1) for secrets** · **insecure randomness for tokens** · **insecure deserialization** (`pickle`, `yaml.load`) · **wildcard CORS** · **`eval`/`new Function`** · **unverified JWTs** (`alg: none`) · **cleartext HTTP** · `target="_blank"` without `noopener` · auth tokens in `localStorage` · secrets in URL params · `dangerouslySetInnerHTML` · stack traces to client · committed `.env` |
 | 🧱 Code quality | Empty catch blocks · overly-broad exceptions · `any` everywhere · double assertions · hallucinated APIs · god files (cohesion-aware) · copy-pasted duplicate blocks · TODO/FIXME · `setTimeout` race "fixes" · tautological test assertions |
 | 🚀 Performance | Deep clone via `JSON.parse(JSON.stringify())` · `SELECT *` over-fetch · `forEach(async …)` (unawaited) · whole-library imports for one utility |
-| 🐍 Language-specific | **Python:** mutable default args · `== None` · `eval`/`exec` · f-string SQL · `os.system`/`shell=True` · `print` debug. **Go:** empty `interface{}` · ignored errors · `fmt.Print` · `panic()`. **Rust:** `.unwrap()`/`.expect()` · `todo!`/`panic!` · `unsafe` · `dbg!`/`println!` |
+| 🛡️ Robustness ("will it break?") | Unguarded `JSON.parse` of external data · unchecked `.find()`/`.match()`/`querySelector()` dereference · `parseInt` without a radix · `RegExp` built from user input (ReDoS) — a static pre-ship gate via `slopscore gate` |
+| 🎭 Fake features & tests | Hardcoded dashboard stats · mock/dummy data on a production path · `Math.random()` metrics · empty `onClick={() => {}}` handlers · canned-success stubs · tautological / matcher-less test assertions · sleep-based flaky tests |
+| 🐳 Config / IaC / CI | Dockerfile `:latest` / `USER root` / `curl \| sh` / baked secrets · docker-compose `privileged` · GitHub Actions `pull_request_target` · unpinned actions · `${{ github.event }}` script injection |
+| 📱 Mobile / a11y | Zoom-disabling viewport (`user-scalable=no`) · sub-12px body text · `width: 100vw` overflow · `<html>` missing `lang` · positive `tabIndex` |
+| 🐍 Language-specific | **Python:** mutable default args · `== None` · `eval`/`exec` · f-string SQL · `os.system`/`shell=True` · `print` debug · `DEBUG=True`. **Go:** empty `interface{}` · ignored errors · `fmt.Print` · `panic()`. **Rust:** `.unwrap()`/`.expect()` · `todo!`/`panic!` · `unsafe` · `dbg!`/`println!`. **Java:** `printStackTrace` · `System.out` · `Runtime.exec`. **C#:** `Console.Write` · `async void`. **Ruby:** `binding.pry` · `puts`/`pp` · `html_safe`/`raw`. **PHP:** `var_dump`/`print_r`. **Shell:** `curl \| sh` · `rm -rf $VAR` · `chmod 777`. **SQL:** `DELETE`/`UPDATE` without `WHERE` · `GRANT ALL` |
 | 📦 Supply chain | Dependency bloat · unpinned/aliased LLM model strings (date-pinned ids exempt) · source maps shipped to production |
 | ♿ Accessibility | `<img>` without alt · interactive `<div onClick>` · `outline:none` with no focus style |
 | 🎨 Visual slop | VibeCode-purple gradient · conic/mesh gradients · glassmorphism · gradient-clip text · Sparkle/Wand icons · recycled AI fonts · confetti — matched across **Tailwind classes AND CSS-in-JS** (MUI `sx`, styled, emotion) |
