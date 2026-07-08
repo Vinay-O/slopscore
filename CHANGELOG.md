@@ -3,6 +3,25 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.9.1] — 2026-07-08
+
+> False-positive hardening, found by running slopscore on real repositories
+> (a new `npm run teardown` tool). Fewer false alarms on mature, hand-written code.
+
+### Fixed
+- **`058` (hardcoded secret):** a value containing whitespace is a dictionary phrase,
+  not a secret — no longer flags demo values like `secret: "keyboard cat"`. High-entropy
+  tokens (and all provider-prefixed keys) still fire.
+- **`244` (rm -rf on a variable):** exempts the safe bash idiom `rm -rf "${VAR:?}"`.
+- **`198` (unguarded `JSON.parse`):** exempts an inline `try`, and downgraded to low
+  confidence — a regex can't see a surrounding try/catch, so it's a soft, gate-able nudge.
+- **`223` (`var`) and `224` (`==`):** downgraded to **low confidence**. They're pre-ES6
+  hand-written tells, not AI-slop signals — gate them out with `--min-confidence medium`.
+
+### Added
+- `npm run teardown` (`scripts/scan-repos.js`) — scan a set of well-known packages and
+  print a Slop-Score table (with a fair high-confidence column). A reporting tool, not CI.
+
 ## [1.9.0] — 2026-07-07
 
 > The big coverage wave: **69 new detectors (85 → 154)** and the catalog grows to
