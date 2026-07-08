@@ -48,6 +48,17 @@ test('idiomatic clean code in the new languages produces no findings', () => {
   }
 });
 
+test('generated docs and .d.ts declarations are not scored as production (real-repo FPs)', () => {
+  // underscore's docs/modules/*.html (generated API docs) flooded the score — docs/ is non-production now.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-docs-'));
+  fs.mkdirSync(path.join(dir, 'docs'));
+  fs.writeFileSync(path.join(dir, 'docs', 'api.html'), '<html><body>generated</body></html>\n');
+  const prodDocs = scan([dir], { ignoreBase: dir }).findings.filter((f) => f.zone !== 'test');
+  assert.deepStrictEqual(prodDocs.map((f) => f.id), [], 'docs/ findings are reported, not scored as production');
+  // preact flagged src/index.d.ts innerHTML — a type declaration, not code.
+  assert.ok(!ids(tmpFile('types.d.ts', 'interface E { innerHTML: string; }\n')).includes('071'), '.d.ts is not code');
+});
+
 test('idiomatic clean code in the new categories (robustness/fake/mobile) produces no findings', () => {
   const clean = {
     'robust.js': 'const n = parseInt(raw, 10);\nconst m = str.match(/\\d+/);\nif (m) use(m[0]);\ntry { data = JSON.parse(await res.text()); } catch (e) { handle(e); }\n',

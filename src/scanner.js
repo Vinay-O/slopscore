@@ -79,7 +79,7 @@ function looksGenerated(file, lines) {
 // far less production risk (controlled inputs, never shipped), so they're reported
 // separately and don't inflate the headline Slop Score. Note: examples/ is treated
 // as production (sample code people copy) — only clearly non-shipped paths qualify.
-const NONPROD_PATH = /(^|[\\/])(tests?|specs?|e2e|__tests__|__mocks__|fixtures?|mocks?|cypress|\.storybook|scripts?|tooling|benchmarks?|bench|audit)([\\/]|$)/i;
+const NONPROD_PATH = /(^|[\\/])(tests?|specs?|e2e|__tests__|__mocks__|fixtures?|mocks?|cypress|\.storybook|scripts?|tooling|benchmarks?|bench|audit|docs?)([\\/]|$)/i;
 const NONPROD_FILE = /\.(test|spec|stories|cy|e2e|bench)\.[a-z]+$/i;
 function zoneOf(file) {
   return (NONPROD_PATH.test(file) || NONPROD_FILE.test(file) || TEST_RE.test(file)) ? 'test' : 'production';

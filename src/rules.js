@@ -88,6 +88,7 @@ const LINE_RULES = [
   {
     id: '071', title: 'dangerouslySetInnerHTML / .innerHTML without sanitization', category: 'security',
     authority: 'propose', exts: CODE, skipTests: true, respectComments: true, severity: 'critical',
+    unlessFile: /\.d\.ts$/,
     // Assignment only (`=`, not `===` comparison). Data-flow-lite: a constant string
     // literal (`innerHTML = "static"`, `__html: "..."`) carries no user data — not XSS.
     re: /(dangerouslySetInnerHTML|\.innerHTML\s*=(?!=))/,
