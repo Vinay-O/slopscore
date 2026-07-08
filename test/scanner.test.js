@@ -151,17 +151,26 @@ test('score: clean input is pristine', () => {
   assert.match(s.verdict, /Pristine/);
 });
 
-test('score: critical weighs 10, major 3, minor 1', () => {
+test('score: critical weighs 10, major 3, minor 1 (at full/high confidence)', () => {
   const p = tmpFile('a.ts', [
-    'localStorage.setItem("token", jwt);', // 073 critical (10)
-    'const x: any = 1;',                    // 054 major (3)
-    '// TODO: later',                        // 057 minor (1)
+    'localStorage.setItem("token", jwt);', // 073 critical, high (10)
+    'const data = fetch.get("/api");',      // 070 hallucinated API, major, high (3)
+    '// TODO: later',                        // 057 minor, high (1)
   ].join('\n') + '\n');
   const s = score(scan(p));
   assert.strictEqual(s.counts.critical, 1);
   assert.strictEqual(s.counts.major, 1);
   assert.strictEqual(s.counts.minor, 1);
   assert.strictEqual(s.weighted, 14);
+});
+
+test('score: confidence scales the weight (medium = half, low = quarter)', () => {
+  // One medium-confidence major (054 `any`, ×3×0.5 = 1.5) + one high critical (073, 10) → round(11.5) = 12.
+  const p = tmpFile('a.ts', 'localStorage.setItem("token", jwt);\nconst x: any = 1;\n');
+  const s = score(scan(p));
+  assert.strictEqual(s.counts.critical, 1);
+  assert.strictEqual(s.counts.major, 1, '054 any is still a major by severity');
+  assert.strictEqual(s.weighted, 12, 'medium-confidence major counts half');
 });
 
 test('binary files are skipped', () => {

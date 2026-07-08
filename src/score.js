@@ -1,6 +1,11 @@
 'use strict';
 
 const WEIGHTS = { critical: 10, major: 3, minor: 1 };
+// Confidence scales a finding's contribution to the headline: a precise detector
+// (secret, SQL injection) counts full; a heuristic idiom (design tell, `var`, `==`,
+// duplication) counts less. So the verdict reflects the STRONG signal, and soft
+// noise on mature code can't inflate it to "vibe-coded". True counts stay unweighted.
+const CONF_FACTOR = { high: 1, medium: 0.5, low: 0.25 };
 // No single rule should define the verdict: each rule contributes at most this
 // many findings to the weighted score (true counts are still reported).
 const CAP_PER_RULE = 10;
@@ -52,9 +57,10 @@ function score(result) {
   let capped = false;
   for (const f of prod) {
     seen[f.id] = (seen[f.id] || 0) + 1;
-    if (seen[f.id] <= CAP_PER_RULE) weighted += WEIGHTS[f.severity] || 0;
+    if (seen[f.id] <= CAP_PER_RULE) weighted += (WEIGHTS[f.severity] || 0) * (CONF_FACTOR[f.confidence] || 1);
     else capped = true;
   }
+  weighted = Math.round(weighted);
   // Density over PRODUCTION lines so the headline reflects shipped-code risk.
   const prodLines = result.productionLines != null ? result.productionLines : result.totalLines;
   const kloc = prodLines / 1000;

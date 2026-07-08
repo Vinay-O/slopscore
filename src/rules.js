@@ -52,7 +52,7 @@ const LINE_RULES = [
   },
   {
     id: '054', title: 'TypeScript `any`', category: 'code', severity: 'major',
-    authority: 'propose', exts: TS, skipTests: false, respectComments: true,
+    authority: 'propose', exts: TS, skipTests: false, respectComments: true, confidence: 'medium',
     eslint: '@typescript-eslint/no-explicit-any',
     unlessFile: /\.d\.ts$/,
     // `catch (e: any)` is owned by rule 078 — don't double-flag the same line.
@@ -111,7 +111,7 @@ const LINE_RULES = [
   },
   {
     id: '077', title: 'Double type assertion', category: 'code', severity: 'major',
-    authority: 'propose', exts: TS, skipTests: false, respectComments: true,
+    authority: 'propose', exts: TS, skipTests: false, respectComments: true, confidence: 'medium',
     re: /\bas\s+(unknown|any)\s+as\b/,
     fix: 'Fix the real type mismatch instead of escaping through a double assertion.',
   },

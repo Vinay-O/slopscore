@@ -65,7 +65,7 @@ $ npx slopscore examples/slop.tsx
   ║           S L O P   S C O R E            ║
   ╚══════════════════════════════════════════╝
 
-   86 weighted   (33 lines scanned)
+   75 weighted   (33 lines scanned)
    5 critical   9 major   9 minor
    by rule: 105 ×1 · 176 ×1 · 216 ×1 · 220 ×1 · 058 ×1 · 054 ×1
 
@@ -79,7 +79,7 @@ Every finding has a **severity**, a **catalog ID**, a **confidence**, the **exac
 ```bash
 npx slopscore                      # scan the current directory
 npx slopscore scan src --fail-on minor
-npx slopscore examples/slop.tsx    # watch a sloppy file score 86
+npx slopscore examples/slop.tsx    # watch a sloppy file score 75
 npx slopscore . --markdown > slop.md
 ```
 
@@ -119,12 +119,16 @@ The scanner finds it. The protocol fixes it. The CI gate keeps it out. And `AGEN
 
 ## The Slop Score
 
-One number, weighted by severity, normalized per 1,000 lines so big repos don't look worse just for being big:
+One number, weighted by severity **and confidence**, normalized per 1,000 lines so big repos don't look worse just for being big:
 
 ```
-SLOP SCORE   = (🔴 critical × 10) + (🟠 major × 3) + (🟡 minor × 1)
+SLOP SCORE   = Σ  (severity weight)  ×  (confidence factor)
+               severity:   🔴 critical ×10 · 🟠 major ×3 · 🟡 minor ×1
+               confidence: high ×1 · medium ×0.5 · low ×0.25
 SLOP DENSITY = weighted findings per 1,000 lines (kLOC)
 ```
+
+Confidence scaling means a precise detector (a hardcoded secret, SQL injection) counts full, while a heuristic idiom (a `var`, a `==`, a design tell, a duplicate-block guess) counts a fraction — so soft noise on mature code can't inflate a real, human-written library to "vibe-coded." (Each rule is also capped at 10 findings toward the score, so one loud detector can't define the verdict.)
 
 | Density (weighted / kLOC) | Verdict |
 |:--|:--|

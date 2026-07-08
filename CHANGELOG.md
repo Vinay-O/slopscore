@@ -3,6 +3,30 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.9.2] — 2026-07-08
+
+> Real-world calibration. Running slopscore on a spread of well-known repos (via
+> `npm run teardown`) showed the headline verdict was too alarming on mature,
+> hand-written code — soft heuristics (`var`, `==`, duplication, design tells) piled
+> up and pushed respected libraries toward "vibe-coded." This release makes the score
+> reflect the STRONG signal.
+
+### Changed
+- **Confidence-weighted scoring.** A finding's contribution to the Slop Score is now
+  scaled by its confidence: `high ×1 · medium ×0.5 · low ×0.25`. Precise detectors
+  (secrets, injection, empty catch) count full; heuristic idioms count a fraction.
+  True counts are unchanged; only the weighted headline is affected. On a spread of
+  well-known libraries this moved the default verdict from "Heavy/Vibe-coded" to
+  Clean–Mild — matching the high-confidence gate — while `examples/slop.tsx` stays
+  Vibe-coded.
+- **`docs/` is a non-production zone.** Findings in generated API docs / guides are
+  reported, not scored (fixes a large false-positive class — e.g. jsdoc HTML output).
+- **`054` (`any`) and `077` (double assertion) are medium confidence** — context-
+  dependent style signals (routine in advanced-TS type machinery), not precise tells.
+
+### Fixed
+- **`071`** skips `.d.ts` type declarations (a type mentioning `innerHTML` is not code).
+
 ## [1.9.1] — 2026-07-08
 
 > False-positive hardening, found by running slopscore on real repositories
