@@ -3,6 +3,54 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.9.0] — 2026-07-07
+
+> The big coverage wave: **69 new detectors (85 → 154)** and the catalog grows to
+> **250 patterns**, with the scanner reaching into config/IaC files and six more
+> languages — plus a pre-ship gate, `doctor`, `--changed`, config validation, a
+> custom-rules API, and JUnit output. Every headline count is reconciled by a test,
+> the scanner still passes its own scan, and it stays **zero-dependency**.
+
+### Added — detectors (154 total, catalog now 250)
+- **Tier-0 easy misses** (182–190): merge-conflict markers, bare `@ts-ignore`/`@ts-expect-error`,
+  blanket `eslint-disable`, `debugger` (AUTO-fix), focused/skipped tests, non-null-assertion abuse,
+  `@ts-nocheck`, `process.exit()` in library code.
+- **Secret breadth** (192–194): GCP/GitLab/GitHub/Stripe/npm/PyPI/SendGrid/HuggingFace/Twilio
+  provider tokens, Slack webhooks, hardcoded JWTs, and credentials embedded in URLs.
+- **New `robustness` category** (195–198): `parseInt` without a radix, `RegExp` built from user input,
+  unchecked `.find()`/`.match()`/`querySelector()` dereference, `JSON.parse` of external data.
+- **IaC / Docker / CI scanning** (199–206): the scanner now reads Dockerfiles, docker-compose,
+  Terraform, and GitHub Actions workflows — unpinned base images, `USER root`, remote-exec pipes,
+  baked secrets, insecure compose settings, `pull_request_target`, unpinned actions, `${{ }}` injection.
+- **New `testing` category** (207–210): tautological assertions, matcher-less `expect()`, sleep-based
+  waits, `if (false)` dead code (test-scoped where appropriate).
+- **New `fake` category** (211–217): hardcoded dashboard stats, mock data on production paths,
+  Math.random-driven metrics, empty handlers, canned-success stubs, "coming soon", sample identities.
+- **Error handling / async** (218–221): swallowed promise rejections, `throw "string"`, generic
+  "something went wrong", global `uncaughtException` swallow.
+- **Code quality / TS depth** (222–226): `Function`/`Object` as a type, `var`, loose `==`
+  (exempting the `== null` idiom), empty function bodies, `return await`.
+- **New `mobile` category + a11y/visual/copy** (227–234): shouting CTAs, unsupported superlatives,
+  `<html>` without `lang`, positive `tabIndex`, zoom-disabling viewports, sub-12px fonts, `100vw`, `!important`.
+- **Six more languages + framework packs** (235–251): Java, C#, Ruby, PHP, Shell, SQL, plus Vue
+  `v-html`, Python `debug=True`, Rails `html_safe`/`raw`, Angular `bypassSecurityTrust*`.
+
+### Added — CLI / engine / reporting
+- **`slopscore gate`** / **`--gate ship`** — a pre-ship gate that fails only on production
+  security + robustness crit/major, with a ship-readiness verdict.
+- **`slopscore doctor`** — diagnoses config, ignored paths, stale suppressions, detector count.
+- **`--changed` / `--since <ref>`** — scan only files git reports as changed (CI speed).
+- **Config-schema validation** — an unknown `.slopscore.json` key now warns instead of being
+  silently ignored.
+- **`customRules`** in `.slopscore.json` — define house detectors (id/pattern/severity/fix) without forking.
+- **`--format junit`** — JUnit XML for CI test-report panels; SARIF gains `partialFingerprints`.
+
+### Changed / fixed
+- The comment mask now classifies **regex-literal interiors** and **multi-line template literals**
+  as string content, removing a class of false positives for code-only rules.
+- `bin/slopscore.js` init/scaffold logic extracted to `src/scaffold.js`; config/git helpers to
+  `src/diagnostics.js` — keeping every source file honest against the tool's own god-file rule.
+
 ## [1.8.0] — 2026-06-30
 
 > Adoption fixes from a real-world run on a ~500k-line codebase: the detectors were

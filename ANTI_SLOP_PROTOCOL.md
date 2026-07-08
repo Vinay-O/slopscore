@@ -296,7 +296,7 @@ Each entry: **ID · Title** `SEVERITY` `AUTHORITY` — description, `DETECT` (ho
 (aesthetic tell). Authority: 🟢 AUTO · 🟡 PROPOSE · 🔴 FLAG (see §0).
 
 A `` `⚙️ slopscore scan` `` tag means **the deterministic CLI already detects this pattern** —
-`npx slopscore` flags it for you with the exact location and fix. **85 of the 181** carry this tag
+`npx slopscore` flags it for you with the exact location and fix. **154 of the 250** carry this tag
 today; the rest need an AST tool (§2.1) or human reading (layout sameness, fake features,
 architectural drift). The tags are generated from the scanner's own rule table, so they never
 drift from what the CLI actually does. Patterns *without* the tag are where you, the agent, earn
@@ -1527,3 +1527,356 @@ reporting. Verify current figures before quoting them externally:
 > **Remember the one rule that makes this safe:** the tool revealed how little structure was there to
 > begin with. Your job is to add the structure back — fix what you may, propose what needs taste, flag
 > what needs a human — and leave the system more coherent than you found it. Then run it again.
+
+---
+
+## §33 · Automated additions (scanner-generated)
+
+> These entries were added as the scanner grew (v1.9). Each is checked by
+> `slopscore scan` — the `⚙️` tag and this catalog are kept in lockstep with the
+> rule table in `src/rules.js` by a test, so the two halves never drift.
+
+**182 · Merge-conflict marker committed** `🔴` `🔴 FLAG` `⚙️ slopscore scan`
+Category: code · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `^(<{7}|={7}|>{7})(\s|$)`.
+`FIX:` Resolve the merge and delete the <<<<<<< / ======= / >>>>>>> markers — this code is syntactically broken.
+
+**183 · @ts-ignore / @ts-expect-error without a reason** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: code · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `@ts-(ignore|expect-error)\s*(\*\/\s*)?$`.
+`FIX:` Add a reason after the directive (`@ts-expect-error <why>`) or fix the underlying type — a bare suppression hides a genuine error.
+
+**184 · Blanket eslint-disable without a rule name** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: code · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `(\/\/|\/\*)\s*eslint-disable(-next-line|-line)?\s*(\*\/\s*)?$`.
+`FIX:` Name the exact rule(s) and add a reason (`eslint-disable-next-line no-console — <why>`). A blanket disable hides unrelated errors too.
+
+**185 · debugger statement left in** `🟠` `🟢 AUTO` `⚙️ slopscore scan`
+Category: code · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\bdebugger\b\s*;?`.
+`FIX:` Remove the debugger statement — it halts execution whenever devtools are open.
+
+**186 · Focused test disables the rest of the suite** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `(\b(describe|it|test|context|suite)\.only\s*\(|\bfdescribe\s*\(|\bfit\s*\()`.
+`FIX:` Remove .only / fdescribe / fit before committing — a focused test silently skips every other test in the file, so CI goes green on almost nothing.
+
+**187 · Skipped / TODO test committed** `🟡` `🔴 FLAG` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `(\b(describe|it|test|context)\.(skip|todo)\s*\(|\bxit\s*\(|\bxdescribe\s*\(|\bxtest\s*\()`.
+`FIX:` A committed skipped test is dead coverage — finish it, or delete it and track the gap as a real issue.
+
+**188 · Non-null assertion (!) overuse** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `[\w)\]]!(?=[.([])`.
+`FIX:` The ! non-null assertion overrides the compiler without proving the value exists — narrow with a guard, a default, or optional chaining instead.
+
+**189 · @ts-nocheck disables type-checking for the whole file** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: code · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `@ts-nocheck\b`.
+`FIX:` Remove @ts-nocheck and fix the file's type errors — it turns TypeScript off for the entire file, not one line.
+
+**190 · process.exit() in application / library code** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `process\.exit\s*\(`.
+`FIX:` Throw an error or return a status and let the entry point exit — process.exit() skips cleanup, breaks tests, and kills any process that embeds your code.
+
+**192 · Hardcoded provider credential** `🔴` `🔴 FLAG` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `(AIza[0-9A-Za-z_\-]{35}|glpat-[0-9A-Za-z_\-]{20,}|gh[ous]_[A-Za-z0-9]{36}|github_pat_[0-9a-zA-Z_]{22,}|sk_live_[0-9a-zA-Z]{16,}|rk_live_[0-9a-zA-Z]{16,}|npm_[A-Za-z0-9]{36}|pypi-[A-Za-z0-9_\-]{16,}|SG\.[A-Za-z0-9_\-]{16,}\.[A-Za-z0-9_\-]{16,}|hf_[A-Za-z0-9]{34}|SK[0-9a-f]{32}|https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9\/]{20,})`.
+`FIX:` Move it to an env var / secret manager. A committed provider credential is COMPROMISED — revoke and rotate it now.
+
+**193 · Hardcoded JWT** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\beyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}`.
+`FIX:` Never hardcode a JWT — it grants whatever it was signed for until it expires. Mint tokens at runtime; if this one leaked, rotate the signing key.
+
+**194 · Credentials embedded in a URL** `🔴` `🔴 FLAG` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\b(https?|ftp|ssh|git):\/\/[^/\s:@"'\`]+:[^/\s:@"'\`]{3,}@`.
+`FIX:` Strip the credentials from the URL — they leak into logs, history, and referrers. Pass auth via a header or a secret manager.
+
+**195 · parseInt without a radix** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: robustness · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\bparseInt\s*\(\s*[^,)]+\)`.
+`FIX:` Pass the radix explicitly: parseInt(x, 10). Without it, leading-zero and 0x inputs parse to the wrong number.
+
+**196 · RegExp built from user input (ReDoS / throw)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: robustness · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `new RegExp\s*\([^)]*\b(input|user|req|request|param|query|body|arg)\w*\b`.
+`FIX:` Validate/escape the input before compiling it, or match against a fixed pattern. A user-supplied regex can throw or catastrophically backtrack (ReDoS).
+
+**197 · Unchecked .find() / .match() result dereferenced** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: robustness · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\.(find|match|querySelector|closest)\s*\([^)]*\)\s*[.[]`.
+`FIX:` Guard the result first (`const m = str.match(re); if (m) …`) or use optional chaining — .find/.match/querySelector return null/undefined when nothing matches.
+
+**198 · JSON.parse of external data without a guard** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: robustness · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `JSON\.parse\s*\(\s*(await\b|localStorage|sessionStorage|process\.env|req\.|request\.|res\.|response\.)`.
+`FIX:` Wrap external JSON.parse in try/catch and handle the malformed case — untrusted/awaited data is not guaranteed to be valid JSON.
+
+**199 · Unpinned Docker base image (:latest or no tag)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: supply-chain · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `^\s*FROM\s+(?!scratch\b)[^\s:@]+(:latest)?\s*(AS\s+\w+)?\s*$`.
+`FIX:` Pin the base image to an immutable tag or digest (node:20.11.1-alpine, or @sha256:…). :latest / untagged drifts and breaks reproducible builds.
+
+**200 · Docker container runs as root** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `^\s*USER\s+root\b`.
+`FIX:` Create and switch to a non-root user (RUN adduser … && USER app) — a root container turns any escape into host access.
+
+**201 · Docker fetches and executes a remote script** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `(curl|wget)\s+[^|]*\|\s*(sudo\s+)?(sh|bash)\b|^\s*ADD\s+https?:\/\/`.
+`FIX:` Do not pipe a remote URL into a shell. COPY a vendored, reviewed file, or download then verify a checksum/signature before running it.
+
+**202 · Secret baked into a Docker ENV/ARG** `🔴` `🔴 FLAG` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `^\s*(ENV|ARG)\s+\w*(SECRET|PASSWORD|PASSWD|TOKEN|API_?KEY|PRIVATE_?KEY|ACCESS_?KEY)\w*\s*[= ]\s*\S`.
+`FIX:` Never bake a secret into an image layer — it persists in the image history. Use build secrets (--mount=type=secret) or inject at runtime.
+
+**203 · Insecure docker-compose service setting** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `(privileged:\s*true|network_mode:\s*['"]?host|^\s*-\s*["']?\/:\/)`.
+`FIX:` Drop privileged, host networking, and root bind-mounts — they hand the container the host. Grant only the specific capabilities, ports, and volumes needed.
+
+**204 · Workflow uses pull_request_target** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `pull_request_target`.
+`FIX:` pull_request_target runs with repo secrets against untrusted PR code — never check out + build the PR head under it. Use pull_request, or gate it strictly.
+
+**205 · Unpinned GitHub Action (moving ref)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: supply-chain · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `uses:\s*[\w.\-/]+@(main|master|latest|HEAD)\b`.
+`FIX:` Pin actions to a full commit SHA (or at minimum an immutable release tag). @main/@master can change under you — a supply-chain foothold.
+
+**206 · Workflow expands untrusted input into a run script** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\$\{\{\s*github\.event\.(issue|pull_request|comment|review|head_ref|discussion)`.
+`FIX:` Never interpolate ${{ github.event.* }} straight into run: — it is attacker-controlled and injects shell. Pass it through an env: var and quote it.
+
+**207 · Tautological / self-comparing assertion** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: testing · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `expect\(\s*([^)]+?)\s*\)\s*\.(toBe|toEqual|toStrictEqual)\(\s*\1\s*\)`.
+`FIX:` Assert the real expected value, not the input compared to itself — a tautology is green coverage over nothing.
+
+**208 · Assertion with no matcher** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: testing · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\bexpect\s*\([^)]*\)\s*;?\s*$`.
+`FIX:` Chain a matcher (.toBe/.toEqual/…). A bare expect(x) runs the code but verifies nothing.
+
+**209 · Sleep-based (flaky) test wait** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: testing · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\b(await\s+)?(sleep|delay)\s*\(\s*\d+|setTimeout\s*\(\s*[^,]+,\s*\d{3,}\s*\)`.
+`FIX:` Wait on the real condition (await the event, poll a state, use fake timers) — a fixed sleep is the classic flaky-test race.
+
+**210 · Dead / disabled code behind if (false)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\bif\s*\(\s*(false|0)\s*\)`.
+`FIX:` Delete the disabled block (rely on git history) or restore it — an `if (false)` guard is dead code, often a silently disabled assertion.
+
+**211 · Hardcoded dashboard stat** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: fake · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\b(users|revenue|customers|downloads|signups|visitors|sales|subscribers|followers|mrr|arr|orders|impressions)\s*:\s*['"]?[\d,]{4,}`.
+`FIX:` Bind the metric to real data (an API/query). A hardcoded headline number is a fake feature — it lies to whoever reads the dashboard.
+
+**212 · Mock / fake data on a production path** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: fake · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\b(mock|dummy|fake|sample|placeholder)(Data|Users|Items|Products|Response|Results|List|Rows)\b`.
+`FIX:` Replace the mock/dummy data with a real data source before shipping — this is a stub masquerading as a feature.
+
+**213 · Fabricated metric from Math.random()** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: fake · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\b(count|total|revenue|users|price|score|rating|views|visitors|progress|percent|growth)\w*\s*[:=][^;\n]*Math\.random\s*\(`.
+`FIX:` A displayed number driven by Math.random() is fabricated. Wire it to the real value — random noise is not a metric.
+
+**214 · Empty event handler (does nothing)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: fake · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\bon[A-Z]\w+\s*=\s*\{?\s*(async\s*)?\(\s*\)\s*=>\s*\{\s*\}`.
+`FIX:` A no-op handler is a button that pretends to work. Wire it up, or remove the control until it does something.
+
+**215 · Stub returning a canned value** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: fake · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `return\s+\{\s*(ok|success|status)\s*:\s*(true|['"]ok['"]|['"]success['"])\s*\}\s*;?\s*$`.
+`FIX:` A handler that always returns { ok: true } does no real work — implement it or mark it clearly unimplemented (throw), don't fake success.
+
+**216 · "Coming soon" / placeholder feature copy** `🟡` `🔴 FLAG` `⚙️ slopscore scan`
+Category: copy · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\b(coming soon|under construction|work in progress|not implemented yet|todo:\s*implement)\b`.
+`FIX:` Ship the feature or remove the surface — a "coming soon" in production is a promise the UI can't keep (FLAG: it may be an intentional roadmap teaser).
+
+**217 · Fake sample identity (example.com / John Doe)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: copy · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `@example\.(com|org|net)\b|\b(john|jane)\s*doe\b`.
+`FIX:` Replace placeholder identities (john@example.com, "John Doe") with real bindings or clearly-labelled fixtures — they leak into shipped UI.
+
+**218 · Swallowed promise rejection** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\.catch\s*\(\s*(\(\s*\w*\s*\)\s*=>\s*\{\s*\}|console\.\w+\s*\))`.
+`FIX:` Handle the rejection: surface an error to the user, retry, or rethrow. An empty/console-only .catch hides real failures.
+
+**219 · Throwing a string instead of an Error** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\bthrow\s+['"\`]`.
+`FIX:` throw new Error("…") — a thrown string has no stack trace and breaks `instanceof Error` handling downstream.
+
+**220 · Generic "something went wrong" error message** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: copy · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `(something went wrong|an error occurred|unknown error occurred|oops[,! ].*wrong)`.
+`FIX:` Tell the user what failed and what to do next. A generic "something went wrong" is the AI-error tell and gives no path to recovery.
+
+**221 · Global uncaughtException / unhandledRejection swallow** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `process\.on\s*\(\s*['"](uncaughtException|unhandledRejection)['"]`.
+`FIX:` A process-wide catch-all that logs and continues leaves the process in an unknown state — let it crash and restart under a supervisor, or handle the specific error at its source.
+
+**222 · `Function` / `Object` used as a type** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `(:\s*(Function|Object)\b(?!\s*\.)|\bas\s+(Function|Object)\b(?!\s*\.))`.
+`FIX:` Use a precise signature ((x: T) => U) or a concrete interface. `Function`/`Object` opt out of type-checking almost as much as `any`.
+
+**223 · `var` instead of `const` / `let`** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\bvar\s+\w`.
+`FIX:` Use const (or let). `var` is function-scoped and hoisted — a source of subtle scope bugs the block-scoped keywords remove.
+
+**224 · Loose equality (== / !=)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `(?<![=!<>])(==|!=)(?!=)(?!\s*(null|undefined)\b)`.
+`FIX:` Use === / !== to avoid type-coercion surprises. (`== null` to catch null-or-undefined is the one accepted exception.)
+
+**225 · Empty function body (stub)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\bfunction\b[^{;(]*\([^)]*\)\s*\{\s*\}`.
+`FIX:` An empty function is a stub — implement it, or if a no-op is intentional, name it that way and add a comment so it doesn't read as unfinished.
+
+**226 · Unnecessary `return await`** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\breturn\s+await\b`.
+`FIX:` Outside a try/catch, `return await x` just adds a microtask — `return x` is equivalent. Inside try/catch it is fine; keep it there.
+
+**227 · High-pressure / ALL-CAPS marketing CTA** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: copy · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\b(SIGN UP NOW|BUY NOW|SUBSCRIBE NOW|CLICK HERE|SHOP NOW|ORDER NOW|LIMITED TIME|ACT NOW|DON'T MISS)\b`.
+`FIX:` Write a calm, specific CTA in sentence case ("Start your free trial"). SHOUTING urgency copy is the AI-landing-page tell.
+
+**228 · Unsupported marketing superlative** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: copy · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\b(world-?class|#1\b|best-in-class|industry-leading|state-of-the-art|revolutionary|game-?changing|next-generation|unparalleled)\b`.
+`FIX:` Replace the superlative with a concrete claim you can back ("processes 10k events/sec"). Unproven "world-class" copy reads as AI filler.
+
+**229 · <html> missing a lang attribute** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: a11y · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `<html(?![^>]*\blang\s*=)[^>]*>`.
+`FIX:` Add lang (e.g. <html lang="en">) so screen readers and translation use the right language.
+
+**230 · Positive tabIndex (breaks tab order)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: a11y · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `tab[Ii]ndex\s*=\s*["'{]*\s*[1-9]`.
+`FIX:` Use tabIndex={0} (focusable, natural order) or -1 (programmatic) — a positive tabIndex hijacks the whole page's tab order.
+
+**231 · Viewport disables zoom (user-scalable=no)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: a11y · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `user-scalable\s*=\s*['"]?no|maximum-scale\s*=\s*['"]?1(\.0)?\b`.
+`FIX:` Never disable pinch-zoom — it locks out low-vision users. Remove user-scalable=no / maximum-scale=1 from the viewport meta.
+
+**232 · Body text below the ~12px legibility floor** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: mobile · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `font-size:\s*(?:[0-9]|1[01])(?:\.\d+)?px\b`.
+`FIX:` Use ≥12px (ideally rem-based) for body copy — sub-12px text is unreadable on mobile and fails accessibility.
+
+**233 · width: 100vw (horizontal-overflow tell)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: mobile · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `width:\s*100vw\b`.
+`FIX:` 100vw ignores the scrollbar and causes horizontal overflow on desktop. Use width:100% / max-width instead.
+
+**234 · !important override** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: visual · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `!important`.
+`FIX:` Fix the specificity instead of forcing it — scattered !important is a signal the cascade has stopped being reasoned about.
+
+**235 · printStackTrace() left in (Java)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\.printStackTrace\s*\(`.
+`FIX:` Log through a real logger (SLF4J/Log4j) with context. printStackTrace() dumps to stderr and is invisible in production log aggregation.
+
+**236 · System.out/err debug print (Java)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `System\.(out|err)\.print`.
+`FIX:` Use a logging framework with levels instead of System.out — stray console prints are debug leftovers.
+
+**237 · Runtime.exec / ProcessBuilder command execution (Java)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `Runtime\.getRuntime\(\)\.exec\s*\(|new\s+ProcessBuilder\s*\(`.
+`FIX:` Avoid shelling out; if you must, pass an argument array (never a concatenated string) and validate inputs — this is a command-injection sink.
+
+**238 · Console.Write debug (C#)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `Console\.(WriteLine|Write)\s*\(`.
+`FIX:` Use ILogger with levels instead of Console.Write — console output is a debug leftover in a real app.
+
+**239 · async void (C#)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\basync\s+void\b`.
+`FIX:` Use async Task — an async void method can't be awaited and its exceptions crash the process. (Event handlers are the only legitimate exception.)
+
+**240 · Debugger breakpoint left in (Ruby)** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: code · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\b(binding\.pry|byebug|binding\.irb)\b`.
+`FIX:` Remove the binding.pry / byebug breakpoint — it halts execution and hangs the process wherever it's hit.
+
+**241 · puts / pp debug output (Ruby)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `^\s*(puts|pp)\s+`.
+`FIX:` Use the logger (Rails.logger / Logger) with levels rather than puts/pp for diagnostics you can turn off.
+
+**242 · var_dump / print_r debug (PHP)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\b(var_dump|print_r|var_export)\s*\(`.
+`FIX:` Remove the debug dump or route through a logger — var_dump/print_r output leaks straight into the page.
+
+**243 · Remote script piped into a shell** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `(curl|wget)\s+[^|]*\|\s*(sudo\s+)?(sh|bash)\b`.
+`FIX:` Download, inspect, and verify (checksum/signature) before executing. Piping a URL straight into a shell runs whatever the server serves today.
+
+**244 · rm -rf on an unquoted/variable path** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: robustness · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\brm\s+-[rf]{1,2}[a-z]*\s+["']?\$`.
+`FIX:` An empty or mis-set variable turns `rm -rf $DIR/` into `rm -rf /`. Quote it, set `set -u`, and guard against an empty value before deleting.
+
+**245 · chmod 777 (world-writable)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\bchmod\s+(-R\s+)?[0-7]?777\b`.
+`FIX:` World-writable (777) lets any local user modify the file/dir. Grant the least permission that works (e.g. 750/640).
+
+**246 · DELETE / UPDATE without a WHERE clause (SQL)** `🔴` `🔴 FLAG` `⚙️ slopscore scan`
+Category: robustness · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\b(DELETE\s+FROM|UPDATE)\s+[\w."\`]+\b(?![^;]*\bWHERE\b)[^;]*;`.
+`FIX:` A DELETE/UPDATE with no WHERE rewrites the ENTIRE table. Add a WHERE, or if a full-table change is truly intended, say so explicitly.
+
+**247 · GRANT ALL privileges (SQL)** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\bGRANT\s+ALL\b`.
+`FIX:` Grant only the specific privileges the role needs (SELECT/INSERT/…). GRANT ALL is the database equivalent of running as root.
+
+**248 · v-html (Vue XSS sink)** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `v-html\s*=`.
+`FIX:` v-html renders raw HTML — an XSS hole for any user content. Render as text ({{ }}), or sanitize with DOMPurify + an allowlist first.
+
+**249 · debug=True in production config (Python)** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\b(DEBUG\s*=\s*True|debug\s*=\s*True)\b`.
+`FIX:` debug=True leaks stack traces and an interactive console to users (Django/Flask). Drive it from an env var and default to False.
+
+**250 · html_safe / raw output (Rails XSS sink)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\.html_safe\b|\braw\s*\(`.
+`FIX:` html_safe / raw disable Rails' auto-escaping — an XSS hole for user content. Sanitize with the `sanitize` helper + an allowlist instead.
+
+**251 · bypassSecurityTrust* (Angular XSS bypass)** `🔴` `🔴 FLAG` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `bypassSecurityTrust\w*`.
+`FIX:` bypassSecurityTrust* turns off Angular's sanitizer for that value — only ever apply it to a value you fully control, never user input.

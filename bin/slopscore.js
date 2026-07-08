@@ -41,6 +41,9 @@ function parseArgs(argv) {
     else if (a === '--max') { const v = parseInt(argv[++i], 10); if (Number.isInteger(v) && v >= 0) opts.max = v; }
     else if (a === '--fail-on') { opts.failOn = argv[++i]; opts.failOnSet = true; }
     else if (a === '--min-confidence') opts.minConfidence = argv[++i];
+    else if (a === '--gate') opts.gate = argv[++i] || 'ship';
+    else if (a === '--changed') opts.changed = true;
+    else if (a === '--since') { opts.changed = true; opts.since = argv[++i]; }
     else if (a === '--category') opts.category = (argv[++i] || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
     else if (a === '--preset') opts.preset = argv[++i];
     else if (a === '--ignore') opts.ignore.push(argv[++i]);
@@ -82,6 +85,29 @@ function configStartDir(paths) {
   const first = path.resolve(paths[0]);
   try { return fs.statSync(first).isDirectory() ? first : path.dirname(first); }
   catch { return process.cwd(); }
+}
+
+// Warn (don't fail) on an unknown top-level .slopscore.json key. Also provides the
+// git-changed file list for --changed/--since. (Kept in src/ so bin stays lean.)
+const { validateConfig, gitChangedFiles } = require('../src/diagnostics');
+
+function runDoctor(argv) {
+  const opts = parseArgs(argv);
+  const { config: cfg, baseDir } = loadConfig(configStartDir(opts.paths));
+  out('slopscore doctor');
+  out(`  detectors:      ${LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES).length}`);
+  const cfgPath = path.join(baseDir, '.slopscore.json');
+  out(`  config:         ${fs.existsSync(cfgPath) ? cfgPath : '(none — using defaults)'}`);
+  const unknown = validateConfig(cfg);
+  if (Object.keys(cfg).length) out(`  config keys:    ${Object.keys(cfg).join(', ')}${unknown.length ? ` (unknown: ${unknown.join(', ')})` : ' ✓'}`);
+  out(`  ignore paths:   ${(cfg.ignore || []).join(', ') || '(defaults only)'}`);
+  out(`  fail-on:        ${cfg.failOn || 'major (default)'}`);
+  if (cfg.preset) out(`  preset:         ${cfg.preset}${resolvePreset(cfg.preset) ? ' ✓' : ' (UNKNOWN)'}`);
+  const result = scan(opts.paths, { ignore: cfg.ignore || [], ignoreBase: baseDir, rules: cfg.rules, paths: cfg.paths, customRules: cfg.customRules });
+  const stale = result.staleSuppressions || [];
+  out(`  files scanned:  ${result.fileCount}`);
+  out(`  stale suppressions: ${stale.length}${stale.length ? ` — ${stale.map((s) => `${s.file}:${s.line}`).join(', ')}` : ''}`);
+  out(stale.length || unknown.length ? '\n  → fix the items above; otherwise config looks healthy.' : '\n  → healthy.');
 }
 
 const VALID_CATEGORIES = new Set(LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES).map((r) => r.category));
@@ -142,7 +168,7 @@ function scanAndReport(opts, cfg, baseDir, failOn, record) {
   // config; the user's explicit `rules` always wins over it.
   const preset = resolvePreset(opts.preset || cfg.preset);
   const rules = preset ? { ...preset.rules, ...(cfg.rules || {}) } : cfg.rules;
-  const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules, paths: cfg.paths });
+  const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules, paths: cfg.paths, customRules: cfg.customRules });
   // --min-confidence gates out softer heuristics (e.g. low-confidence 068) before
   // scoring + reporting, so CI can require only high-confidence signal.
   const floor = CONF_RANK[opts.minConfidence];
@@ -165,6 +191,7 @@ function scanAndReport(opts, cfg, baseDir, failOn, record) {
     else if (opts.format === 'markdown') report.markdownReport(result, s);
     else if (opts.format === 'agent') report.agentReport(result, s);
     else if (opts.format === 'sarif') report.sarifReport(result, s);
+    else if (opts.format === 'junit') report.junitReport(result, s);
     else report.terminalReport(result, s, { max: opts.max });
   };
   if (opts.out) {
@@ -185,10 +212,39 @@ function scanAndReport(opts, cfg, baseDir, failOn, record) {
     emit();
   }
   if (record && opts.history) recordTrend(opts, s);
+  // `--gate ship` (and the `slopscore gate` alias) reframes the run as a pre-ship
+  // check: it fails only on PRODUCTION security + robustness findings at crit/major
+  // ("will it break / is it safe to ship?"), and prints a ship-readiness verdict.
+  if (opts.gate) return shipGate(opts, result);
   // The gate fails on PRODUCTION findings only (test/tooling is reported, not gated)
   // — and, under --baseline, only on findings new since the snapshot.
   const gate = FAIL_GATE[failOn] || FAIL_GATE.major;
   return result.findings.some((f) => f.zone !== 'test' && SEV_RANK[f.severity] >= gate);
+}
+
+// Ship-readiness gate: production security + robustness findings at crit/major are
+// the "do not ship" blockers. Returns true (fail) when any exist.
+function shipGate(opts, result) {
+  const blockers = result.findings.filter((f) => f.zone !== 'test'
+    && (f.category === 'security' || f.category === 'robustness')
+    && SEV_RANK[f.severity] >= SEV_RANK.major);
+  if (opts.format === 'terminal' || opts.format == null) {
+    out('');
+    if (blockers.length === 0) {
+      out('   ' + report.glyph('check') + ' Ship-ready — no production security or robustness blockers.');
+    } else {
+      const bySev = { critical: 0, major: 0 };
+      const ids = new Set();
+      for (const f of blockers) { bySev[f.severity] += 1; ids.add(f.id); }
+      out('   ' + report.glyph('times') + ` NOT ship-ready — ${blockers.length} blocker${blockers.length === 1 ? '' : 's'} `
+        + `(${bySev.critical} critical, ${bySev.major} major) in security/robustness.`);
+      out('   ' + `Fix these before shipping — by rule: ${[...ids].sort().join(', ')}.`);
+    }
+    out('');
+  } else if (opts.format === 'agent') {
+    out(`SHIP_GATE blockers=${blockers.length} ready=${blockers.length === 0}`);
+  }
+  return blockers.length > 0;
 }
 
 const WATCH_DEBOUNCE_MS = 150;
@@ -223,6 +279,16 @@ function runScan(opts) {
     if (!fs.existsSync(p)) { err(`slopscore: path not found: ${p}`); process.exit(2); }
   }
   const { config: cfg, baseDir } = loadConfig(configStartDir(opts.paths));
+  validateConfig(cfg);
+  // --changed / --since: restrict the scan to files git reports as changed.
+  if (opts.changed) {
+    const changed = gitChangedFiles(opts.since);
+    if (changed === null) { err('slopscore: --changed/--since needs a git repository (git not found or not a repo).'); process.exit(2); }
+    const CODE = /\.(js|jsx|ts|tsx|mjs|cjs|vue|svelte|css|scss|sass|less|html|py|go|rb|php|rs|java|cs|kt|kts|swift|sql|sh|bash|zsh|tf|ya?ml)$|(^|[\\/])Dockerfile/i;
+    const scannable = changed.filter((f) => CODE.test(f));
+    if (scannable.length === 0) { out('slopscore: no changed source files to scan — clean by omission.'); process.exit(0); }
+    opts.paths = scannable;
+  }
   const presetName = opts.preset || cfg.preset;
   if (presetName && !resolvePreset(presetName)) {
     err(`slopscore: unknown preset "${presetName}". Available: ${presetNames().join(', ')}`);
@@ -233,7 +299,7 @@ function runScan(opts) {
   // Baseline snapshot is a one-shot action (write the accepted floor, then exit).
   if (opts.baseline && (opts.updateBaseline || !loadBaseline(opts.baseline))) {
     const ignore = (cfg.ignore || []).concat(opts.ignore);
-    const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules: cfg.rules, paths: cfg.paths });
+    const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules: cfg.rules, paths: cfg.paths, customRules: cfg.customRules });
     const n = writeBaseline(opts.baseline, result.findings, new Date().toISOString());
     out(`slopscore: ${opts.updateBaseline ? 'updated' : 'wrote'} baseline ${opts.baseline} (${n} findings).`);
     out('Future scans with --baseline report and gate only on NEW slop.');
@@ -253,7 +319,7 @@ function runFix(opts) {
   }
   const { config: cfg, baseDir } = loadConfig(configStartDir(opts.paths));
   const ignore = (cfg.ignore || []).concat(opts.ignore);
-  const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules: cfg.rules, paths: cfg.paths });
+  const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules: cfg.rules, paths: cfg.paths, customRules: cfg.customRules });
   const plan = planFixes(result, { only: opts.only, except: opts.except });
 
   if (plan.length === 0) {
@@ -296,7 +362,7 @@ function printProtocol() {
 
 function printRules() {
   const all = LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES);
-  out(`slopscore ships ${all.length} deterministic detectors. The full 181-pattern catalog`);
+  out(`slopscore ships ${all.length} deterministic detectors. The full 250-pattern catalog`);
   out('(including visual, architectural, and judgment-heavy patterns) lives in ANTI_SLOP_PROTOCOL.md.\n');
   const byCat = {};
   for (const r of all) (byCat[r.category] = byCat[r.category] || []).push(r);
@@ -318,7 +384,7 @@ function printExplain(arg) {
   if (!fs.existsSync(p)) { err('slopscore: ANTI_SLOP_PROTOCOL.md not found alongside the package.'); process.exit(2); }
   const lines = fs.readFileSync(p, 'utf8').split('\n');
   const start = lines.findIndex((l) => l.startsWith(`**${id} · `));
-  if (start === -1) { err(`slopscore: no catalog entry ${id} (ids run 001–181). Try: slopscore protocol`); process.exit(2); }
+  if (start === -1) { err(`slopscore: no catalog entry ${id} (ids run 001–250). Try: slopscore protocol`); process.exit(2); }
   const block = [lines[start]];
   for (let i = start + 1; i < lines.length; i += 1) {
     if (/^\*\*\d{3} · /.test(lines[i])) break; // next entry
@@ -335,85 +401,7 @@ function printExplain(arg) {
   out('');
 }
 
-const ACTION_YML = `name: anti-slop
-on: [pull_request, push]
-jobs:
-  slopscore:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20 }
-      - name: Scan for AI slop
-        run: npx slopscore scan . --fail-on major
-`;
-
-const CONFIG_JSON = `{
-  "ignore": ["examples", "fixtures"],
-  "failOn": "major"
-}
-`;
-
-// A self-contained agent directive. Any coding agent that reads AGENTS.md /
-// CLAUDE.md (Cursor, Codex, Claude Code, Aider, Windsurf, Cline…) auto-adopts the
-// protocol — no need to tell it "use slopscore" by hand each session.
-const AGENTS_MARKER = '<!-- slopscore:anti-slop -->';
-function agentsSection() {
-  const n = LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES).length;
-  return `${AGENTS_MARKER}
-## Anti-Slop Protocol (slopscore)
-
-This repository is guarded by [slopscore](https://github.com/Vinay-O/slopscore) — a
-catalog of 180+ AI-slop patterns, ${n} of them auto-checked. Before you finish ANY task:
-
-1. Load the full catalog once per session: \`npx slopscore protocol\` — it lists every
-   pattern with a DETECT, a FIX, and a fix authority (🟢 auto · 🟡 propose · 🔴 flag).
-   Follow it. The untagged patterns (architecture, fake features, most design tells) are
-   yours to apply by reading the code; the ⚙️-tagged ones the scanner checks for you.
-2. Before declaring done, scan in **agent mode** — it's built for you:
-   \`npx slopscore scan . --format agent --fail-on major\`. Each line is
-   \`SEV [id] file:line title | zone= | confidence= | authority= | fix: …\`, compact
-   enough to keep in context, and it ends with a NEXT: directive. Drive production
-   critical + major findings to **0**. Auto-fix the safe ones with \`npx slopscore fix .\`.
-3. Don't add new slop: no purple gradients, no \`console.log\`, no \`any\`, no fake stats,
-   no \`eval\`, no disabled TLS, no god files. When in doubt, run the scan.
-
-**Always prefer \`--format agent\`** over the human terminal output — it is denser,
-machine-readable, and tells you exactly what you may auto-fix vs propose vs flag.
-${AGENTS_MARKER}
-`;
-}
-
-function ensureAgentsFile(file) {
-  const section = agentsSection();
-  if (!fs.existsSync(file)) {
-    fs.writeFileSync(file, `# Agent Instructions\n\n${section}`);
-    out(`  wrote ${file}`);
-    return;
-  }
-  const existing = fs.readFileSync(file, 'utf8');
-  if (existing.includes(AGENTS_MARKER)) { out(`  skip  ${file} (already has the slopscore section)`); return; }
-  fs.writeFileSync(file, `${existing.replace(/\s*$/, '')}\n\n${section}`);
-  out(`  updated ${file} (appended the slopscore section)`);
-}
-
-function runInit() {
-  writeIfAbsent('.slopscore.json', CONFIG_JSON);
-  const dir = path.join('.github', 'workflows');
-  fs.mkdirSync(dir, { recursive: true });
-  writeIfAbsent(path.join(dir, 'anti-slop.yml'), ACTION_YML);
-  // Teach the repo's agents to use the protocol automatically. AGENTS.md is the
-  // cross-tool standard; also extend CLAUDE.md if the repo already has one.
-  ensureAgentsFile('AGENTS.md');
-  if (fs.existsSync('CLAUDE.md')) ensureAgentsFile('CLAUDE.md');
-  out('slopscore initialized. Commit .slopscore.json, the workflow, and AGENTS.md so every PR — and every agent — follows the protocol.');
-}
-
-function writeIfAbsent(file, contents) {
-  if (fs.existsSync(file)) { out(`  skip  ${file} (already exists)`); return; }
-  fs.writeFileSync(file, contents);
-  out(`  wrote ${file}`);
-}
+function runInit() { require('../src/scaffold').runInit(); }
 
 const HELP = `
 slopscore v${pkg.version} — scan your codebase for AI slop, get a Slop Score, ship clean.
@@ -421,7 +409,9 @@ slopscore v${pkg.version} — scan your codebase for AI slop, get a Slop Score, 
 USAGE
   slopscore [scan] [paths...] [options]
   slopscore fix [paths...]      auto-apply the safe (🟢 AUTO) fixes; --dry-run to preview
-  slopscore protocol            print the full 181-pattern protocol (pipe to your agent)
+  slopscore gate [paths...]     pre-ship gate: fail on production security + robustness crit/major
+  slopscore doctor              diagnose config, ignored paths, stale suppressions, detector count
+  slopscore protocol            print the full 250-pattern protocol (pipe to your agent)
   slopscore rules               list the deterministic detectors this CLI runs
   slopscore explain <id>        print one catalog pattern + its fix (e.g. explain 058)
   slopscore init                scaffold .slopscore.json + a PR gate + AGENTS.md (agent auto-adoption)
@@ -430,10 +420,13 @@ OPTIONS
   --json                     machine-readable findings + score
   --markdown                 a Markdown report (great for PR comments)
   --sarif                    SARIF 2.1.0 (GitHub code-scanning annotations)
+  --format junit             JUnit XML (CI test-report panels)
   --format agent             compact output for feeding an AI agent
   --fail-on <level>          exit non-zero at: critical | major | minor | never  (default: major)
   --min-confidence <level>   only report/score findings at: high | medium | low  (default: low/all)
   --category <names>         focus on one or more categories, e.g. security  (comma-separated)
+  --changed                  scan only files git reports as changed (staged/unstaged/untracked)
+  --since <ref>              scan only files changed since a git ref (e.g. origin/main)
   --preset <name>            tune coverage to the project: library | backend | cli |
                              web | marketing | mui | tailwind | chakra | …  (also: "preset" in config)
   --baseline [file]          ratchet mode: snapshot current findings, then fail only
@@ -478,6 +471,8 @@ function main() {
   if (cmd === 'explain') { printExplain(argv[1]); return; }
   if (cmd === 'init') { runInit(); return; }
   if (cmd === 'fix') { runFix(parseArgs(argv.slice(1))); return; }
+  if (cmd === 'gate') { const o = parseArgs(argv.slice(1)); o.gate = o.gate || 'ship'; runScan(o); return; }
+  if (cmd === 'doctor') { runDoctor(argv.slice(1)); return; }
   const rest = cmd === 'scan' ? argv.slice(1) : argv;
   runScan(parseArgs(rest));
 }

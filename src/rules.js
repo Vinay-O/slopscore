@@ -26,6 +26,21 @@ const TS = ['.ts', '.tsx'];
 const PY = ['.py'];
 const GO = ['.go'];
 const RUST = ['.rs'];
+// §22 new languages / §23 frameworks
+const JAVA = ['.java'];
+const CSHARP = ['.cs'];
+const RUBY = ['.rb'];
+const PHP = ['.php'];
+const SHELL = ['.sh', '.bash', '.zsh'];
+const SQL = ['.sql'];
+const KOTLIN = ['.kt', '.kts'];
+const SWIFT = ['.swift'];
+const VUE = ['.vue'];
+
+// Path targets for config / IaC rules (matched against the full file path).
+const DOCKERFILE_RE = /(^|[\\/])Dockerfile(\.[\w.-]+)?$/i;
+const COMPOSE_RE = /(^|[\\/])(docker-)?compose[\w.-]*\.ya?ml$/i;
+const WORKFLOW_RE = /[\\/]\.github[\\/]workflows[\\/][^\\/]+\.ya?ml$/i;
 
 const LINE_RULES = [
   // ---- CATEGORY 7: code quality ----
@@ -586,6 +601,486 @@ const LINE_RULES = [
     re: /(?<![\w.])(?<!func\s)panic\s*\(/,
     fix: 'Prefer returning an error so the caller decides — panic() takes down the whole process. Fair only for a truly unrecoverable init failure (FLAG: a human should confirm which this is).',
   },
+
+  // ---- §0 Tier-0 "easy misses" — table-stakes, ~100% precision ----
+  {
+    id: '182', title: 'Merge-conflict marker committed', category: 'code', severity: 'critical',
+    authority: 'flag', exts: null, skipTests: false, respectComments: false,
+    // A conflict base (`=======`), ours (`<<<<<<< `) or theirs (`>>>>>>> `) marker at
+    // column 0 — this file does not parse. Docs (.md) aren't scanned, so `====` rules
+    // in Markdown never reach here.
+    re: /^(<{7}|={7}|>{7})(\s|$)/,
+    fix: 'Resolve the merge and delete the <<<<<<< / ======= / >>>>>>> markers — this code is syntactically broken.',
+  },
+  {
+    id: '183', title: '@ts-ignore / @ts-expect-error without a reason', category: 'code', severity: 'major',
+    authority: 'flag', exts: CODE, skipTests: false, respectComments: false,
+    // A bare directive (nothing after it) silences a real type error with no trail.
+    re: /@ts-(ignore|expect-error)\s*(\*\/\s*)?$/,
+    fix: 'Add a reason after the directive (`@ts-expect-error <why>`) or fix the underlying type — a bare suppression hides a genuine error.',
+  },
+  {
+    id: '184', title: 'Blanket eslint-disable without a rule name', category: 'code', severity: 'major',
+    authority: 'flag', exts: CODE, skipTests: false, respectComments: false,
+    // Must be the comment's leading content (not a mention in prose), and have no rule
+    // name after it — a blanket disable silences every present AND future lint error.
+    re: /(\/\/|\/\*)\s*eslint-disable(-next-line|-line)?\s*(\*\/\s*)?$/,
+    fix: 'Name the exact rule(s) and add a reason (`eslint-disable-next-line no-console — <why>`). A blanket disable hides unrelated errors too.',
+  },
+  {
+    id: '185', title: 'debugger statement left in', category: 'code', severity: 'major',
+    authority: 'auto', exts: CODE, skipTests: false, respectComments: true,
+    re: /\bdebugger\b\s*;?/,
+    fix: 'Remove the debugger statement — it halts execution whenever devtools are open.',
+  },
+  {
+    id: '186', title: 'Focused test disables the rest of the suite', category: 'code', severity: 'major',
+    authority: 'flag', exts: CODE, skipTests: false, respectComments: true, confidence: 'medium',
+    re: /(\b(describe|it|test|context|suite)\.only\s*\(|\bfdescribe\s*\(|\bfit\s*\()/,
+    fix: 'Remove .only / fdescribe / fit before committing — a focused test silently skips every other test in the file, so CI goes green on almost nothing.',
+  },
+  {
+    id: '187', title: 'Skipped / TODO test committed', category: 'code', severity: 'minor',
+    authority: 'flag', exts: CODE, skipTests: false, respectComments: true, confidence: 'medium',
+    re: /(\b(describe|it|test|context)\.(skip|todo)\s*\(|\bxit\s*\(|\bxdescribe\s*\(|\bxtest\s*\()/,
+    fix: 'A committed skipped test is dead coverage — finish it, or delete it and track the gap as a real issue.',
+  },
+  {
+    id: '188', title: 'Non-null assertion (!) overuse', category: 'code', severity: 'minor',
+    authority: 'propose', exts: TS, skipTests: true, respectComments: true, confidence: 'medium',
+    unlessFile: /\.d\.ts$/,
+    // `foo!.bar`, `foo!()`, `arr[0]!.x` — the `!` before `.` / `(` / `[`. Excludes `!=`,
+    // `!==` (a `=` follows the `!`, which isn't in the class).
+    re: /[\w)\]]!(?=[.([])/,
+    fix: 'The ! non-null assertion overrides the compiler without proving the value exists — narrow with a guard, a default, or optional chaining instead.',
+  },
+  {
+    id: '189', title: '@ts-nocheck disables type-checking for the whole file', category: 'code', severity: 'major',
+    authority: 'flag', exts: CODE, skipTests: false, respectComments: false,
+    re: /@ts-nocheck\b/,
+    fix: 'Remove @ts-nocheck and fix the file\'s type errors — it turns TypeScript off for the entire file, not one line.',
+  },
+  {
+    id: '190', title: 'process.exit() in application / library code', category: 'code', severity: 'minor',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    // Entry points (bin/, cli, scripts/) legitimately set an exit code; library code
+    // should throw/return and let the caller decide.
+    unlessFile: /(^|[\\/])(bin|cli|scripts?)[\\/]|\.cli\.|cli\.[jt]sx?$/,
+    re: /process\.exit\s*\(/,
+    fix: 'Throw an error or return a status and let the entry point exit — process.exit() skips cleanup, breaks tests, and kills any process that embeds your code.',
+  },
+
+  // ---- §1 Secrets — breadth (provider-prefixed tokens, JWTs, creds-in-URL) ----
+  {
+    id: '192', title: 'Hardcoded provider credential', category: 'security', severity: 'critical',
+    authority: 'flag', exts: null, skipTests: true, respectComments: false,
+    // Distinctive provider prefixes → near-zero false positives. Complements 058
+    // (OpenAI sk-, AWS AKIA, GitHub ghp_, Slack xox, Bearer, PEM) with GCP, GitLab,
+    // the other GitHub token types, Stripe secret/restricted, npm, PyPI, SendGrid,
+    // HuggingFace, Twilio, and Slack incoming-webhook URLs. pk_live_ is intentionally
+    // ABSENT — a Stripe publishable key is public by design.
+    re: /(AIza[0-9A-Za-z_\-]{35}|glpat-[0-9A-Za-z_\-]{20,}|gh[ous]_[A-Za-z0-9]{36}|github_pat_[0-9a-zA-Z_]{22,}|sk_live_[0-9a-zA-Z]{16,}|rk_live_[0-9a-zA-Z]{16,}|npm_[A-Za-z0-9]{36}|pypi-[A-Za-z0-9_\-]{16,}|SG\.[A-Za-z0-9_\-]{16,}\.[A-Za-z0-9_\-]{16,}|hf_[A-Za-z0-9]{34}|SK[0-9a-f]{32}|https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9\/]{20,})/,
+    unless: /process\.env|import\.meta\.env|getenv|REPLACE|YOUR_|example|placeholder|\*{4,}|xxxx/i,
+    fix: 'Move it to an env var / secret manager. A committed provider credential is COMPROMISED — revoke and rotate it now.',
+  },
+  {
+    id: '193', title: 'Hardcoded JWT', category: 'security', severity: 'major',
+    authority: 'flag', exts: null, skipTests: true, respectComments: false,
+    // Three base64url segments, header starting `eyJ` (base64 of `{"`). A real
+    // signed token embedded in source — not the `ey.some.jwt` placeholder (too short).
+    re: /\beyJ[A-Za-z0-9_\-]{10,}\.eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}/,
+    unless: /process\.env|import\.meta\.env|getenv|YOUR_|example|placeholder|xxxx/i,
+    fix: 'Never hardcode a JWT — it grants whatever it was signed for until it expires. Mint tokens at runtime; if this one leaked, rotate the signing key.',
+  },
+  {
+    id: '194', title: 'Credentials embedded in a URL', category: 'security', severity: 'critical',
+    authority: 'flag', exts: null, skipTests: true, respectComments: false,
+    // http(s)/ftp/ssh/git URL with inline user:password@ (DB connection strings are
+    // owned by 170). The password segment must be non-trivial to avoid `a:b@` noise.
+    re: /\b(https?|ftp|ssh|git):\/\/[^/\s:@"'`]+:[^/\s:@"'`]{3,}@/,
+    unless: /YOUR_|:\$\{|:%[A-Z]|user:pass(word)?@|:xxx|:changeme@|:secret@/i,
+    fix: 'Strip the credentials from the URL — they leak into logs, history, and referrers. Pass auth via a header or a secret manager.',
+  },
+
+  // ---- §32 Route A — robustness / "will it break?" (static, regex-clean subset) ----
+  {
+    id: '195', title: 'parseInt without a radix', category: 'robustness', severity: 'minor',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    // A single-argument parseInt guesses the base from the string — "08" or "0x10"
+    // parse surprisingly across engines/inputs. Two-arg calls (…, 10) are exempt.
+    re: /\bparseInt\s*\(\s*[^,)]+\)/,
+    fix: 'Pass the radix explicitly: parseInt(x, 10). Without it, leading-zero and 0x inputs parse to the wrong number.',
+  },
+  {
+    id: '196', title: 'RegExp built from user input (ReDoS / throw)', category: 'robustness', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    // new RegExp(<something with a request/user/input token>) — an invalid pattern
+    // throws, and an attacker-supplied one can hang the event loop (ReDoS).
+    re: /new RegExp\s*\([^)]*\b(input|user|req|request|param|query|body|arg)\w*\b/i,
+    fix: 'Validate/escape the input before compiling it, or match against a fixed pattern. A user-supplied regex can throw or catastrophically backtrack (ReDoS).',
+  },
+  {
+    id: '197', title: 'Unchecked .find() / .match() result dereferenced', category: 'robustness', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    // arr.find(…).x / str.match(…)[1] / el.querySelector(…).value — these return
+    // undefined/null when nothing matches, so the immediate property/index access
+    // is a "cannot read properties of undefined" crash on the unhappy path.
+    re: /\.(find|match|querySelector|closest)\s*\([^)]*\)\s*[.[]/,
+    fix: 'Guard the result first (`const m = str.match(re); if (m) …`) or use optional chaining — .find/.match/querySelector return null/undefined when nothing matches.',
+  },
+  {
+    id: '198', title: 'JSON.parse of external data without a guard', category: 'robustness', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    // Parsing an awaited response, storage, env, or request body that can be
+    // malformed — an unguarded JSON.parse throws a SyntaxError and crashes the path.
+    re: /JSON\.parse\s*\(\s*(await\b|localStorage|sessionStorage|process\.env|req\.|request\.|res\.|response\.)/,
+    fix: 'Wrap external JSON.parse in try/catch and handle the malformed case — untrusted/awaited data is not guaranteed to be valid JSON.',
+  },
+
+  // ---- §5 IaC / Docker / CI-CD config scanning ----
+  {
+    id: '199', title: 'Unpinned Docker base image (:latest or no tag)', category: 'supply-chain', severity: 'major',
+    authority: 'propose', files: DOCKERFILE_RE, respectComments: true, confidence: 'medium',
+    re: /^\s*FROM\s+(?!scratch\b)[^\s:@]+(:latest)?\s*(AS\s+\w+)?\s*$/i,
+    fix: 'Pin the base image to an immutable tag or digest (node:20.11.1-alpine, or @sha256:…). :latest / untagged drifts and breaks reproducible builds.',
+  },
+  {
+    id: '200', title: 'Docker container runs as root', category: 'security', severity: 'major',
+    authority: 'propose', files: DOCKERFILE_RE, respectComments: true, confidence: 'medium',
+    re: /^\s*USER\s+root\b/i,
+    fix: 'Create and switch to a non-root user (RUN adduser … && USER app) — a root container turns any escape into host access.',
+  },
+  {
+    id: '201', title: 'Docker fetches and executes a remote script', category: 'security', severity: 'major',
+    authority: 'propose', files: DOCKERFILE_RE, respectComments: true,
+    re: /(curl|wget)\s+[^|]*\|\s*(sudo\s+)?(sh|bash)\b|^\s*ADD\s+https?:\/\//i,
+    fix: 'Do not pipe a remote URL into a shell. COPY a vendored, reviewed file, or download then verify a checksum/signature before running it.',
+  },
+  {
+    id: '202', title: 'Secret baked into a Docker ENV/ARG', category: 'security', severity: 'critical',
+    authority: 'flag', files: DOCKERFILE_RE, respectComments: true,
+    re: /^\s*(ENV|ARG)\s+\w*(SECRET|PASSWORD|PASSWD|TOKEN|API_?KEY|PRIVATE_?KEY|ACCESS_?KEY)\w*\s*[= ]\s*\S/i,
+    fix: 'Never bake a secret into an image layer — it persists in the image history. Use build secrets (--mount=type=secret) or inject at runtime.',
+  },
+  {
+    id: '203', title: 'Insecure docker-compose service setting', category: 'security', severity: 'major',
+    authority: 'propose', files: COMPOSE_RE, respectComments: true,
+    re: /(privileged:\s*true|network_mode:\s*['"]?host|^\s*-\s*["']?\/:\/)/i,
+    fix: 'Drop privileged, host networking, and root bind-mounts — they hand the container the host. Grant only the specific capabilities, ports, and volumes needed.',
+  },
+  {
+    id: '204', title: 'Workflow uses pull_request_target', category: 'security', severity: 'major',
+    authority: 'flag', files: WORKFLOW_RE, respectComments: true,
+    re: /pull_request_target/,
+    fix: 'pull_request_target runs with repo secrets against untrusted PR code — never check out + build the PR head under it. Use pull_request, or gate it strictly.',
+  },
+  {
+    id: '205', title: 'Unpinned GitHub Action (moving ref)', category: 'supply-chain', severity: 'major',
+    authority: 'propose', files: WORKFLOW_RE, respectComments: true, confidence: 'medium',
+    re: /uses:\s*[\w.\-/]+@(main|master|latest|HEAD)\b/i,
+    fix: 'Pin actions to a full commit SHA (or at minimum an immutable release tag). @main/@master can change under you — a supply-chain foothold.',
+  },
+  {
+    id: '206', title: 'Workflow expands untrusted input into a run script', category: 'security', severity: 'major',
+    authority: 'flag', files: WORKFLOW_RE, respectComments: true,
+    re: /\$\{\{\s*github\.event\.(issue|pull_request|comment|review|head_ref|discussion)/,
+    fix: 'Never interpolate ${{ github.event.* }} straight into run: — it is attacker-controlled and injects shell. Pass it through an env: var and quote it.',
+  },
+
+  // ---- §10 Testing — detectors that fire only inside test files (testOnly) ----
+  {
+    id: '207', title: 'Tautological / self-comparing assertion', category: 'testing', severity: 'major',
+    authority: 'flag', exts: CODE, skipTests: false, respectComments: true, testOnly: true,
+    // expect(X).toBe(X) — a constant or a value compared to itself always passes and
+    // tests nothing.
+    re: /expect\(\s*([^)]+?)\s*\)\s*\.(toBe|toEqual|toStrictEqual)\(\s*\1\s*\)/,
+    fix: 'Assert the real expected value, not the input compared to itself — a tautology is green coverage over nothing.',
+  },
+  {
+    id: '208', title: 'Assertion with no matcher', category: 'testing', severity: 'major',
+    authority: 'flag', exts: CODE, skipTests: false, respectComments: true, testOnly: true, confidence: 'medium',
+    // `expect(x);` with nothing chained — evaluates the value and asserts nothing.
+    re: /\bexpect\s*\([^)]*\)\s*;?\s*$/,
+    fix: 'Chain a matcher (.toBe/.toEqual/…). A bare expect(x) runs the code but verifies nothing.',
+  },
+  {
+    id: '209', title: 'Sleep-based (flaky) test wait', category: 'testing', severity: 'minor',
+    authority: 'propose', exts: CODE, skipTests: false, respectComments: true, testOnly: true, confidence: 'medium',
+    re: /\b(await\s+)?(sleep|delay)\s*\(\s*\d+|setTimeout\s*\(\s*[^,]+,\s*\d{3,}\s*\)/,
+    fix: 'Wait on the real condition (await the event, poll a state, use fake timers) — a fixed sleep is the classic flaky-test race.',
+  },
+  {
+    id: '210', title: 'Dead / disabled code behind if (false)', category: 'code', severity: 'minor',
+    authority: 'propose', exts: CODE, skipTests: false, respectComments: true, confidence: 'medium',
+    re: /\bif\s*\(\s*(false|0)\s*\)/,
+    fix: 'Delete the disabled block (rely on git history) or restore it — an `if (false)` guard is dead code, often a silently disabled assertion.',
+  },
+
+  // ---- §11 Fake / placeholder features (the most AI-specific category) ----
+  {
+    id: '211', title: 'Hardcoded dashboard stat', category: 'fake', severity: 'minor',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    // A metric-named key set to a big literal — the fabricated "12,847 users" number
+    // an AI drops in to make a dashboard look alive.
+    re: /\b(users|revenue|customers|downloads|signups|visitors|sales|subscribers|followers|mrr|arr|orders|impressions)\s*:\s*['"]?[\d,]{4,}/i,
+    fix: 'Bind the metric to real data (an API/query). A hardcoded headline number is a fake feature — it lies to whoever reads the dashboard.',
+  },
+  {
+    id: '212', title: 'Mock / fake data on a production path', category: 'fake', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /\b(mock|dummy|fake|sample|placeholder)(Data|Users|Items|Products|Response|Results|List|Rows)\b/,
+    fix: 'Replace the mock/dummy data with a real data source before shipping — this is a stub masquerading as a feature.',
+  },
+  {
+    id: '213', title: 'Fabricated metric from Math.random()', category: 'fake', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /\b(count|total|revenue|users|price|score|rating|views|visitors|progress|percent|growth)\w*\s*[:=][^;\n]*Math\.random\s*\(/i,
+    fix: 'A displayed number driven by Math.random() is fabricated. Wire it to the real value — random noise is not a metric.',
+  },
+  {
+    id: '214', title: 'Empty event handler (does nothing)', category: 'fake', severity: 'minor',
+    authority: 'propose', exts: MARKUP, skipTests: true, respectComments: true,
+    re: /\bon[A-Z]\w+\s*=\s*\{?\s*(async\s*)?\(\s*\)\s*=>\s*\{\s*\}/,
+    fix: 'A no-op handler is a button that pretends to work. Wire it up, or remove the control until it does something.',
+  },
+  {
+    id: '215', title: 'Stub returning a canned value', category: 'fake', severity: 'minor',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /return\s+\{\s*(ok|success|status)\s*:\s*(true|['"]ok['"]|['"]success['"])\s*\}\s*;?\s*$/i,
+    fix: 'A handler that always returns { ok: true } does no real work — implement it or mark it clearly unimplemented (throw), don\'t fake success.',
+  },
+  {
+    id: '216', title: '"Coming soon" / placeholder feature copy', category: 'copy', severity: 'minor',
+    authority: 'flag', exts: MARKUP, skipTests: true, respectComments: false,
+    re: /\b(coming soon|under construction|work in progress|not implemented yet|todo:\s*implement)\b/i,
+    fix: 'Ship the feature or remove the surface — a "coming soon" in production is a promise the UI can\'t keep (FLAG: it may be an intentional roadmap teaser).',
+  },
+  {
+    id: '217', title: 'Fake sample identity (example.com / John Doe)', category: 'copy', severity: 'minor',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /@example\.(com|org|net)\b|\b(john|jane)\s*doe\b/i,
+    fix: 'Replace placeholder identities (john@example.com, "John Doe") with real bindings or clearly-labelled fixtures — they leak into shipped UI.',
+  },
+
+  // ---- §8 error handling + §9 async (regex-clean subset) ----
+  {
+    id: '218', title: 'Swallowed promise rejection', category: 'code', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    // .catch(() => {}) / .catch(console.log) — the rejection is discarded or merely
+    // logged and dropped, so a failed async op fails silently.
+    re: /\.catch\s*\(\s*(\(\s*\w*\s*\)\s*=>\s*\{\s*\}|console\.\w+\s*\))/,
+    fix: 'Handle the rejection: surface an error to the user, retry, or rethrow. An empty/console-only .catch hides real failures.',
+  },
+  {
+    id: '219', title: 'Throwing a string instead of an Error', category: 'code', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /\bthrow\s+['"`]/,
+    fix: 'throw new Error("…") — a thrown string has no stack trace and breaks `instanceof Error` handling downstream.',
+  },
+  {
+    id: '220', title: 'Generic "something went wrong" error message', category: 'copy', severity: 'minor',
+    authority: 'propose', exts: null, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /(something went wrong|an error occurred|unknown error occurred|oops[,! ].*wrong)/i,
+    fix: 'Tell the user what failed and what to do next. A generic "something went wrong" is the AI-error tell and gives no path to recovery.',
+  },
+  {
+    id: '221', title: 'Global uncaughtException / unhandledRejection swallow', category: 'code', severity: 'major',
+    authority: 'flag', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /process\.on\s*\(\s*['"](uncaughtException|unhandledRejection)['"]/,
+    fix: 'A process-wide catch-all that logs and continues leaves the process in an unknown state — let it crash and restart under a supervisor, or handle the specific error at its source.',
+  },
+
+  // ---- §6 code quality + §7 TS depth (regex-clean subset) ----
+  {
+    id: '222', title: '`Function` / `Object` used as a type', category: 'code', severity: 'major',
+    authority: 'propose', exts: TS, skipTests: false, respectComments: true, confidence: 'medium',
+    // The `.` lookahead skips `Object.keys(…)` (a value, not a type annotation).
+    re: /(:\s*(Function|Object)\b(?!\s*\.)|\bas\s+(Function|Object)\b(?!\s*\.))/,
+    fix: 'Use a precise signature ((x: T) => U) or a concrete interface. `Function`/`Object` opt out of type-checking almost as much as `any`.',
+  },
+  {
+    id: '223', title: '`var` instead of `const` / `let`', category: 'code', severity: 'minor',
+    authority: 'propose', exts: CODE, skipTests: false, respectComments: true, confidence: 'medium',
+    re: /\bvar\s+\w/,
+    fix: 'Use const (or let). `var` is function-scoped and hoisted — a source of subtle scope bugs the block-scoped keywords remove.',
+  },
+  {
+    id: '224', title: 'Loose equality (== / !=)', category: 'code', severity: 'minor',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    // Flags == / != but not === / !== / <= / >=, and exempts the accepted `== null`
+    // / `!= null` idiom (a deliberate null-AND-undefined check).
+    re: /(?<![=!<>])(==|!=)(?!=)(?!\s*(null|undefined)\b)/,
+    fix: 'Use === / !== to avoid type-coercion surprises. (`== null` to catch null-or-undefined is the one accepted exception.)',
+  },
+  {
+    id: '225', title: 'Empty function body (stub)', category: 'code', severity: 'minor',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\bfunction\b[^{;(]*\([^)]*\)\s*\{\s*\}/,
+    fix: 'An empty function is a stub — implement it, or if a no-op is intentional, name it that way and add a comment so it doesn\'t read as unfinished.',
+  },
+  {
+    id: '226', title: 'Unnecessary `return await`', category: 'code', severity: 'minor',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    // (return await inside try/catch is legitimate for stack traces — a reviewer call.)
+    re: /\breturn\s+await\b/,
+    fix: 'Outside a try/catch, `return await x` just adds a microtask — `return x` is equivalent. Inside try/catch it is fine; keep it there.',
+  },
+
+  // ---- §14 a11y + §15 mobile + §16 visual + §17 copy (regex-clean subset) ----
+  {
+    id: '227', title: 'High-pressure / ALL-CAPS marketing CTA', category: 'copy', severity: 'minor',
+    authority: 'propose', exts: MARKUP, skipTests: true, respectComments: false, confidence: 'medium',
+    re: /\b(SIGN UP NOW|BUY NOW|SUBSCRIBE NOW|CLICK HERE|SHOP NOW|ORDER NOW|LIMITED TIME|ACT NOW|DON'T MISS)\b/,
+    fix: 'Write a calm, specific CTA in sentence case ("Start your free trial"). SHOUTING urgency copy is the AI-landing-page tell.',
+  },
+  {
+    id: '228', title: 'Unsupported marketing superlative', category: 'copy', severity: 'minor',
+    authority: 'propose', exts: MARKUP, skipTests: true, respectComments: false, confidence: 'medium',
+    re: /\b(world-?class|#1\b|best-in-class|industry-leading|state-of-the-art|revolutionary|game-?changing|next-generation|unparalleled)\b/i,
+    fix: 'Replace the superlative with a concrete claim you can back ("processes 10k events/sec"). Unproven "world-class" copy reads as AI filler.',
+  },
+  {
+    id: '229', title: '<html> missing a lang attribute', category: 'a11y', severity: 'minor',
+    authority: 'propose', exts: MARKUP, skipTests: true, respectComments: false,
+    re: /<html(?![^>]*\blang\s*=)[^>]*>/i,
+    fix: 'Add lang (e.g. <html lang="en">) so screen readers and translation use the right language.',
+  },
+  {
+    id: '230', title: 'Positive tabIndex (breaks tab order)', category: 'a11y', severity: 'minor',
+    authority: 'propose', exts: MARKUP, skipTests: true, respectComments: true,
+    re: /tab[Ii]ndex\s*=\s*["'{]*\s*[1-9]/,
+    fix: 'Use tabIndex={0} (focusable, natural order) or -1 (programmatic) — a positive tabIndex hijacks the whole page\'s tab order.',
+  },
+  {
+    id: '231', title: 'Viewport disables zoom (user-scalable=no)', category: 'a11y', severity: 'major',
+    authority: 'propose', exts: MARKUP, skipTests: true, respectComments: false,
+    re: /user-scalable\s*=\s*['"]?no|maximum-scale\s*=\s*['"]?1(\.0)?\b/i,
+    fix: 'Never disable pinch-zoom — it locks out low-vision users. Remove user-scalable=no / maximum-scale=1 from the viewport meta.',
+  },
+  {
+    id: '232', title: 'Body text below the ~12px legibility floor', category: 'mobile', severity: 'minor',
+    authority: 'propose', exts: STYLE, skipTests: true, respectComments: false, confidence: 'medium',
+    re: /font-size:\s*(?:[0-9]|1[01])(?:\.\d+)?px\b/,
+    fix: 'Use ≥12px (ideally rem-based) for body copy — sub-12px text is unreadable on mobile and fails accessibility.',
+  },
+  {
+    id: '233', title: 'width: 100vw (horizontal-overflow tell)', category: 'mobile', severity: 'minor',
+    authority: 'propose', exts: STYLE, skipTests: true, respectComments: false, confidence: 'medium',
+    re: /width:\s*100vw\b/,
+    fix: '100vw ignores the scrollbar and causes horizontal overflow on desktop. Use width:100% / max-width instead.',
+  },
+  {
+    id: '234', title: '!important override', category: 'visual', severity: 'minor',
+    authority: 'propose', exts: STYLE, skipTests: true, respectComments: false, confidence: 'medium',
+    re: /!important/,
+    fix: 'Fix the specificity instead of forcing it — scattered !important is a signal the cascade has stopped being reasoned about.',
+  },
+
+  // ---- §22 new languages ----
+  {
+    id: '235', title: 'printStackTrace() left in (Java)', category: 'code', severity: 'minor',
+    authority: 'propose', exts: JAVA, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\.printStackTrace\s*\(/,
+    fix: 'Log through a real logger (SLF4J/Log4j) with context. printStackTrace() dumps to stderr and is invisible in production log aggregation.',
+  },
+  {
+    id: '236', title: 'System.out/err debug print (Java)', category: 'code', severity: 'minor',
+    authority: 'propose', exts: JAVA, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /System\.(out|err)\.print/,
+    fix: 'Use a logging framework with levels instead of System.out — stray console prints are debug leftovers.',
+  },
+  {
+    id: '237', title: 'Runtime.exec / ProcessBuilder command execution (Java)', category: 'security', severity: 'major',
+    authority: 'propose', exts: JAVA, skipTests: true, respectComments: true,
+    re: /Runtime\.getRuntime\(\)\.exec\s*\(|new\s+ProcessBuilder\s*\(/,
+    fix: 'Avoid shelling out; if you must, pass an argument array (never a concatenated string) and validate inputs — this is a command-injection sink.',
+  },
+  {
+    id: '238', title: 'Console.Write debug (C#)', category: 'code', severity: 'minor',
+    authority: 'propose', exts: CSHARP, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /Console\.(WriteLine|Write)\s*\(/,
+    fix: 'Use ILogger with levels instead of Console.Write — console output is a debug leftover in a real app.',
+  },
+  {
+    id: '239', title: 'async void (C#)', category: 'code', severity: 'major',
+    authority: 'propose', exts: CSHARP, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\basync\s+void\b/,
+    fix: 'Use async Task — an async void method can\'t be awaited and its exceptions crash the process. (Event handlers are the only legitimate exception.)',
+  },
+  {
+    id: '240', title: 'Debugger breakpoint left in (Ruby)', category: 'code', severity: 'major',
+    authority: 'flag', exts: RUBY, skipTests: false, respectComments: true,
+    re: /\b(binding\.pry|byebug|binding\.irb)\b/,
+    fix: 'Remove the binding.pry / byebug breakpoint — it halts execution and hangs the process wherever it\'s hit.',
+  },
+  {
+    id: '241', title: 'puts / pp debug output (Ruby)', category: 'code', severity: 'minor',
+    authority: 'propose', exts: RUBY, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /^\s*(puts|pp)\s+/,
+    fix: 'Use the logger (Rails.logger / Logger) with levels rather than puts/pp for diagnostics you can turn off.',
+  },
+  {
+    id: '242', title: 'var_dump / print_r debug (PHP)', category: 'code', severity: 'minor',
+    authority: 'propose', exts: PHP, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\b(var_dump|print_r|var_export)\s*\(/,
+    fix: 'Remove the debug dump or route through a logger — var_dump/print_r output leaks straight into the page.',
+  },
+  {
+    id: '243', title: 'Remote script piped into a shell', category: 'security', severity: 'major',
+    authority: 'flag', exts: SHELL, skipTests: false, respectComments: true,
+    re: /(curl|wget)\s+[^|]*\|\s*(sudo\s+)?(sh|bash)\b/i,
+    fix: 'Download, inspect, and verify (checksum/signature) before executing. Piping a URL straight into a shell runs whatever the server serves today.',
+  },
+  {
+    id: '244', title: 'rm -rf on an unquoted/variable path', category: 'robustness', severity: 'major',
+    authority: 'flag', exts: SHELL, skipTests: false, respectComments: true,
+    re: /\brm\s+-[rf]{1,2}[a-z]*\s+["']?\$/i,
+    fix: 'An empty or mis-set variable turns `rm -rf $DIR/` into `rm -rf /`. Quote it, set `set -u`, and guard against an empty value before deleting.',
+  },
+  {
+    id: '245', title: 'chmod 777 (world-writable)', category: 'security', severity: 'major',
+    authority: 'propose', exts: SHELL, skipTests: false, respectComments: true,
+    re: /\bchmod\s+(-R\s+)?[0-7]?777\b/,
+    fix: 'World-writable (777) lets any local user modify the file/dir. Grant the least permission that works (e.g. 750/640).',
+  },
+  {
+    id: '246', title: 'DELETE / UPDATE without a WHERE clause (SQL)', category: 'robustness', severity: 'critical',
+    authority: 'flag', exts: SQL, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\b(DELETE\s+FROM|UPDATE)\s+[\w."`]+\b(?![^;]*\bWHERE\b)[^;]*;/i,
+    fix: 'A DELETE/UPDATE with no WHERE rewrites the ENTIRE table. Add a WHERE, or if a full-table change is truly intended, say so explicitly.',
+  },
+  {
+    id: '247', title: 'GRANT ALL privileges (SQL)', category: 'security', severity: 'major',
+    authority: 'flag', exts: SQL, skipTests: true, respectComments: true,
+    re: /\bGRANT\s+ALL\b/i,
+    fix: 'Grant only the specific privileges the role needs (SELECT/INSERT/…). GRANT ALL is the database equivalent of running as root.',
+  },
+
+  // ---- §23 framework-specific packs ----
+  {
+    id: '248', title: 'v-html (Vue XSS sink)', category: 'security', severity: 'critical',
+    authority: 'propose', exts: VUE, skipTests: true, respectComments: true,
+    re: /v-html\s*=/,
+    fix: 'v-html renders raw HTML — an XSS hole for any user content. Render as text ({{ }}), or sanitize with DOMPurify + an allowlist first.',
+  },
+  {
+    id: '249', title: 'debug=True in production config (Python)', category: 'security', severity: 'major',
+    authority: 'flag', exts: PY, skipTests: true, respectComments: true,
+    re: /\b(DEBUG\s*=\s*True|debug\s*=\s*True)\b/,
+    fix: 'debug=True leaks stack traces and an interactive console to users (Django/Flask). Drive it from an env var and default to False.',
+  },
+  {
+    id: '250', title: 'html_safe / raw output (Rails XSS sink)', category: 'security', severity: 'major',
+    authority: 'propose', exts: RUBY, skipTests: true, respectComments: true,
+    re: /\.html_safe\b|\braw\s*\(/,
+    fix: 'html_safe / raw disable Rails\' auto-escaping — an XSS hole for user content. Sanitize with the `sanitize` helper + an allowlist instead.',
+  },
+  {
+    id: '251', title: 'bypassSecurityTrust* (Angular XSS bypass)', category: 'security', severity: 'critical',
+    authority: 'flag', exts: TS, skipTests: true, respectComments: true,
+    re: /bypassSecurityTrust\w*/,
+    fix: 'bypassSecurityTrust* turns off Angular\'s sanitizer for that value — only ever apply it to a value you fully control, never user input.',
+  },
 ];
 
 // Detectors implemented as bespoke checks in scanner.js — file size, repo-level
@@ -651,4 +1146,32 @@ const WHOLE_FILE_RULES = [
   },
 ];
 
-module.exports = { LINE_RULES, WHOLE_FILE_RULES, META_RULES, META, confidenceOf, CODE, STYLE, MARKUP, TS };
+const SEVERITIES_CUSTOM = new Set(['critical', 'major', 'minor']);
+// Turn user "customRules" config entries into scanner rules. Each entry:
+//   { "id": "901", "pattern": "bannedApi\\(", "flags": "i", "title": "...",
+//     "severity": "minor", "category": "code", "fix": "...", "exts": [".js"] }
+// An invalid regex is skipped (never crashes the scan).
+function buildCustomRules(defs) {
+  const out = [];
+  for (const d of defs || []) {
+    if (!d || !d.id || !d.pattern) continue;
+    let re;
+    try { re = new RegExp(d.pattern, typeof d.flags === 'string' ? d.flags : ''); } catch { continue; }
+    out.push({
+      id: String(d.id),
+      title: d.title || `Custom rule ${d.id}`,
+      category: d.category || 'code',
+      severity: SEVERITIES_CUSTOM.has(d.severity) ? d.severity : 'minor',
+      authority: ['auto', 'propose', 'flag'].includes(d.authority) ? d.authority : 'flag',
+      confidence: ['high', 'medium', 'low'].includes(d.confidence) ? d.confidence : 'medium',
+      fix: d.fix || 'Custom project rule — see .slopscore.json "customRules".',
+      re,
+      exts: Array.isArray(d.exts) ? d.exts : null,
+      respectComments: d.respectComments !== false,
+      custom: true,
+    });
+  }
+  return out;
+}
+
+module.exports = { LINE_RULES, WHOLE_FILE_RULES, META_RULES, META, confidenceOf, buildCustomRules, CODE, STYLE, MARKUP, TS };

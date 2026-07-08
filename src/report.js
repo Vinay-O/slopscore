@@ -157,7 +157,7 @@ function terminalReport(result, s, options = {}) {
   }
   scoreBanner(s);
   out(paint(C.dim, `  Authority: ${g('green')} auto-fixable  ${g('dot')}  ${g('yellow')} propose (review)  ${g('dot')}  ${g('red')} flag (human decision)`));
-  out(paint(C.dim, '  Full catalog + fix authority for all 181 patterns: ANTI_SLOP_PROTOCOL.md'));
+  out(paint(C.dim, '  Full catalog + fix authority for all 250 patterns: ANTI_SLOP_PROTOCOL.md'));
   // Most slopscore runs that matter happen inside an AI agent — point it at the
   // mode built for it (and the playbook the agent should actually follow).
   out(paint(C.cyan, `  ${g('arrow')} Driving an AI agent? `) + paint(C.dim, '`slopscore scan --format agent` (compact, fix-authority-tagged) + `slopscore protocol` (the full fix playbook).'));
@@ -250,6 +250,7 @@ function sarifReport(result) {
       zone: f.zone || 'production', severity: f.severity,
       confidence: f.confidence || 'high', authority: f.authority,
     },
+    partialFingerprints: { 'slopscore/v1': `${f.id}:${f.file}:${String(f.snippet || '').trim().replace(/\s+/g, ' ').slice(0, 80)}` },
   }));
   out(JSON.stringify({
     $schema: 'https://json.schemastore.org/sarif-2.1.0.json',
@@ -268,8 +269,45 @@ function sarifReport(result) {
   }, null, 2));
 }
 
+// JUnit XML — for CI test-report panels (each finding = a failing "test case",
+// grouped by category into test suites). Production findings only fail; test-zone
+// findings are emitted as skipped so they surface without failing the build.
+function xmlEscape(s) {
+  return String(s).replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' }[c]));
+}
+function junitReport(result, s) {
+  const findings = sortFindings(result.findings);
+  const bySuite = new Map();
+  for (const f of findings) {
+    const key = f.category || 'other';
+    if (!bySuite.has(key)) bySuite.set(key, []);
+    bySuite.get(key).push(f);
+  }
+  const lines = ['<?xml version="1.0" encoding="UTF-8"?>'];
+  const totalFailures = findings.filter((f) => f.zone !== 'test').length;
+  lines.push(`<testsuites name="slopscore" tests="${findings.length}" failures="${totalFailures}">`);
+  for (const [suite, fs2] of bySuite) {
+    const fails = fs2.filter((f) => f.zone !== 'test').length;
+    lines.push(`  <testsuite name="${xmlEscape(suite)}" tests="${fs2.length}" failures="${fails}">`);
+    for (const f of fs2) {
+      const name = xmlEscape(`[${f.id}] ${f.title} (${f.file}:${f.line})`);
+      lines.push(`    <testcase classname="slopscore.${xmlEscape(suite)}" name="${name}">`);
+      const msg = xmlEscape(`${f.severity}: ${f.title} — ${f.fix}`);
+      if (f.zone === 'test') {
+        lines.push(`      <skipped message="${msg}"/>`);
+      } else {
+        lines.push(`      <failure type="${xmlEscape(f.severity)}" message="${msg}">${xmlEscape(`${f.file}:${f.line}  ${f.snippet}`)}</failure>`);
+      }
+      lines.push('    </testcase>');
+    }
+    lines.push('  </testsuite>');
+  }
+  lines.push('</testsuites>');
+  out(lines.join('\n'));
+}
+
 module.exports = {
-  terminalReport, jsonReport, markdownReport, agentReport, sarifReport,
+  terminalReport, jsonReport, markdownReport, agentReport, sarifReport, junitReport,
   setColor, setUnicode, supportsUnicode, captureTo,
   unicodeEnabled: () => useUnicode,
   glyph: g,

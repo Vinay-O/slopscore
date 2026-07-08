@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { LINE_RULES, WHOLE_FILE_RULES, META, confidenceOf } = require('./rules');
+const { LINE_RULES, WHOLE_FILE_RULES, META, confidenceOf, buildCustomRules } = require('./rules');
 const { checkDuplication, CODE_FOR_DUP } = require('./duplication');
 const { buildSuppressions, buildEslintSuppressions } = require('./suppress');
 const { commentMask } = require('./mask');
@@ -19,7 +19,7 @@ for (const r of [...LINE_RULES, ...WHOLE_FILE_RULES]) {
 // inside a string literal or comment/docstring is always prose, never a real use,
 // so these only fire in actual code. (SQL/secret/model-string rules are NOT here —
 // their whole point is to match a string's contents.)
-const CODE_ONLY_IDS = new Set(['052', '106', '144', '152', '153', '155', '159', '172', '178', '179', '180', '181']);
+const CODE_ONLY_IDS = new Set(['052', '106', '144', '152', '153', '155', '159', '172', '178', '179', '180', '181', '185', '188', '219', '223', '224', '225', '226']);
 // 057 (TODO/FIXME) is the inverse: a debt marker lives in a comment, while a `TODO`
 // data value / enum case does not — so it must match ONLY inside comments.
 const COMMENTS_ONLY_IDS = new Set(['057']);
@@ -49,7 +49,13 @@ const DEFAULT_IGNORE = [
 const TEXT_EXTS = new Set([
   '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.svelte', '.css', '.scss',
   '.sass', '.less', '.html', '.py', '.go', '.rb', '.php', '.rs',
+  // §22 additional languages
+  '.java', '.cs', '.kt', '.kts', '.swift', '.sql', '.sh', '.bash', '.zsh',
 ]);
+// Config / IaC files scanned in addition to source: Dockerfiles, Terraform, and
+// (scoped to avoid pulling in every stray YAML) docker-compose files and GitHub
+// Actions workflow YAML. Matched against the full path.
+const CONFIG_FILE_RE = /(^|[\\/])Dockerfile(\.[\w.-]+)?$|\.tf$|(^|[\\/])(docker-)?compose[\w.-]*\.ya?ml$|[\\/]\.github[\\/]workflows[\\/][^\\/]+\.ya?ml$/i;
 // Test files across ecosystems — JS (.test./.spec./__tests__/.stories./.cy.),
 // pytest (test_*.py, *_test.py, conftest.py), Go (*_test.go), Ruby (*_test.rb,
 // *_spec.rb). Used both to gate skipTests rules and (via zoneOf) the score zone.
@@ -138,7 +144,7 @@ function walk(root, norm) {
       if (isIgnored(full, path.relative(root, full), norm)) continue;
       if (entry.isDirectory()) {
         stack.push(full);
-      } else if (entry.isFile() && TEXT_EXTS.has(path.extname(entry.name))) {
+      } else if (entry.isFile() && (TEXT_EXTS.has(path.extname(entry.name)) || CONFIG_FILE_RE.test(full))) {
         files.push(full);
       }
     }
@@ -155,16 +161,20 @@ function ruleFinding(rule, file, line, snippet) {
   };
 }
 
-function ruleAppliesToFile(rule, ext) {
+function ruleAppliesToFile(rule, ext, file) {
+  // A `files` regex targets specific paths (Dockerfile, workflows…) regardless of
+  // extension; otherwise `exts` (or null = all code) decides.
+  if (rule.files) return file != null && rule.files.test(file);
   return rule.exts === null || rule.exts === undefined || rule.exts.includes(ext);
 }
 
-function scanLineRules(file, ext, isTest, text, lines, mask, findings, project) {
+function scanLineRules(file, ext, isTest, text, lines, mask, findings, project, lineRules) {
   // Decide which rules apply to this file once, not per line.
   //  - unlessFileContains: the whole file proves it's handled (same-file focus-visible).
   //  - unlessProject: a project-wide fact suppresses it (a global :focus-visible reset).
-  const active = LINE_RULES.filter((rule) => ruleAppliesToFile(rule, ext)
+  const active = (lineRules || LINE_RULES).filter((rule) => ruleAppliesToFile(rule, ext, file)
     && !(rule.skipTests && isTest)
+    && !(rule.testOnly && !isTest)
     && !(rule.unlessFile && rule.unlessFile.test(file))
     && !(rule.unlessFileContains && rule.unlessFileContains.test(text))
     && !(rule.unlessProject && project && project[rule.unlessProject]));
@@ -211,7 +221,7 @@ function lineNoAt(lineStarts, index) {
 }
 
 function scanWholeFileRules(file, ext, isTest, text, lines, findings) {
-  const applicable = WHOLE_FILE_RULES.filter((rule) => ruleAppliesToFile(rule, ext) && !(rule.skipTests && isTest));
+  const applicable = WHOLE_FILE_RULES.filter((rule) => ruleAppliesToFile(rule, ext, file) && !(rule.skipTests && isTest));
   if (applicable.length === 0) return;
   // Precompute each line's starting char offset ONCE; reuse for every match.
   const lineStarts = new Array(lines.length);
@@ -378,6 +388,10 @@ function scan(target, options = {}) {
   const norm = normalizeIgnore(DEFAULT_IGNORE.concat(options.ignore || []), base);
   const { files, hasDir } = gatherFiles(roots, norm);
   const findings = [];
+  // User-defined detectors from .slopscore.json "customRules" — merged into the
+  // line-scan pass so a team can add a house rule without forking the tool.
+  const lineRules = options.customRules && options.customRules.length
+    ? LINE_RULES.concat(buildCustomRules(options.customRules)) : LINE_RULES;
 
   const project = detectGlobalContext(files);
   const codeFiles = [];
@@ -404,9 +418,9 @@ function scan(target, options = {}) {
     totalLines += lineCount;
     if (zone === 'production') productionLines += lineCount;
     if (CODE_FOR_DUP.has(ext)) codeFiles.push({ file, lines, zone });
-    const mask = commentMask(lines, ext);
+    const mask = commentMask(lines, ext || (/(^|[\\/])Dockerfile/i.test(file) ? '.dockerfile' : ext));
     const before = findings.length;
-    scanLineRules(file, ext, isTest, text, lines, mask, findings, project);
+    scanLineRules(file, ext, isTest, text, lines, mask, findings, project, lineRules);
     scanWholeFileRules(file, ext, isTest, text, lines, findings);
     checkFileSize(file, ext, isTest, lineCount, lines, findings);
     // Apply inline suppressions and tag the zone on this file's findings.

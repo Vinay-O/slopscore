@@ -53,6 +53,10 @@ const FIXERS = {
   // blocks are valid; the engine's removal guard handles braceless-control bodies.)
   '052': (line) => (/^\s*console\.\w+\([^]*\)\s*;?\s*$/.test(line) && balanced(line) ? { remove: true } : null),
 
+  // 185 — a standalone `debugger;` statement on its own line: remove it. (A trailing
+  // `x(); debugger;` is left alone — the removal guard also protects braceless bodies.)
+  '185': (line) => (/^\s*debugger\s*;?\s*$/.test(line) ? { remove: true } : null),
+
   // 069 — a full-line step-narration comment: remove it. Trailing comments (code
   // then //…) are left alone so we never delete code. Removing a comment can never
   // change behavior.

@@ -4,7 +4,7 @@
 
 ### Scan your codebase for AI slop. Get a Slop Score. Ship clean.
 
-**A zero-dependency CLI + a 181-pattern protocol for AI coding agents.**
+**A zero-dependency CLI + a 250-pattern protocol for AI coding agents.**
 The antidote to vibe-coded software: turn *generation* into *governance*.
 
 [![CI](https://github.com/Vinay-O/slopscore/actions/workflows/ci.yml/badge.svg)](https://github.com/Vinay-O/slopscore/actions/workflows/ci.yml)
@@ -95,17 +95,17 @@ slopscore ships **two halves of the same idea**: a deterministic scanner you run
 
 ### 1. The scanner (deterministic, zero-dependency)
 
-Runs **85 detectors** locally in milliseconds — a hardened **security pass** (secrets, SQL/command injection, disabled TLS verification, weak hashing, insecure randomness, hardcoded private keys, insecure deserialization, wildcard CORS, `eval`, unverified JWTs, cleartext HTTP), plus empty catches, `any`, hallucinated APIs, missing `alt`, the VibeCode-purple gradient, AI buzzword copy, and god files. No LLM, no network, no dependencies.
+Runs **154 detectors** locally in milliseconds — a fast **security first-pass** (secrets across 15+ providers, SQL/command injection, disabled TLS verification, weak hashing, insecure randomness, hardcoded private keys, insecure deserialization, wildcard CORS, `eval`, unverified JWTs, cleartext HTTP, Dockerfile/CI footguns), plus a **robustness pass** (unguarded `JSON.parse`, unchecked `.find()`/`.match()`, `parseInt` w/o radix), empty catches, `any`, hallucinated APIs, missing `alt`, the VibeCode-purple gradient, AI buzzword copy, and god files. Regex/heuristic, not dataflow — a first pass, not a replacement for Semgrep/CodeQL. No LLM, no network, no dependencies.
 
 Run a focused security audit with `slopscore scan . --category security`.
 
 ### 2. The protocol (for your coding agent)
 
-[`ANTI_SLOP_PROTOCOL.md`](ANTI_SLOP_PROTOCOL.md) is a **181-pattern operating manual** for AI agents. Hand it to Claude Code, Cursor, Codex CLI, Aider, Copilot, Windsurf, or Cline and say:
+[`ANTI_SLOP_PROTOCOL.md`](ANTI_SLOP_PROTOCOL.md) is a **250-pattern operating manual** for AI agents. Hand it to Claude Code, Cursor, Codex CLI, Aider, Copilot, Windsurf, or Cline and say:
 
 > **"Check the system."**
 
-The agent runs a defined loop — orient → scan → score → triage → **fix** → verify → report — where every pattern carries a `DETECT`, a `FIX`, and a **fix authority** (🟢 auto-fix · 🟡 propose · 🔴 flag-for-human) so it knows what it may change on its own versus what needs your call. The **85 patterns the CLI already automates are tagged `⚙️ slopscore scan`** right in the catalog (generated from the scanner's own rule table, so the two halves never drift) — the untagged ones are where the agent earns its keep.
+The agent runs a defined loop — orient → scan → score → triage → **fix** → verify → report — where every pattern carries a `DETECT`, a `FIX`, and a **fix authority** (🟢 auto-fix · 🟡 propose · 🔴 flag-for-human) so it knows what it may change on its own versus what needs your call. The **154 patterns the CLI already automates are tagged `⚙️ slopscore scan`** right in the catalog (generated from the scanner's own rule table, so the two halves never drift) — the untagged ones are where the agent earns its keep.
 
 ```bash
 slopscore protocol | pbcopy        # copy the protocol to paste into your agent
@@ -134,7 +134,7 @@ SLOP DENSITY = weighted findings per 1,000 lines (kLOC)
 | 6–12 | Heavy slop. Needs real work. |
 | > 12 | Vibe-coded. Audit before anyone depends on it. |
 
-> Field benchmark: established codebases run ~4.4 weighted findings/kLOC; vibe-coded ones run ~14 — over 3× higher.
+> Rough field observation (not yet a controlled, published benchmark — see the calibration work in progress): established codebases tend to run ~4.4 weighted findings/kLOC; vibe-coded ones ~14. Treat it as a directional heuristic, not a certified number.
 
 ### The score reflects *production* risk
 
@@ -292,9 +292,9 @@ A bare `// slopscore-disable-next-line` (no id) suppresses every rule on the nex
 
 **It also honors your `eslint-disable`.** A line you already, deliberately, signed off on with `// eslint-disable-next-line @typescript-eslint/no-explicit-any` (or `no-console`) isn't re-litigated — slopscore won't re-flag a decision your team already reviewed. **Security findings are the exception:** an `eslint-disable` can never silence `eval`, SQL injection, a hardcoded secret, etc. — catching the hole someone waved through is the whole point.
 
-## What it detects (85 of the 181)
+## What it detects (154 of the 250)
 
-The CLI runs the deterministic subset; the [full 181-pattern catalog](ANTI_SLOP_PROTOCOL.md) (including visual, architectural, and judgment-heavy patterns) is what you hand your agent.
+The CLI runs the deterministic subset; the [full 250-pattern catalog](ANTI_SLOP_PROTOCOL.md) (including visual, architectural, and judgment-heavy patterns) is what you hand your agent.
 
 | Category | Examples |
 |:--|:--|
@@ -331,7 +331,7 @@ This table is scoped to **AI-slop detection specifically** — it is not a quali
 
 **Does it work for Python / Go / Rust?** Yes — there are dedicated detectors for each (Python: mutable defaults, `== None`, `eval`/`exec`, f-string SQL, `pickle`, `print`; Go: ignored errors, `fmt.Print`, `panic`, command injection; Rust: `.unwrap()`, `panic!`, `unsafe`, `dbg!`). The comment/string masking is language-aware (Python `#` comments and docstrings aren't scanned as code), and `test_*.py` / `*_test.go` are correctly treated as the test zone. Security and copy detectors run on all source; the JS/TS surface is the deepest because that's where vibe-coded slop concentrates.
 
-**How accurate is it / false positives?** Low by design, and rigorously tested: clean, idiomatic code reliably scores zero. The scanner is comment- and string-aware (it won't flag `eval()` in a docstring, `console.log` in a comment, or `firstName + " and " + lastName` as SQL), honors your `eslint-disable`, skips test files, exempts ORM `Column == None` and date-pinned model ids, and ships **150+ tests** including a clean-code battery. On a mature codebase, a high-volume pattern (e.g. a design system's repeated markup) is **clustered** into one line so it can't bury the findings that matter, and a single noisy detector can never define the verdict (the score caps each rule). `slopscore fix` is verified non-corrupting — it never deletes a line that would break structure or rewrites inside a string. Found a bad finding? [Open an issue.](../../issues)
+**How accurate is it / false positives?** Low by design, and rigorously tested: clean, idiomatic code reliably scores zero. The scanner is comment- and string-aware (it won't flag `eval()` in a docstring, `console.log` in a comment, or `firstName + " and " + lastName` as SQL), honors your `eslint-disable`, skips test files, exempts ORM `Column == None` and date-pinned model ids, and ships **220+ tests** including a clean-code battery. On a mature codebase, a high-volume pattern (e.g. a design system's repeated markup) is **clustered** into one line so it can't bury the findings that matter, and a single noisy detector can never define the verdict (the score caps each rule). `slopscore fix` is verified non-corrupting — it never deletes a line that would break structure or rewrites inside a string. Found a bad finding? [Open an issue.](../../issues)
 
 ## Contributing
 
@@ -339,7 +339,7 @@ Adding a detector is one object in [`src/rules.js`](src/rules.js) + a test. See 
 
 ```bash
 git clone https://github.com/Vinay-O/slopscore && cd slopscore
-npm test          # 143 tests, zero dependencies
+npm test          # 226 tests, zero dependencies
 npm run demo      # scan the sloppy fixture
 npm run selfcheck # prove the repo passes its own audit
 ```

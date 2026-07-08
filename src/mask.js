@@ -5,7 +5,7 @@
 const REGEX_OK = new Set(['', '(', ',', '=', ':', '[', '{', ';', '!', '&', '|', '?', '+', '-', '*', '%', '<', '>', '~', '^']);
 
 // Languages whose line comment is `#` (not `//`).
-const HASH_LANGS = new Set(['.py', '.rb', '.sh', '.bash', '.zsh', '.yaml', '.yml', '.toml', '.pl']);
+const HASH_LANGS = new Set(['.py', '.rb', '.sh', '.bash', '.zsh', '.yaml', '.yml', '.toml', '.pl', '.tf', '.dockerfile']);
 
 // Classify every character as code (0), comment (1), or string (2). String- and
 // regex-literal-aware so a `//` inside "http://…" or /https:\/\// isn't a comment.
@@ -19,10 +19,12 @@ function commentMask(lines, ext) {
   const mask = [];
   let inBlock = false;    // /* … */ (carries across lines)
   let inTriple = null;    // '"""' or "'''" docstring (carries across lines)
+  let inTemplate = false; // `…` template literal (carries across lines)
   for (const line of lines) {
     const kind = new Array(line.length).fill(0);
     let i = 0;
-    let inStr = null;   // active single-line quote char (' " `), or null
+    let inStr = inTemplate ? '`' : null;   // resume a template literal from a prior line
+    inTemplate = false;
     let prevSig = '';   // last significant (non-space) char seen
     while (i < line.length) {
       const ch = line[i];
@@ -65,11 +67,12 @@ function commentMask(lines, ext) {
           else if (c === '/' && !inClass) { closed = true; j += 1; break; }
           j += 1;
         }
-        if (closed) { i = j; prevSig = '/'; continue; }
+        if (closed) { for (let p = i; p < j; p += 1) kind[p] = 2; i = j; prevSig = '/'; continue; }
         prevSig = '/'; i += 1; continue;
       }
       prevSig = ch; i += 1;
     }
+    if (inStr === '`') inTemplate = true; // template literal continues on the next line
     mask.push(kind);
   }
   return mask;
