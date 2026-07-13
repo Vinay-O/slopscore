@@ -3,6 +3,22 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.10.0] — 2026-07-14
+
+### Added
+- **Taint-lite for injection/XSS rules** (`071`, `072`, `144`, `171`). A match keeps
+  full confidence only when a user-/externally-derived source (`req`, `params`, `body`,
+  `input`, `query`, …) is present on the line; otherwise it's still reported but at a
+  downgraded confidence (likely a constant/internal value). Cuts false-positive weight on
+  safe interpolation **without gating detection** — a real `${req.query.id}` still scores full.
+- **Detector `252` — untrusted file content echoed to a terminal/log.** Flags a file read
+  piped straight into `console.*` / `process.stdout|stderr.write` — the control-character
+  injection class slopscore hardened in its own output in 1.9.3 (dogfooding). (155 detectors / 251 patterns.)
+- **Published precision/recall benchmark** (`npm run pr`) over a labeled corpus of seeded
+  vulnerabilities + tempting-but-safe hard negatives (parameterized SQL, `textContent`, env
+  secrets, guarded `JSON.parse`). **100% precision / 100% recall** at medium+ confidence,
+  guarded by a regression test. A reproducible check on the tool's own false-positive rate.
+
 ## [1.9.4] — 2026-07-14
 
 ### Security / robustness (hardening the scanner itself)

@@ -296,7 +296,7 @@ Each entry: **ID · Title** `SEVERITY` `AUTHORITY` — description, `DETECT` (ho
 (aesthetic tell). Authority: 🟢 AUTO · 🟡 PROPOSE · 🔴 FLAG (see §0).
 
 A `` `⚙️ slopscore scan` `` tag means **the deterministic CLI already detects this pattern** —
-`npx slopscore` flags it for you with the exact location and fix. **154 of the 250** carry this tag
+`npx slopscore` flags it for you with the exact location and fix. **155 of the 251** carry this tag
 today; the rest need an AST tool (§2.1) or human reading (layout sameness, fake features,
 architectural drift). The tags are generated from the scanner's own rule table, so they never
 drift from what the CLI actually does. Patterns *without* the tag are where you, the agent, earn
@@ -1880,3 +1880,8 @@ Category: security · confidence: high. Flagged by the deterministic scanner.
 Category: security · confidence: high. Flagged by the deterministic scanner.
 `DETECT:` `bypassSecurityTrust\w*`.
 `FIX:` bypassSecurityTrust* turns off Angular's sanitizer for that value — only ever apply it to a value you fully control, never user input.
+
+**252 · Untrusted file content echoed to a terminal/log** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: medium. Flagged by the deterministic scanner. File contents can carry ANSI/control escape sequences that drive the reader's terminal — the exact control-character injection class slopscore hardened in its own output.
+`DETECT:` `(console\.\w+|process\.(stdout|stderr)\.write)\s*\([^)]*\breadFile(Sync)?\s*\(`.
+`FIX:` Strip control/escape characters (or hex-encode) before printing untrusted file content to a terminal or log.

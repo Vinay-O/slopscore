@@ -155,10 +155,10 @@ function walk(root, norm) {
 
 
 // Build a finding from a matched rule (shared by line and whole-file scanning).
-function ruleFinding(rule, file, line, snippet) {
+function ruleFinding(rule, file, line, snippet, conf) {
   return {
     id: rule.id, title: rule.title, category: rule.category, severity: rule.severity,
-    authority: rule.authority, confidence: confidenceOf(rule), fix: rule.fix, file, line, snippet: sanitizeSnippet(snippet),
+    authority: rule.authority, confidence: conf || confidenceOf(rule), fix: rule.fix, file, line, snippet: sanitizeSnippet(snippet),
   };
 }
 
@@ -197,7 +197,7 @@ function scanLineRules(file, ext, isTest, text, lines, mask, findings, project, 
         if (ok) { hit = m; break; }
         if (m.index === re.lastIndex) re.lastIndex += 1;
       }
-      if (hit) findings.push(ruleFinding(rule, file, n + 1, line.trim().slice(0, 120)));
+      if (hit) findings.push(ruleFinding(rule, file, n + 1, line.trim().slice(0, 120), rule.taint && !rule.taint.test(line) ? (confidenceOf(rule) === 'high' ? 'medium' : 'low') : null));
     }
   }
 }

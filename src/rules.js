@@ -42,6 +42,12 @@ const DOCKERFILE_RE = /(^|[\\/])Dockerfile(\.[\w.-]+)?$/i;
 const COMPOSE_RE = /(^|[\\/])(docker-)?compose[\w.-]*\.ya?ml$/i;
 const WORKFLOW_RE = /[\\/]\.github[\\/]workflows[\\/][^\\/]+\.ya?ml$/i;
 
+// Taint-lite: user-/externally-derived sources. An injection/XSS rule that matches
+// a line WITHOUT one of these keeps firing but at a downgraded confidence (likely a
+// constant/internal value, not attacker-controlled) — so a real `${req.query.id}`
+// scores full while a `${tableName}` constant contributes far less to the verdict.
+const TAINT_RE = /\b(req|request|params?|query|body|args?|argv|input|user\w*|ctx|event|payload|form\w*|search\w*|location|process\.env|data|untrusted|external|raw)\b/i;
+
 const LINE_RULES = [
   // ---- CATEGORY 7: code quality ----
   {
@@ -93,6 +99,7 @@ const LINE_RULES = [
     // literal (`innerHTML = "static"`, `__html: "..."`) carries no user data — not XSS.
     re: /(dangerouslySetInnerHTML|\.innerHTML\s*=(?!=))/,
     unless: /DOMPurify|sanitize|__html\s*:\s*['"]|\.innerHTML\s*=\s*['"]/i,
+    taint: TAINT_RE,
     fix: 'Render as text, or sanitize with DOMPurify + an allowlist before injecting.',
   },
   {
@@ -101,6 +108,7 @@ const LINE_RULES = [
     // Require real SQL structure (SELECT…FROM, INSERT INTO, UPDATE…SET, DELETE FROM)
     // so plain-English copy like `Last update: ${t}` is not flagged as injection.
     re: /`[^`]*(\bSELECT\b[^`]*\bFROM\b|\bINSERT\s+INTO\b|\bUPDATE\s+\w+\s+SET\b|\bDELETE\s+FROM\b)[^`]*\$\{/i,
+    taint: TAINT_RE,
     fix: 'Use parameterized queries / prepared statements. Never interpolate input into SQL.',
   },
   {
@@ -357,6 +365,7 @@ const LINE_RULES = [
     id: '144', title: 'Command injection via interpolated shell', category: 'security', severity: 'critical',
     authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
     re: /\b(exec|execSync)\s*\(\s*`[^`]*\$\{/,
+    taint: TAINT_RE,
     fix: 'Never interpolate input into a shell string. Use execFile/spawn with an args array; validate inputs.',
   },
   {
@@ -527,6 +536,7 @@ const LINE_RULES = [
     // plain-English concat like `name + " and " + surname` is never mistaken for
     // injection. (A generic `+ "WHERE…"` branch was too eager — dropped.)
     re: /['"][^'"]*\b(?:SELECT\b[^'"]*\bFROM|INSERT\s+INTO|UPDATE\s+\w+\s+SET|DELETE\s+FROM)\b[^'"]*['"]\s*\+/i,
+    taint: TAINT_RE,
     fix: 'Use parameterized queries / prepared statements. Never build SQL by concatenating input.',
   },
   {
@@ -1085,6 +1095,15 @@ const LINE_RULES = [
     authority: 'flag', exts: TS, skipTests: true, respectComments: true,
     re: /bypassSecurityTrust\w*/,
     fix: 'bypassSecurityTrust* turns off Angular\'s sanitizer for that value — only ever apply it to a value you fully control, never user input.',
+  },
+  {
+    id: '252', title: 'Untrusted file content echoed to a terminal/log', category: 'security', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    // File contents can carry ANSI/control sequences that drive the reader's terminal
+    // (the exact bug class slopscore fixed in its own output). Flags a file read piped
+    // straight into console.*/stdout/stderr without sanitization.
+    re: /(console\.\w+|process\.(stdout|stderr)\.write)\s*\([^)]*\breadFile(Sync)?\s*\(/,
+    fix: 'Strip control/escape characters (or hex-encode) before printing untrusted file content to a terminal or log — raw content can inject terminal escape sequences.',
   },
 ];
 

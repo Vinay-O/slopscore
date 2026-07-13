@@ -22,7 +22,7 @@ function densityOf(dir) {
 }
 
 function main() {
-  const root = path.join(__dirname, '..', 'test', 'corpus');
+  const root = path.join(__dirname, '..', 'corpus');
   const clean = densityOf(path.join(root, 'clean'));
   const slop = densityOf(path.join(root, 'slop'));
 

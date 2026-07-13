@@ -1,4 +1,4 @@
 {
-  "ignore": ["examples", "test", "src/rules.js"],
+  "ignore": ["examples", "test", "corpus", "src/rules.js"],
   "failOn": "major"
 }

@@ -33,6 +33,18 @@ test('var (223) and loose == (224) are low-confidence (gate-able as legacy noise
   assert.strictEqual(all.find((r) => r.id === '224').confidence, 'low');
 });
 
+test('taint-lite: injection rules keep full confidence only with a user-derived source', () => {
+  const conf = (name, src, id) => {
+    const f = scan(tmpFile(name, src)).findings.find((x) => x.id === id);
+    return f && f.confidence;
+  };
+  // still FIRES either way (regression: detection is not gated) — only confidence moves
+  assert.strictEqual(conf('a.js', 'const q = `SELECT x FROM u WHERE id=${req.query.id}`;\n', '072'), 'high');
+  assert.strictEqual(conf('b.js', 'const q = `SELECT x FROM u WHERE t=${tableName}`;\n', '072'), 'medium');
+  assert.strictEqual(conf('c.js', 'el.innerHTML = userInput;\n', '071'), 'high');
+  assert.strictEqual(conf('d.js', 'el.innerHTML = renderedTemplate;\n', '071'), 'medium');
+});
+
 test('idiomatic clean code in the new languages produces no findings', () => {
   const clean = {
     'A.java': 'import org.slf4j.Logger;\n\nclass Calc {\n  int add(int a, int b) { return a + b; }\n}\n',
