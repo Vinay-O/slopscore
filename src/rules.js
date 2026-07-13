@@ -1152,14 +1152,21 @@ const WHOLE_FILE_RULES = [
 ];
 
 const SEVERITIES_CUSTOM = new Set(['critical', 'major', 'minor']);
+// Catastrophic-backtracking signature: a group whose body already contains a
+// quantifier and is itself quantified — (a+)+, (.*)*, (\d+)* — the classic ReDoS
+// shapes. A user regex from .slopscore.json runs against every line, so a ReDoS
+// pattern could hang the scan; such rules are skipped (and the CLI warns).
+const REDOS_RE = /\([^()]*[+*][^()]*\)\s*[+*]/;
+const looksReDoS = (pattern) => REDOS_RE.test(String(pattern || ''));
+
 // Turn user "customRules" config entries into scanner rules. Each entry:
 //   { "id": "901", "pattern": "bannedApi\\(", "flags": "i", "title": "...",
 //     "severity": "minor", "category": "code", "fix": "...", "exts": [".js"] }
-// An invalid regex is skipped (never crashes the scan).
+// An invalid regex — or a ReDoS-prone one — is skipped (never crashes/hangs the scan).
 function buildCustomRules(defs) {
   const out = [];
   for (const d of defs || []) {
-    if (!d || !d.id || !d.pattern) continue;
+    if (!d || !d.id || !d.pattern || looksReDoS(d.pattern)) continue;
     let re;
     try { re = new RegExp(d.pattern, typeof d.flags === 'string' ? d.flags : ''); } catch { continue; }
     out.push({
@@ -1179,4 +1186,4 @@ function buildCustomRules(defs) {
   return out;
 }
 
-module.exports = { LINE_RULES, WHOLE_FILE_RULES, META_RULES, META, confidenceOf, buildCustomRules, CODE, STYLE, MARKUP, TS };
+module.exports = { LINE_RULES, WHOLE_FILE_RULES, META_RULES, META, confidenceOf, buildCustomRules, looksReDoS, CODE, STYLE, MARKUP, TS };

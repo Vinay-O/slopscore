@@ -3,6 +3,16 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.9.4] — 2026-07-14
+
+### Security / robustness (hardening the scanner itself)
+- **customRules ReDoS guard.** A user-supplied regex in `.slopscore.json` runs against
+  every line, so a catastrophic-backtracking pattern could hang the scan. Nested-quantifier
+  shapes (`(a+)+`, `(.*)*`, `(\d+)*`) are now detected, the rule is skipped, and the CLI warns.
+- **Non-UTF-8 / binary hardening.** The scanner already skipped NUL-byte files; it now also
+  skips files that decode to a high density of U+FFFD replacement chars (a non-UTF-8 file read
+  as UTF-8), which otherwise produce garbage findings.
+
 ## [1.9.3] — 2026-07-14
 
 ### Security

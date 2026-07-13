@@ -6,7 +6,7 @@ const path = require('path');
 const { scan } = require('../src/scanner');
 const { score } = require('../src/score');
 const report = require('../src/report');
-const { LINE_RULES, WHOLE_FILE_RULES, META_RULES } = require('../src/rules');
+const { LINE_RULES, WHOLE_FILE_RULES, META_RULES, looksReDoS } = require('../src/rules');
 const { fingerprint, loadBaseline, writeBaseline } = require('../src/baseline');
 const { sparkline, loadHistory, appendHistory, trendDelta } = require('../src/history');
 const { planFixes, applyPlan, autoFixableIds, optInFixableIds } = require('../src/fix');
@@ -280,6 +280,11 @@ function runScan(opts) {
   }
   const { config: cfg, baseDir } = loadConfig(configStartDir(opts.paths));
   validateConfig(cfg);
+  for (const d of cfg.customRules || []) {
+    if (d && d.pattern && looksReDoS(d.pattern)) {
+      err(`slopscore: warning — customRule "${d.id}" skipped: pattern looks ReDoS-prone (nested quantifier "${d.pattern}"). Rewrite without a quantified group inside a quantifier.`);
+    }
+  }
   // --changed / --since: restrict the scan to files git reports as changed.
   if (opts.changed) {
     const changed = gitChangedFiles(opts.since);

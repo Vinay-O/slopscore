@@ -22,4 +22,17 @@ function sanitizeSnippet(s) {
     .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '');
 }
 
-module.exports = { sanitizeSnippet };
+module.exports = { sanitizeSnippet, looksBinary };
+
+// True for content that isn't real source text: a NUL byte (classic binary marker)
+// or a high density of U+FFFD replacement chars (a non-UTF-8 file decoded as UTF-8).
+// Scanning such a file yields garbage findings, so the scanner skips it.
+function looksBinary(text) {
+  if (typeof text !== 'string') return true;
+  if (text.includes('\u0000')) return true;
+  const sample = text.length > 2000 ? text.slice(0, 2000) : text;
+  if (sample.length === 0) return false;
+  let repl = 0;
+  for (let i = 0; i < sample.length; i += 1) if (sample.charCodeAt(i) === 0xFFFD) repl += 1;
+  return repl / sample.length > 0.05;
+}

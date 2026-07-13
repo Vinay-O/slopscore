@@ -6,7 +6,7 @@ const { LINE_RULES, WHOLE_FILE_RULES, META, confidenceOf, buildCustomRules } = r
 const { checkDuplication, CODE_FOR_DUP } = require('./duplication');
 const { buildSuppressions, buildEslintSuppressions } = require('./suppress');
 const { commentMask } = require('./mask');
-const { sanitizeSnippet } = require('./sanitize');
+const { sanitizeSnippet, looksBinary } = require('./sanitize');
 
 // id → { eslint, category } so an applied finding can be matched against an
 // inline `eslint-disable` directive. Security findings are never eslint-suppressible
@@ -408,7 +408,7 @@ function scan(target, options = {}) {
     } catch {
       continue;
     }
-    if (text.includes('\u0000')) continue; // binary guard
+    if (looksBinary(text)) continue; // binary / non-UTF-8 guard
     const ext = path.extname(file);
     const lines = text.split('\n');
     if (looksGenerated(file, lines)) continue; // skip minified/vendored/generated noise
