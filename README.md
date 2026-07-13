@@ -4,7 +4,7 @@
 
 ### Scan your codebase for AI slop. Get a Slop Score. Ship clean.
 
-**A zero-dependency CLI + a 272-pattern protocol for AI coding agents.**
+**A zero-dependency CLI + a 275-pattern protocol for AI coding agents.**
 The antidote to vibe-coded software: turn *generation* into *governance*.
 
 [![CI](https://github.com/Vinay-O/slopscore/actions/workflows/ci.yml/badge.svg)](https://github.com/Vinay-O/slopscore/actions/workflows/ci.yml)
@@ -95,13 +95,13 @@ slopscore ships **two halves of the same idea**: a deterministic scanner you run
 
 ### 1. The scanner (deterministic, zero-dependency)
 
-Runs **176 detectors** locally in milliseconds — a fast **security first-pass** (secrets across 15+ providers, SQL/command injection, disabled TLS verification, weak hashing, insecure randomness, hardcoded private keys, insecure deserialization, wildcard CORS, `eval`, unverified JWTs, cleartext HTTP, Dockerfile/CI footguns), plus a **robustness pass** (unguarded `JSON.parse`, unchecked `.find()`/`.match()`, `parseInt` w/o radix), empty catches, `any`, hallucinated APIs, missing `alt`, the VibeCode-purple gradient, AI buzzword copy, and god files. Regex/heuristic, not dataflow — a first pass, not a replacement for Semgrep/CodeQL. No LLM, no network, no dependencies.
+Runs **179 detectors** locally in milliseconds — a fast **security first-pass** (secrets across 15+ providers, SQL/command injection, disabled TLS verification, weak hashing, insecure randomness, hardcoded private keys, insecure deserialization, wildcard CORS, `eval`, unverified JWTs, cleartext HTTP, Dockerfile/CI footguns), plus a **robustness pass** (unguarded `JSON.parse`, unchecked `.find()`/`.match()`, `parseInt` w/o radix), empty catches, `any`, hallucinated APIs, missing `alt`, the VibeCode-purple gradient, AI buzzword copy, and god files. Regex/heuristic, not dataflow — a first pass, not a replacement for Semgrep/CodeQL. No LLM, no network, no dependencies.
 
 Run a focused security audit with `slopscore scan . --category security`.
 
 ### 2. The protocol (for your coding agent)
 
-[`ANTI_SLOP_PROTOCOL.md`](ANTI_SLOP_PROTOCOL.md) is a **272-pattern operating manual** for AI agents. Hand it to Claude Code, Cursor, Codex CLI, Aider, Copilot, Windsurf, or Cline and say:
+[`ANTI_SLOP_PROTOCOL.md`](ANTI_SLOP_PROTOCOL.md) is a **275-pattern operating manual** for AI agents. Hand it to Claude Code, Cursor, Codex CLI, Aider, Copilot, Windsurf, or Cline and say:
 
 > **"Check the system."**
 
@@ -300,9 +300,9 @@ A bare `// slopscore-disable-next-line` (no id) suppresses every rule on the nex
 
 **It also honors your `eslint-disable`.** A line you already, deliberately, signed off on with `// eslint-disable-next-line @typescript-eslint/no-explicit-any` (or `no-console`) isn't re-litigated — slopscore won't re-flag a decision your team already reviewed. **Security findings are the exception:** an `eslint-disable` can never silence `eval`, SQL injection, a hardcoded secret, etc. — catching the hole someone waved through is the whole point.
 
-## What it detects (176 of the 272)
+## What it detects (179 of the 275)
 
-The CLI runs the deterministic subset; the [full 272-pattern catalog](ANTI_SLOP_PROTOCOL.md) (including visual, architectural, and judgment-heavy patterns) is what you hand your agent.
+The CLI runs the deterministic subset; the [full 275-pattern catalog](ANTI_SLOP_PROTOCOL.md) (including visual, architectural, and judgment-heavy patterns) is what you hand your agent.
 
 | Category | Examples |
 |:--|:--|
@@ -314,7 +314,7 @@ The CLI runs the deterministic subset; the [full 272-pattern catalog](ANTI_SLOP_
 | 🐳 Config / IaC / CI | Dockerfile `:latest` / `USER root` / `curl \| sh` / baked secrets · docker-compose `privileged` · GitHub Actions `pull_request_target` · unpinned actions · `${{ github.event }}` script injection |
 | 📱 Mobile / a11y | Zoom-disabling viewport (`user-scalable=no`) · sub-12px body text · `width: 100vw` overflow · `<html>` missing `lang` · positive `tabIndex` |
 | 🐍 Language-specific | **Python:** mutable default args · `== None` · `eval`/`exec` · f-string SQL · `os.system`/`shell=True` · `print` debug · `DEBUG=True`. **Go:** empty `interface{}` · ignored errors · `fmt.Print` · `panic()`. **Rust:** `.unwrap()`/`.expect()` · `todo!`/`panic!` · `unsafe` · `dbg!`/`println!`. **Java:** `printStackTrace` · `System.out` · `Runtime.exec`. **C#:** `Console.Write` · `async void`. **Ruby:** `binding.pry` · `puts`/`pp` · `html_safe`/`raw`. **PHP:** `var_dump`/`print_r`. **Shell:** `curl \| sh` · `rm -rf $VAR` · `chmod 777`. **SQL:** `DELETE`/`UPDATE` without `WHERE` · `GRANT ALL`. **Kotlin:** `!!` force-unwrap · `println`. **Swift:** `try!` · `print`. **C/C++:** `gets`/`strcpy`/`sprintf` (overflow) · `system()` |
-| 📦 Supply chain | Dependency bloat · unpinned/aliased LLM model strings (date-pinned ids exempt) · source maps shipped to production |
+| 📦 Supply chain | Dependency bloat · **unpinned versions (`*`/`latest`)** · **non-registry deps (git/http/tarball)** · **lifecycle install scripts** (`postinstall`) · unpinned/aliased LLM model strings (date-pinned ids exempt) · source maps shipped to production |
 | ♿ Accessibility | `<img>` without alt · interactive `<div onClick>` · `outline:none` with no focus style |
 | 🎨 Visual slop | VibeCode-purple gradient · conic/mesh gradients · glassmorphism · gradient-clip text · Sparkle/Wand icons · recycled AI fonts · confetti — matched across **Tailwind classes AND CSS-in-JS** (MUI `sx`, styled, emotion) |
 | ✍️ Copy | AI buzzwords ("supercharge", "seamlessly") · exclamation-mark CTAs · "Coming soon" · "Oops!" errors · "Submit" buttons · "Click here" links · lorem ipsum |

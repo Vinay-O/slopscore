@@ -296,7 +296,7 @@ Each entry: **ID · Title** `SEVERITY` `AUTHORITY` — description, `DETECT` (ho
 (aesthetic tell). Authority: 🟢 AUTO · 🟡 PROPOSE · 🔴 FLAG (see §0).
 
 A `` `⚙️ slopscore scan` `` tag means **the deterministic CLI already detects this pattern** —
-`npx slopscore` flags it for you with the exact location and fix. **176 of the 272** carry this tag
+`npx slopscore` flags it for you with the exact location and fix. **179 of the 275** carry this tag
 today; the rest need an AST tool (§2.1) or human reading (layout sameness, fake features,
 architectural drift). The tags are generated from the scanner's own rule table, so they never
 drift from what the CLI actually does. Patterns *without* the tag are where you, the agent, earn
@@ -1990,3 +1990,18 @@ Category: security · confidence: medium. Flagged by the deterministic scanner.
 Category: security · confidence: medium. Flagged by the deterministic scanner.
 `DETECT:` `cors\s*\(\s*\{[^}]*origin\s*:\s*(true|\/)`.
 `FIX:` origin:true reflects the caller's Origin (effectively allow-all, dangerous with credentials). Pin an explicit allowlist of trusted origins.
+
+**274 · Unpinned dependency version** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: supply-chain · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` file/repo-level check (package.json).
+`FIX:` Pin the version (an exact version or a caret range on a real release). `*`/`latest` floats to whatever the registry serves next — a supply-chain and reproducibility risk.
+
+**275 · Dependency from a non-registry source** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: supply-chain · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` file/repo-level check (package.json).
+`FIX:` A git/http/tarball/local dependency is unaudited and mutable (the ref can change under you). Prefer a published, version-pinned registry package.
+
+**276 · Lifecycle install script (preinstall/postinstall)** `🟠` `🔴 FLAG` `⚙️ slopscore scan`
+Category: supply-chain · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` file/repo-level check (package.json).
+`FIX:` An install hook runs arbitrary code on every `npm install` — a supply-chain execution surface. Confirm it is necessary and trusted, or move the work to an explicit build step.

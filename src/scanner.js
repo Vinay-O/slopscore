@@ -7,6 +7,7 @@ const { checkDuplication, CODE_FOR_DUP } = require('./duplication');
 const { buildSuppressions, buildEslintSuppressions } = require('./suppress');
 const { commentMask } = require('./mask');
 const { sanitizeSnippet, looksBinary } = require('./sanitize');
+const { checkManifest } = require('./manifest');
 
 // id → { eslint, category } so an applied finding can be matched against an
 // inline `eslint-disable` directive. Security findings are never eslint-suppressible
@@ -63,7 +64,6 @@ const CONFIG_FILE_RE = /(^|[\\/])Dockerfile(\.[\w.-]+)?$|\.tf$|(^|[\\/])(docker-
 const TEST_RE = /(\.test\.|\.spec\.|__tests__|\.stories\.|\.cy\.|(^|[\\/])test_[^\\/]*\.py$|[^\\/]*_test\.(py|go|rb)$|[^\\/]*_spec\.rb$|(^|[\\/])conftest\.py$)/;
 const MAX_BYTES = 2 * 1024 * 1024;
 const GOD_FILE_LINES = 500;
-const DEP_BUDGET = 80;
 const THIN_README_LINES = 20;
 const SEVERITIES = new Set(['critical', 'major', 'minor']);
 
@@ -280,7 +280,7 @@ function checkVersionedDuplicates(files, findings) {
 
 function checkRepoLevel(root, findings) {
   checkTrackedEnv(root, findings);
-  checkDependencyBudget(root, findings);
+  checkManifest(root, findings, metaFinding);
   checkThinReadme(root, findings);
 }
 
@@ -299,22 +299,6 @@ function checkTrackedEnv(root, findings) {
   if (envIgnored) return; // dev intends it untracked — not a committed secret
   for (const f of envFiles) {
     findings.push(metaFinding('107', path.join(root, f), { snippet: f }));
-  }
-}
-
-function checkDependencyBudget(root, findings) {
-  const pkgPath = path.join(root, 'package.json');
-  if (!fs.existsSync(pkgPath)) return;
-  try {
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-    const count = Object.keys(pkg.dependencies || {}).length;
-    if (count > DEP_BUDGET) {
-      findings.push(metaFinding('079', pkgPath, {
-        title: `Dependency bloat (${count} runtime deps)`, snippet: `${count} runtime dependencies`,
-      }));
-    }
-  } catch {
-    /* malformed package.json — not this scanner's job to repair it */
   }
 }
 

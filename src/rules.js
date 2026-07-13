@@ -1273,6 +1273,21 @@ const META_RULES = [
     fix: 'Write a real README: what it is, install, run, key scripts, one-paragraph architecture.',
   },
   {
+    id: '274', title: 'Unpinned dependency version', category: 'supply-chain',
+    severity: 'major', authority: 'propose', confidence: 'medium',
+    fix: 'Pin the version (an exact version or a caret range on a real release). `*`/`latest` floats to whatever the registry serves next — a supply-chain and reproducibility risk.',
+  },
+  {
+    id: '275', title: 'Dependency from a non-registry source', category: 'supply-chain',
+    severity: 'major', authority: 'flag', confidence: 'medium',
+    fix: 'A git/http/tarball/local dependency is unaudited and mutable (the ref can change under you). Prefer a published, version-pinned registry package.',
+  },
+  {
+    id: '276', title: 'Lifecycle install script (preinstall/postinstall)', category: 'supply-chain',
+    severity: 'major', authority: 'flag', confidence: 'medium',
+    fix: 'An install hook runs arbitrary code on every `npm install` — a supply-chain execution surface. Confirm it is necessary and trusted, or move the work to an explicit build step.',
+  },
+  {
     id: '107', title: '.env committed to the repository', category: 'security',
     severity: 'critical', authority: 'flag',
     fix: 'gitignore it AND rotate every secret it contained (they are compromised); scrub git history.',

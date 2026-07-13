@@ -3,6 +3,20 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.13.0] — 2026-07-14
+
+> Supply-chain depth via structured `package.json` analysis (accurate, JSON-parsed,
+> low false-positive). 176 → **179 detectors**, catalog **275 patterns**. P/R still 100/100.
+
+### Added — supply chain (`src/manifest.js`)
+- `274` **Unpinned dependency version** — `"*"` / `"latest"` floats to whatever the registry serves next.
+- `275` **Non-registry dependency source** — git / http / tarball / local / github-shorthand deps are unaudited and mutable.
+- `276` **Lifecycle install script** — `preinstall`/`install`/`postinstall` run arbitrary code on every `npm install`.
+
+(Note: attempted a zero-dependency structural complexity pass but deferred it — accurate
+function/complexity detection needs a real parser; a hand-rolled version misclassifies
+control blocks as functions and produces noisy findings. That remains the AST 2.0 tier.)
+
 ## [1.12.1] — 2026-07-14
 
 ### Fixed (false positives found by running the teardown on real repos)
