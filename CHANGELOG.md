@@ -3,6 +3,27 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.11.0] — 2026-07-14
+
+> Breadth + depth: four more languages and a set of taint-gated code-level security
+> detectors. 155 → **167 detectors**, catalog **263 patterns**. The precision/recall
+> corpus grew to 26 labeled files (13 seeded vulns + 10 hard negatives) and still holds
+> **100% precision / 100% recall** at medium+ confidence.
+
+### Added — code-level security (taint-gated, so they fire only with a request/user source)
+- **`253` Path traversal** — filesystem access (`readFile`/`sendFile`/`unlink`/…) from `req`/`request`.
+- **`254` Open redirect** — `res.redirect` / `location =` to user input.
+- **`255` SSRF** — `fetch`/`axios`/`http.get` to a user-controlled URL.
+- **`256` NoSQL injection** — `$where`, or a `$ne`/`$gt`/… operator fed from a request.
+- **`257` Mass assignment** — `new Model(req.body)` / `Model.update(req.body)` / `Object.assign(x, req.body)`.
+- **`258` Insecure cookie flag** — `httpOnly: false` / `secure: false`.
+- **`259` Deprecated cipher** — `createCipher`/`createDecipher` (weak key/IV; use `createCipheriv` + GCM).
+
+### Added — more languages
+- **Kotlin** `260` force-unwrap `!!`, **Swift** `261` `try!`, `262` `println`/`print` debug (Kotlin/Swift).
+- **C/C++** `263` unsafe string funcs (`gets`/`strcpy`/`strcat`/`sprintf`), `264` `system()` command exec.
+  (`.c`/`.cpp`/`.cc`/`.cxx`/`.h`/`.hpp` are now scanned.)
+
 ## [1.10.0] — 2026-07-14
 
 ### Added

@@ -51,7 +51,7 @@ const TEXT_EXTS = new Set([
   '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.svelte', '.css', '.scss',
   '.sass', '.less', '.html', '.py', '.go', '.rb', '.php', '.rs',
   // §22 additional languages
-  '.java', '.cs', '.kt', '.kts', '.swift', '.sql', '.sh', '.bash', '.zsh',
+  '.java', '.cs', '.kt', '.kts', '.swift', '.sql', '.sh', '.bash', '.zsh', '.c', '.cpp', '.cc', '.cxx', '.h', '.hpp',
 ]);
 // Config / IaC files scanned in addition to source: Dockerfiles, Terraform, and
 // (scoped to avoid pulling in every stray YAML) docker-compose files and GitHub

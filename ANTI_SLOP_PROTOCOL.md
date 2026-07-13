@@ -296,7 +296,7 @@ Each entry: **ID · Title** `SEVERITY` `AUTHORITY` — description, `DETECT` (ho
 (aesthetic tell). Authority: 🟢 AUTO · 🟡 PROPOSE · 🔴 FLAG (see §0).
 
 A `` `⚙️ slopscore scan` `` tag means **the deterministic CLI already detects this pattern** —
-`npx slopscore` flags it for you with the exact location and fix. **155 of the 251** carry this tag
+`npx slopscore` flags it for you with the exact location and fix. **167 of the 263** carry this tag
 today; the rest need an AST tool (§2.1) or human reading (layout sameness, fake features,
 architectural drift). The tags are generated from the scanner's own rule table, so they never
 drift from what the CLI actually does. Patterns *without* the tag are where you, the agent, earn
@@ -1885,3 +1885,63 @@ Category: security · confidence: high. Flagged by the deterministic scanner.
 Category: security · confidence: medium. Flagged by the deterministic scanner. File contents can carry ANSI/control escape sequences that drive the reader's terminal — the exact control-character injection class slopscore hardened in its own output.
 `DETECT:` `(console\.\w+|process\.(stdout|stderr)\.write)\s*\([^)]*\breadFile(Sync)?\s*\(`.
 `FIX:` Strip control/escape characters (or hex-encode) before printing untrusted file content to a terminal or log.
+
+**253 · Path traversal — filesystem access from request input** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\b(readFile|readFileSync|createReadStream|createWriteStream|sendFile|readdir|readdirSync|unlink|unlinkSync|writeFile|writeFileSync)\s*\([^)]*\b(req|request|userInput|userPath)\b`.
+`FIX:` Resolve against a fixed base dir and reject anything escaping it (path.resolve + startsWith allowlist). Never pass request input straight to the filesystem — `../` climbs out.
+
+**254 · Open redirect from user input** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\b(res|response)\.redirect\s*\([^)]*\b(req|request)\b|location(\.href)?\s*=\s*[^;=]*\b(req|request|userInput)\b`.
+`FIX:` Validate the target against an allowlist of known paths/hosts; never redirect straight to a user-supplied URL (phishing / token leak).
+
+**255 · SSRF — outbound request to a user-controlled URL** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\b(fetch|axios|got|superagent|https?\.(get|request))\s*\([^)]*\b(req|request|userUrl|targetUrl)\b`.
+`FIX:` Validate the host against an allowlist and block internal ranges (127/10/169.254/metadata). Never fetch a raw user-supplied URL (SSRF).
+
+**256 · NoSQL injection** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\$where\s*:|\{\s*\$(ne|gt|gte|lt|lte|regex|in|nin)\s*:\s*[^}]*\breq(uest)?\b`.
+`FIX:` Cast/validate the input to the expected scalar type; never pass a raw request object into a Mongo query operator ($ne/$where let an attacker rewrite the query).
+
+**257 · Mass assignment from request body** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\bnew\s+\w+\s*\(\s*req\.(body|params|query)\s*\)|\.(create|update|save|insert|insertOne|updateOne)\s*\(\s*req\.(body|params|query)\b|Object\.assign\s*\([^)]*,\s*req\.(body|params|query)`.
+`FIX:` Allowlist only the fields you expect (a DTO / zod schema / pick). Persisting req.body wholesale lets a client set fields like isAdmin or role.
+
+**258 · Insecure cookie flag (httpOnly/secure: false)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\b(httpOnly|secure)\s*:\s*false\b`.
+`FIX:` Set httpOnly and secure to true (plus SameSite) on auth/session cookies so they aren't readable by JS (XSS) or sent over plain HTTP.
+
+**259 · Deprecated / insecure cipher (createCipher)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\bcreate(Cipher|Decipher)\s*\(`.
+`FIX:` Use createCipheriv/createDecipheriv with a random IV and an AEAD mode (aes-256-gcm). createCipher derives a weak key/IV and is deprecated.
+
+**260 · Kotlin force-unwrap (!!)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\w!!`.
+`FIX:` !! throws an NPE if the value is null — the opposite of Kotlin's null safety. Use ?., the ?: elvis operator, or requireNotNull with a message.
+
+**261 · Swift force-try (try!)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\btry!\s`.
+`FIX:` try! crashes the process on any thrown error. Use do/try/catch to handle it, or try? to get an optional.
+
+**262 · Debug print (Kotlin / Swift)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\b(println|print)\s*\(`.
+`FIX:` Use a logging framework with levels (or os.log / Timber) instead of print/println — stray prints are debug leftovers.
+
+**263 · Unsafe C string function (buffer overflow)** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\b(gets|strcpy|strcat|sprintf|vsprintf)\s*\(`.
+`FIX:` Use the bounded variants (fgets, strlcpy/strncpy, snprintf). gets/strcpy/strcat/sprintf write past the buffer — classic overflow vectors.
+
+**264 · system() command execution (C / C++)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\bsystem\s*\(`.
+`FIX:` system() runs its argument through /bin/sh — a command-injection surface. Use execve/posix_spawn with an argument vector and validated inputs.

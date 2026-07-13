@@ -35,6 +35,7 @@ const SHELL = ['.sh', '.bash', '.zsh'];
 const SQL = ['.sql'];
 const KOTLIN = ['.kt', '.kts'];
 const SWIFT = ['.swift'];
+const CLANG = ['.c', '.cpp', '.cc', '.cxx', '.h', '.hpp'];
 const VUE = ['.vue'];
 
 // Path targets for config / IaC rules (matched against the full file path).
@@ -1104,6 +1105,82 @@ const LINE_RULES = [
     // straight into console.*/stdout/stderr without sanitization.
     re: /(console\.\w+|process\.(stdout|stderr)\.write)\s*\([^)]*\breadFile(Sync)?\s*\(/,
     fix: 'Strip control/escape characters (or hex-encode) before printing untrusted file content to a terminal or log — raw content can inject terminal escape sequences.',
+  },
+
+  // ---- code-level security (taint-gated: only fire when a user source is present) ----
+  {
+    id: '253', title: 'Path traversal — filesystem access from request input', category: 'security', severity: 'critical',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /\b(readFile|readFileSync|createReadStream|createWriteStream|sendFile|readdir|readdirSync|unlink|unlinkSync|writeFile|writeFileSync)\s*\([^)]*\b(req|request|userInput|userPath)\b/,
+    fix: 'Resolve against a fixed base dir and reject anything escaping it (path.resolve + startsWith allowlist). Never pass request input straight to the filesystem — `../` climbs out.',
+  },
+  {
+    id: '254', title: 'Open redirect from user input', category: 'security', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /\b(res|response)\.redirect\s*\([^)]*\b(req|request)\b|location(\.href)?\s*=\s*[^;=]*\b(req|request|userInput)\b/,
+    fix: 'Validate the target against an allowlist of known paths/hosts; never redirect straight to a user-supplied URL (phishing / token leak).',
+  },
+  {
+    id: '255', title: 'SSRF — outbound request to a user-controlled URL', category: 'security', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\b(fetch|axios|got|superagent|https?\.(get|request))\s*\([^)]*\b(req|request|userUrl|targetUrl)\b/,
+    fix: 'Validate the host against an allowlist and block internal ranges (127/10/169.254/metadata). Never fetch a raw user-supplied URL (SSRF).',
+  },
+  {
+    id: '256', title: 'NoSQL injection', category: 'security', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /\$where\s*:|\{\s*\$(ne|gt|gte|lt|lte|regex|in|nin)\s*:\s*[^}]*\breq(uest)?\b/,
+    fix: 'Cast/validate the input to the expected scalar type; never pass a raw request object into a Mongo query operator ($ne/$where let an attacker rewrite the query).',
+  },
+  {
+    id: '257', title: 'Mass assignment from request body', category: 'security', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /\bnew\s+\w+\s*\(\s*req\.(body|params|query)\s*\)|\.(create|update|save|insert|insertOne|updateOne)\s*\(\s*req\.(body|params|query)\b|Object\.assign\s*\([^)]*,\s*req\.(body|params|query)/,
+    fix: 'Allowlist only the fields you expect (a DTO / zod schema / pick). Persisting req.body wholesale lets a client set fields like isAdmin or role.',
+  },
+  {
+    id: '258', title: 'Insecure cookie flag (httpOnly/secure: false)', category: 'security', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\b(httpOnly|secure)\s*:\s*false\b/,
+    fix: 'Set httpOnly and secure to true (plus SameSite) on auth/session cookies so they aren\'t readable by JS (XSS) or sent over plain HTTP.',
+  },
+  {
+    id: '259', title: 'Deprecated / insecure cipher (createCipher)', category: 'security', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    re: /\bcreate(Cipher|Decipher)\s*\(/,
+    fix: 'Use createCipheriv/createDecipheriv with a random IV and an AEAD mode (aes-256-gcm). createCipher derives a weak key/IV and is deprecated.',
+  },
+
+  // ---- more languages: Kotlin / Swift / C / C++ ----
+  {
+    id: '260', title: 'Kotlin force-unwrap (!!)', category: 'code', severity: 'minor',
+    authority: 'propose', exts: KOTLIN, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\w!!/,
+    fix: '!! throws an NPE if the value is null — the opposite of Kotlin\'s null safety. Use ?., the ?: elvis operator, or requireNotNull with a message.',
+  },
+  {
+    id: '261', title: 'Swift force-try (try!)', category: 'code', severity: 'major',
+    authority: 'propose', exts: SWIFT, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\btry!\s/,
+    fix: 'try! crashes the process on any thrown error. Use do/try/catch to handle it, or try? to get an optional.',
+  },
+  {
+    id: '262', title: 'Debug print (Kotlin / Swift)', category: 'code', severity: 'minor',
+    authority: 'propose', exts: KOTLIN.concat(SWIFT), skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\b(println|print)\s*\(/,
+    fix: 'Use a logging framework with levels (or os.log / Timber) instead of print/println — stray prints are debug leftovers.',
+  },
+  {
+    id: '263', title: 'Unsafe C string function (buffer overflow)', category: 'security', severity: 'critical',
+    authority: 'propose', exts: CLANG, skipTests: true, respectComments: true,
+    re: /\b(gets|strcpy|strcat|sprintf|vsprintf)\s*\(/,
+    fix: 'Use the bounded variants (fgets, strlcpy/strncpy, snprintf). gets/strcpy/strcat/sprintf write past the buffer — classic overflow vectors.',
+  },
+  {
+    id: '264', title: 'system() command execution (C / C++)', category: 'security', severity: 'major',
+    authority: 'propose', exts: CLANG, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\bsystem\s*\(/,
+    fix: 'system() runs its argument through /bin/sh — a command-injection surface. Use execve/posix_spawn with an argument vector and validated inputs.',
   },
 ];
 
