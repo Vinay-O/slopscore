@@ -296,7 +296,7 @@ Each entry: **ID · Title** `SEVERITY` `AUTHORITY` — description, `DETECT` (ho
 (aesthetic tell). Authority: 🟢 AUTO · 🟡 PROPOSE · 🔴 FLAG (see §0).
 
 A `` `⚙️ slopscore scan` `` tag means **the deterministic CLI already detects this pattern** —
-`npx slopscore` flags it for you with the exact location and fix. **167 of the 263** carry this tag
+`npx slopscore` flags it for you with the exact location and fix. **176 of the 272** carry this tag
 today; the rest need an AST tool (§2.1) or human reading (layout sameness, fake features,
 architectural drift). The tags are generated from the scanner's own rule table, so they never
 drift from what the CLI actually does. Patterns *without* the tag are where you, the agent, earn
@@ -1945,3 +1945,48 @@ Category: security · confidence: high. Flagged by the deterministic scanner.
 Category: security · confidence: medium. Flagged by the deterministic scanner.
 `DETECT:` `\bsystem\s*\(`.
 `FIX:` system() runs its argument through /bin/sh — a command-injection surface. Use execve/posix_spawn with an argument vector and validated inputs.
+
+**265 · context.TODO() left in (Go)** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\bcontext\.TODO\s*\(\s*\)`.
+`FIX:` context.TODO() is a placeholder — thread a real context.Context (with cancellation/deadline) from the caller.
+
+**266 · String compared with == instead of .equals (Java)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `(\b\w+\s*==\s*"|"[^"]*"\s*==\s*\w)`.
+`FIX:` Use .equals() for String content comparison — `==` compares references and fails for equal-but-distinct strings.
+
+**267 · Empty catch block (C#)** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `catch\s*(\([^)]*\))?\s*\{\s*\}`.
+`FIX:` Don't swallow exceptions — log with context, or handle/rethrow. An empty catch hides real failures.
+
+**268 · eval on dynamic input (Ruby)** `🔴` `🔴 FLAG` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\b(eval|instance_eval|class_eval|module_eval)\s*\(`.
+`FIX:` Ruby eval executes arbitrary code — never on untrusted input. Use a safe dispatch (a whitelist/hash of allowed operations).
+
+**269 · Superglobal used directly in a sink (PHP)** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `(echo|print|->query|mysqli_query|mysql_query|->prepare|exec|system|include|require)\s*\(?[^;]*\$_(GET|POST|REQUEST|COOKIE)`.
+`FIX:` Never pass $_GET/$_POST straight into SQL, a shell, echo, or include. Use prepared statements, escaping, and validation.
+
+**270 · Server-side template injection (Python/Flask)** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `\brender_template_string\s*\(`.
+`FIX:` render_template_string with any user input is SSTI → RCE. Render a fixed template file and pass data as context variables.
+
+**271 · Timing-unsafe comparison of a secret** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `\b(token|secret|password|passwd|api[_-]?key|hmac|signature|digest)\w*\s*(===?|!==?)\s*['"\w]`.
+`FIX:` Compare secrets/tokens in constant time (crypto.timingSafeEqual / hmac.compare_digest). `===` leaks length/prefix via timing.
+
+**272 · Sensitive data written to logs** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `(console\.\w+|logger?\.\w+|log\.(info|debug|warn|error|trace))\s*\([^)]*(req\.(body|headers|cookies)|\.(password|passwd|token|secret|apiKey|accessToken|refreshToken|privateKey)\b)`.
+`FIX:` Never log credentials, tokens, or whole request bodies/headers — logs get shipped to third parties. Redact sensitive fields first.
+
+**273 · CORS reflects any origin** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` `cors\s*\(\s*\{[^}]*origin\s*:\s*(true|\/)`.
+`FIX:` origin:true reflects the caller's Origin (effectively allow-all, dangerous with credentials). Pin an explicit allowlist of trusted origins.

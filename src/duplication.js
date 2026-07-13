@@ -33,7 +33,15 @@ function checkDuplication(codeFiles, findings, metaFinding) {
   codeFiles.forEach((cf, fi) => {
     const nt = [];
     for (let n = 0; n < cf.lines.length; n += 1) {
-      if (!isTrivialDupLine(cf.lines[n])) nt.push({ t: cf.lines[n].trim().replace(/\s+/g, ' '), line: n + 1 });
+      // Normalize whitespace AND the CONTENTS of string/number literals, so a block
+      // copy-pasted then tweaked (a different message, a different constant) still
+      // registers as a near-duplicate — the shape, not the literals, is what matters.
+      if (!isTrivialDupLine(cf.lines[n])) {
+        const t = cf.lines[n].trim().replace(/\s+/g, ' ')
+          .replace(/(["'`])(?:\\.|(?!\1).)*\1/g, '""')
+          .replace(/\b\d[\d_.]*\b/g, 'N');
+        nt.push({ t, line: n + 1 });
+      }
     }
     for (let i = 0; i + DUP_WINDOW <= nt.length; i += 1) {
       const win = nt.slice(i, i + DUP_WINDOW);

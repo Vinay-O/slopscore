@@ -157,7 +157,7 @@ function terminalReport(result, s, options = {}) {
   }
   scoreBanner(s);
   out(paint(C.dim, `  Authority: ${g('green')} auto-fixable  ${g('dot')}  ${g('yellow')} propose (review)  ${g('dot')}  ${g('red')} flag (human decision)`));
-  out(paint(C.dim, '  Full catalog + fix authority for all 263 patterns: ANTI_SLOP_PROTOCOL.md'));
+  out(paint(C.dim, '  Full catalog + fix authority for all 272 patterns: ANTI_SLOP_PROTOCOL.md'));
   // Most slopscore runs that matter happen inside an AI agent — point it at the
   // mode built for it (and the playbook the agent should actually follow).
   out(paint(C.cyan, `  ${g('arrow')} Driving an AI agent? `) + paint(C.dim, '`slopscore scan --format agent` (compact, fix-authority-tagged) + `slopscore protocol` (the full fix playbook).'));

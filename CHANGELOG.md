@@ -3,6 +3,26 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.12.0] — 2026-07-14
+
+> Language depth + more code-review/security coverage. 167 → **176 detectors**,
+> catalog **272 patterns**. Precision/recall (26-file labeled corpus) still **100/100**.
+
+### Added — language depth
+- `265` Go `context.TODO()`, `266` Java `String == ` (use `.equals`), `267` C# empty catch,
+  `268` Ruby `eval`, `269` PHP superglobal (`$_GET`/`$_POST`) used directly in a sink,
+  `270` Python SSTI (`render_template_string`).
+
+### Added — security / code review
+- `271` Timing-unsafe comparison of a secret/token (use constant-time compare).
+- `272` Sensitive data written to logs (credentials/tokens/`req.body`).
+- `273` CORS reflects any origin (`cors({ origin: true })`).
+
+### Changed
+- **Near-duplication (`068`) now normalizes string/number literal *contents*** before hashing,
+  so a block copy-pasted then tweaked (different message/constant) registers as a near-duplicate,
+  not just byte-identical copies. Still low-confidence and per-rule capped.
+
 ## [1.11.0] — 2026-07-14
 
 > Breadth + depth: four more languages and a set of taint-gated code-level security

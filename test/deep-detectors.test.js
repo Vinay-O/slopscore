@@ -76,3 +76,31 @@ test('the new security detectors are categorized security', () => {
     assert.strictEqual(all.find((r) => r.id === id).category, 'security', `${id} is security`);
   }
 });
+
+test('265-271 language-depth + cross-language security tells', () => {
+  assert.ok(has('a.go', 'ctx := context.TODO()\n', '265'));
+  assert.ok(has('A.java', 'if (mode == "prod") { run(); }\n', '266'));
+  assert.ok(!has('B.java', 'if (mode.equals("prod")) { run(); }\n', '266'), '.equals is correct');
+  assert.ok(has('A.cs', 'try { Do(); } catch (Exception) {}\n', '267'));
+  assert.ok(has('a.rb', 'eval(user_code)\n', '268'));
+  assert.ok(has('a.php', '<?php mysqli_query($db, $_GET["id"]); ?>\n', '269'));
+  assert.ok(has('a.py', 'return render_template_string(tpl)\n', '270'));
+  assert.ok(has('a.js', 'if (token === expected) grant();\n', '271'));
+  assert.ok(!has('b.js', 'if (count === 0) stop();\n', '271'), 'non-secret comparison is fine');
+});
+
+test('272/273 secrets-in-logs and CORS-reflect-any-origin', () => {
+  assert.ok(has('a.js', 'console.log(user.password);\n', '272'));
+  assert.ok(has('b.js', 'logger.info(req.body);\n', '272'));
+  assert.ok(!has('c.js', 'console.log("done", count);\n', '272'), 'non-sensitive log is fine');
+  assert.ok(has('d.js', 'app.use(cors({ origin: true }));\n', '273'));
+  assert.ok(!has('e.js', 'app.use(cors({ origin: ["https://x.com"] }));\n', '273'), 'allowlist is fine');
+});
+
+test('068 near-duplication: blocks differing only in literals are caught', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-nd-'));
+  const blk = (m, k) => `function process(items) {\n  const results = items.map((x) => x.value);\n  const total = results.reduce((a, b) => a + b, ${k});\n  const average = total / results.length;\n  logger.info("${m}");\n  return { total: total, average: average, ok: true };\n}\n`;
+  fs.writeFileSync(path.join(dir, 'a.js'), blk('complete', 0));
+  fs.writeFileSync(path.join(dir, 'b.js'), blk('done', 1));
+  assert.ok(scan([dir], { ignoreBase: dir }).findings.some((f) => f.id === '068'), 'literal-only variation is a near-duplicate');
+});

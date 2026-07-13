@@ -1182,6 +1182,62 @@ const LINE_RULES = [
     re: /\bsystem\s*\(/,
     fix: 'system() runs its argument through /bin/sh — a command-injection surface. Use execve/posix_spawn with an argument vector and validated inputs.',
   },
+
+  // ---- language depth (Go / Java / C# / Ruby / PHP / Python) + a cross-language tell ----
+  {
+    id: '265', title: 'context.TODO() left in (Go)', category: 'code', severity: 'minor',
+    authority: 'propose', exts: GO, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\bcontext\.TODO\s*\(\s*\)/,
+    fix: 'context.TODO() is a placeholder — thread a real context.Context (with cancellation/deadline) from the caller.',
+  },
+  {
+    id: '266', title: 'String compared with == instead of .equals (Java)', category: 'code', severity: 'major',
+    authority: 'propose', exts: JAVA, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /(\b\w+\s*==\s*"|"[^"]*"\s*==\s*\w)/,
+    fix: 'Use .equals() for String content comparison — `==` compares references and fails for equal-but-distinct strings.',
+  },
+  {
+    id: '267', title: 'Empty catch block (C#)', category: 'code', severity: 'major',
+    authority: 'propose', exts: CSHARP, skipTests: true, respectComments: true,
+    re: /catch\s*(\([^)]*\))?\s*\{\s*\}/,
+    fix: 'Don\'t swallow exceptions — log with context, or handle/rethrow. An empty catch hides real failures.',
+  },
+  {
+    id: '268', title: 'eval on dynamic input (Ruby)', category: 'security', severity: 'critical',
+    authority: 'flag', exts: RUBY, skipTests: true, respectComments: true,
+    re: /\b(eval|instance_eval|class_eval|module_eval)\s*\(/,
+    fix: 'Ruby eval executes arbitrary code — never on untrusted input. Use a safe dispatch (a whitelist/hash of allowed operations).',
+  },
+  {
+    id: '269', title: 'Superglobal used directly in a sink (PHP)', category: 'security', severity: 'critical',
+    authority: 'propose', exts: PHP, skipTests: true, respectComments: true,
+    re: /(echo|print|->query|mysqli_query|mysql_query|->prepare|exec|system|include|require)\s*\(?[^;]*\$_(GET|POST|REQUEST|COOKIE)/,
+    fix: 'Never pass $_GET/$_POST straight into SQL, a shell, echo, or include. Use prepared statements, escaping, and validation.',
+  },
+  {
+    id: '270', title: 'Server-side template injection (Python/Flask)', category: 'security', severity: 'critical',
+    authority: 'propose', exts: PY, skipTests: true, respectComments: true,
+    re: /\brender_template_string\s*\(/,
+    fix: 'render_template_string with any user input is SSTI → RCE. Render a fixed template file and pass data as context variables.',
+  },
+  {
+    id: '271', title: 'Timing-unsafe comparison of a secret', category: 'security', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /\b(token|secret|password|passwd|api[_-]?key|hmac|signature|digest)\w*\s*(===?|!==?)\s*['"\w]/i,
+    fix: 'Compare secrets/tokens in constant time (crypto.timingSafeEqual / hmac.compare_digest). `===` leaks length/prefix via timing.',
+  },
+  {
+    id: '272', title: 'Sensitive data written to logs', category: 'security', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /(console\.\w+|logger?\.\w+|log\.(info|debug|warn|error|trace))\s*\([^)]*(req\.(body|headers|cookies)|\.(password|passwd|token|secret|apiKey|accessToken|refreshToken|privateKey)\b)/,
+    fix: 'Never log credentials, tokens, or whole request bodies/headers — logs get shipped to third parties. Redact sensitive fields first.',
+  },
+  {
+    id: '273', title: 'CORS reflects any origin', category: 'security', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true, confidence: 'medium',
+    re: /cors\s*\(\s*\{[^}]*origin\s*:\s*(true|\/)/,
+    fix: 'origin:true reflects the caller\'s Origin (effectively allow-all, dangerous with credentials). Pin an explicit allowlist of trusted origins.',
+  },
 ];
 
 // Detectors implemented as bespoke checks in scanner.js — file size, repo-level
