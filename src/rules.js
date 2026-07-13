@@ -1117,7 +1117,7 @@ const LINE_RULES = [
   {
     id: '254', title: 'Open redirect from user input', category: 'security', severity: 'major',
     authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
-    re: /\b(res|response)\.redirect\s*\([^)]*\b(req|request)\b|location(\.href)?\s*=\s*[^;=]*\b(req|request|userInput)\b/,
+    re: /\b(res|response)\.redirect\s*\(\s*(req|request)\b|location(\.href)?\s*=\s*(req|request|userInput)\b/,
     fix: 'Validate the target against an allowlist of known paths/hosts; never redirect straight to a user-supplied URL (phishing / token leak).',
   },
   {
@@ -1218,6 +1218,7 @@ const LINE_RULES = [
     id: '270', title: 'Server-side template injection (Python/Flask)', category: 'security', severity: 'critical',
     authority: 'propose', exts: PY, skipTests: true, respectComments: true,
     re: /\brender_template_string\s*\(/,
+    unless: /\bdef\s+render_template_string/,
     fix: 'render_template_string with any user input is SSTI → RCE. Render a fixed template file and pass data as context variables.',
   },
   {

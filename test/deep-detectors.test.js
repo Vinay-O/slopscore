@@ -77,6 +77,16 @@ test('the new security detectors are categorized security', () => {
   }
 });
 
+test('254 open redirect — only when the target STARTS with user input (not a fixed prefix)', () => {
+  assert.ok(has('a.js', 'res.redirect(req.query.next);\n', '254'));
+  assert.ok(!has('b.js', 'res.redirect("/pet/" + req.pet.id);\n', '254'), 'fixed internal prefix + id is not an open redirect');
+});
+
+test('270 SSTI — the render_template_string definition is not a call (real-repo FP fix)', () => {
+  assert.ok(!has('a.py', 'def render_template_string(source, **context):\n    return x\n', '270'), 'defining the fn is not SSTI');
+  assert.ok(has('b.py', 'return render_template_string(tpl)\n', '270'));
+});
+
 test('265-271 language-depth + cross-language security tells', () => {
   assert.ok(has('a.go', 'ctx := context.TODO()\n', '265'));
   assert.ok(has('A.java', 'if (mode == "prod") { run(); }\n', '266'));

@@ -3,6 +3,15 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.12.1] — 2026-07-14
+
+### Fixed (false positives found by running the teardown on real repos)
+- **`254` open redirect** now requires the redirect target to *start* with user input
+  (`res.redirect(req.query.next)`), so a fixed internal prefix + id
+  (`res.redirect("/pet/" + req.pet.id)`) is no longer flagged.
+- **`270` SSTI** no longer fires on the `def render_template_string(...)` definition
+  (e.g. inside Flask itself) — only on calls.
+
 ## [1.12.0] — 2026-07-14
 
 > Language depth + more code-review/security coverage. 167 → **176 detectors**,
