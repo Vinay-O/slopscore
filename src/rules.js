@@ -691,7 +691,7 @@ const LINE_RULES = [
     // the other GitHub token types, Stripe secret/restricted, npm, PyPI, SendGrid,
     // HuggingFace, Twilio, and Slack incoming-webhook URLs. pk_live_ is intentionally
     // ABSENT — a Stripe publishable key is public by design.
-    re: /(AIza[0-9A-Za-z_\-]{35}|glpat-[0-9A-Za-z_\-]{20,}|gh[ous]_[A-Za-z0-9]{36}|github_pat_[0-9a-zA-Z_]{22,}|sk_live_[0-9a-zA-Z]{16,}|rk_live_[0-9a-zA-Z]{16,}|npm_[A-Za-z0-9]{36}|pypi-[A-Za-z0-9_\-]{16,}|SG\.[A-Za-z0-9_\-]{16,}\.[A-Za-z0-9_\-]{16,}|hf_[A-Za-z0-9]{34}|SK[0-9a-f]{32}|https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9\/]{20,})/,
+    re: /(AIza[0-9A-Za-z_\-]{35}|glpat-[0-9A-Za-z_\-]{20,}|gh[ous]_[A-Za-z0-9]{36}|github_pat_[0-9a-zA-Z_]{22,}|sk_live_[0-9a-zA-Z]{16,}|rk_live_[0-9a-zA-Z]{16,}|npm_[A-Za-z0-9]{36}|pypi-[A-Za-z0-9_\-]{16,}|SG\.[A-Za-z0-9_\-]{16,}\.[A-Za-z0-9_\-]{16,}|hf_[A-Za-z0-9]{34}|SK[0-9a-f]{32}|GOCSPX-[A-Za-z0-9_\-]{20,}|shp(at|ss|ca|pa)_[A-Za-z0-9]{32}|sq0(atp|csp)-[A-Za-z0-9_\-]{22,}|dop_v1_[a-f0-9]{64}|https:\/\/hooks\.slack\.com\/services\/[A-Za-z0-9\/]{20,}|https:\/\/discord(app)?\.com\/api\/webhooks\/[0-9]+\/[A-Za-z0-9_\-]{20,}|[0-9]{8,10}:[A-Za-z0-9_\-]{35})/,
     unless: /process\.env|import\.meta\.env|getenv|REPLACE|YOUR_|example|placeholder|\*{4,}|xxxx/i,
     fix: 'Move it to an env var / secret manager. A committed provider credential is COMPROMISED — revoke and rotate it now.',
   },
@@ -1286,6 +1286,11 @@ const META_RULES = [
     id: '276', title: 'Lifecycle install script (preinstall/postinstall)', category: 'supply-chain',
     severity: 'major', authority: 'flag', confidence: 'medium',
     fix: 'An install hook runs arbitrary code on every `npm install` — a supply-chain execution surface. Confirm it is necessary and trusted, or move the work to an explicit build step.',
+  },
+  {
+    id: '277', title: 'Duplicate-purpose dependencies', category: 'supply-chain',
+    severity: 'minor', authority: 'propose', confidence: 'medium',
+    fix: 'Two libraries doing the same job (e.g. moment + dayjs, axios + got) add bundle size, CVE surface, and divergent conventions. Standardize on one.',
   },
   {
     id: '107', title: '.env committed to the repository', category: 'security',

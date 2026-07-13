@@ -37,6 +37,21 @@ function checkManifest(root, findings, metaFinding) {
   for (const hook of ['preinstall', 'install', 'postinstall']) {
     if (scripts[hook]) findings.push(metaFinding('276', pkgPath, { snippet: `"scripts.${hook}": ${JSON.stringify(scripts[hook]).slice(0, 60)}` }));
   }
+
+  // Duplicate-purpose dependencies: two libraries doing the same job = extra bundle,
+  // extra CVE surface, and divergent conventions.
+  const present = new Set(names);
+  for (const group of DUP_GROUPS) {
+    const hit = group.filter((g) => present.has(g));
+    if (hit.length >= 2) findings.push(metaFinding('277', pkgPath, { snippet: `overlapping deps: ${hit.join(', ')}` }));
+  }
 }
+
+const DUP_GROUPS = [
+  ['moment', 'moment-timezone', 'dayjs', 'date-fns', 'luxon'],
+  ['axios', 'got', 'node-fetch', 'superagent', 'request', 'undici'],
+  ['lodash', 'underscore', 'ramda'],
+  ['uuid', 'nanoid', 'cuid'],
+];
 
 module.exports = { checkManifest };

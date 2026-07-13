@@ -296,7 +296,7 @@ Each entry: **ID · Title** `SEVERITY` `AUTHORITY` — description, `DETECT` (ho
 (aesthetic tell). Authority: 🟢 AUTO · 🟡 PROPOSE · 🔴 FLAG (see §0).
 
 A `` `⚙️ slopscore scan` `` tag means **the deterministic CLI already detects this pattern** —
-`npx slopscore` flags it for you with the exact location and fix. **179 of the 275** carry this tag
+`npx slopscore` flags it for you with the exact location and fix. **180 of the 276** carry this tag
 today; the rest need an AST tool (§2.1) or human reading (layout sameness, fake features,
 architectural drift). The tags are generated from the scanner's own rule table, so they never
 drift from what the CLI actually does. Patterns *without* the tag are where you, the agent, earn
@@ -2005,3 +2005,8 @@ Category: supply-chain · confidence: medium. Flagged by the deterministic scann
 Category: supply-chain · confidence: medium. Flagged by the deterministic scanner.
 `DETECT:` file/repo-level check (package.json).
 `FIX:` An install hook runs arbitrary code on every `npm install` — a supply-chain execution surface. Confirm it is necessary and trusted, or move the work to an explicit build step.
+
+**277 · Duplicate-purpose dependencies** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: supply-chain · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` file/repo-level check (package.json).
+`FIX:` Two libraries doing the same job (e.g. moment + dayjs, axios + got) add bundle size, CVE surface, and divergent conventions. Standardize on one.

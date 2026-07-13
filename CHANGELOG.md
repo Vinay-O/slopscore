@@ -3,6 +3,15 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.14.0] — 2026-07-14
+
+### Added
+- **Broader secret detection** (`058`/`192`): Google OAuth client secret (`GOCSPX-`),
+  Shopify (`shpat_`/`shpss_`), Square (`sq0atp-`/`sq0csp-`), DigitalOcean (`dop_v1_`),
+  Discord webhooks, and Telegram bot tokens — all distinctive prefixes, near-zero FP.
+- **`277` Duplicate-purpose dependencies** — two libraries doing the same job
+  (moment + dayjs, axios + got, lodash + underscore, uuid + nanoid). 180 detectors / 276 patterns.
+
 ## [1.13.0] — 2026-07-14
 
 > Supply-chain depth via structured `package.json` analysis (accurate, JSON-parsed,

@@ -38,5 +38,26 @@ test('276 flags lifecycle install scripts, not ordinary scripts', () => {
 test('manifest supply-chain rules are categorized supply-chain', () => {
   const rules = require('../src/rules');
   const all = rules.LINE_RULES.concat(rules.WHOLE_FILE_RULES, rules.META_RULES);
-  for (const id of ['274', '275', '276']) assert.strictEqual(all.find((r) => r.id === id).category, 'supply-chain');
+  for (const id of ['274', '275', '276', '277']) assert.strictEqual(all.find((r) => r.id === id).category, 'supply-chain');
+});
+
+test('277 flags duplicate-purpose dependencies', () => {
+  assert.ok(ids(pkgDir({ dependencies: { moment: '^2.0.0', dayjs: '^1.0.0' } })).includes('277'));
+  assert.ok(ids(pkgDir({ dependencies: { axios: '^1.0.0', got: '^12.0.0' } })).includes('277'));
+  assert.ok(!ids(pkgDir({ dependencies: { dayjs: '^1.0.0', express: '^4.0.0' } })).includes('277'), 'unrelated deps are fine');
+});
+
+test('192 (broadened) flags more provider tokens', () => {
+  const { scan } = require('../src/scanner');
+  const os2 = require('node:os');
+  const hit = (src) => {
+    const dir = fs.mkdtempSync(path.join(os2.tmpdir(), 'sec3-'));
+    fs.writeFileSync(path.join(dir, 'a.js'), src);
+    return scan([dir], { ignoreBase: dir }).findings.some((f) => f.id === '192');
+  };
+  // Prefixes are split in the source literal so a secret scanner (incl. GitHub push
+  // protection) sees no contiguous token, while the runtime-assembled string exercises 192.
+  assert.ok(hit('const k = "GOC' + 'SPX-A1B2C3D4E5F6G7H8I9J0K1";\n'), 'Google client secret');
+  assert.ok(hit('const k = "shp' + 'at_G1H2I3J4K5L6M7N8O9P0Q1R2S3T4U5V6";\n'), 'Shopify token');
+  assert.ok(hit('const w = "https://discord.com/api/web' + 'hooks/123456789/A1B2C3D4E5F6G7H8I9J0";\n'), 'Discord webhook');
 });
