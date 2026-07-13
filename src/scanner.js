@@ -6,6 +6,7 @@ const { LINE_RULES, WHOLE_FILE_RULES, META, confidenceOf, buildCustomRules } = r
 const { checkDuplication, CODE_FOR_DUP } = require('./duplication');
 const { buildSuppressions, buildEslintSuppressions } = require('./suppress');
 const { commentMask } = require('./mask');
+const { sanitizeSnippet } = require('./sanitize');
 
 // id → { eslint, category } so an applied finding can be matched against an
 // inline `eslint-disable` directive. Security findings are never eslint-suppressible
@@ -38,7 +39,7 @@ function metaFinding(id, file, { title, severity, snippet, line = 1 } = {}) {
     id, category: m.category, authority: m.authority, fix: m.fix,
     title: title || m.title, severity: severity || m.severity,
     confidence: confidenceOf(m),
-    file, line, snippet: snippet || m.title,
+    file, line, snippet: sanitizeSnippet(snippet || m.title),
   };
 }
 
@@ -157,7 +158,7 @@ function walk(root, norm) {
 function ruleFinding(rule, file, line, snippet) {
   return {
     id: rule.id, title: rule.title, category: rule.category, severity: rule.severity,
-    authority: rule.authority, confidence: confidenceOf(rule), fix: rule.fix, file, line, snippet,
+    authority: rule.authority, confidence: confidenceOf(rule), fix: rule.fix, file, line, snippet: sanitizeSnippet(snippet),
   };
 }
 

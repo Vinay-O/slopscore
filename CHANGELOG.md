@@ -3,6 +3,17 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [1.9.3] — 2026-07-14
+
+### Security
+- **Terminal control-character injection in finding snippets (fixed).** A finding's
+  `snippet` is copied verbatim from a scanned (untrusted) file and then printed to the
+  terminal and embedded in the JUnit / JSON / SARIF / Markdown / agent reports. A scanned
+  file containing ANSI/OSC escape sequences (e.g. `\x1b[2J` clear-screen, cursor moves, or
+  exploitable terminal sequences) could therefore drive the reader's terminal. Snippets are
+  now stripped of escape sequences and C0/C1 control characters (tab preserved) at the
+  source, so every output sink is covered. New `src/sanitize.js` + `test/sanitize.test.js`.
+
 ## [1.9.2] — 2026-07-08
 
 > Real-world calibration. Running slopscore on a spread of well-known repos (via
