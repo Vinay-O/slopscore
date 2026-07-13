@@ -8,6 +8,7 @@ const { buildSuppressions, buildEslintSuppressions } = require('./suppress');
 const { commentMask } = require('./mask');
 const { sanitizeSnippet, looksBinary } = require('./sanitize');
 const { checkManifest } = require('./manifest');
+const { analyzeFile } = require('./ast');
 
 // id → { eslint, category } so an applied finding can be matched against an
 // inline `eslint-disable` directive. Security findings are never eslint-suppressible
@@ -408,6 +409,7 @@ function scan(target, options = {}) {
     scanLineRules(file, ext, isTest, text, lines, mask, findings, project, lineRules);
     scanWholeFileRules(file, ext, isTest, text, lines, findings);
     checkFileSize(file, ext, isTest, lineCount, lines, findings);
+    if (options.ast) for (const f of analyzeFile(text, ext, file, metaFinding)) findings.push(f);
     // Apply inline suppressions and tag the zone on this file's findings.
     const { map: suppress, directives } = buildSuppressions(lines);
     const eslintSup = buildEslintSuppressions(lines);

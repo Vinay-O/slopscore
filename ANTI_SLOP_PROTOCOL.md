@@ -296,7 +296,7 @@ Each entry: **ID · Title** `SEVERITY` `AUTHORITY` — description, `DETECT` (ho
 (aesthetic tell). Authority: 🟢 AUTO · 🟡 PROPOSE · 🔴 FLAG (see §0).
 
 A `` `⚙️ slopscore scan` `` tag means **the deterministic CLI already detects this pattern** —
-`npx slopscore` flags it for you with the exact location and fix. **180 of the 276** carry this tag
+`npx slopscore` flags it for you with the exact location and fix. **184 of the 280** carry this tag
 today; the rest need an AST tool (§2.1) or human reading (layout sameness, fake features,
 architectural drift). The tags are generated from the scanner's own rule table, so they never
 drift from what the CLI actually does. Patterns *without* the tag are where you, the agent, earn
@@ -2010,3 +2010,23 @@ Category: supply-chain · confidence: medium. Flagged by the deterministic scann
 Category: supply-chain · confidence: medium. Flagged by the deterministic scanner.
 `DETECT:` file/repo-level check (package.json).
 `FIX:` Two libraries doing the same job (e.g. moment + dayjs, axios + got) add bundle size, CVE surface, and divergent conventions. Standardize on one.
+
+**278 · Long function** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` AST metric (opt-in `--ast`, needs acorn).
+`FIX:` Split by responsibility into smaller, named functions. A very long function is hard to test and reason about (AST/--ast).
+
+**279 · High cyclomatic complexity** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` AST metric (opt-in `--ast`, needs acorn).
+`FIX:` Too many independent paths — extract helpers, use early returns, replace nested conditionals with a lookup/polymorphism (AST/--ast).
+
+**280 · Deep nesting** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` AST metric (opt-in `--ast`, needs acorn).
+`FIX:` Flatten with guard clauses / early returns, or extract the inner block into its own function (AST/--ast).
+
+**281 · Too many parameters** `🟡` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: code · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` AST metric (opt-in `--ast`, needs acorn).
+`FIX:` Group related parameters into an options object, or split the function — long parameter lists are error-prone and hard to call (AST/--ast).

@@ -3,6 +3,30 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [2.0.0] — 2026-07-14
+
+> **The AST tier — opt-in, still zero-runtime-dependency.** slopscore now has a
+> `--ast` mode that parses JS with **acorn (an *optional* peer dependency)** to compute
+> the accurate function-level metrics regex genuinely can't. The core scanner remains
+> zero-runtime-dependency: `npx slopscore` installs nothing; `--ast` asks you to add acorn.
+
+### Added
+- **`slopscore scan --ast`** — accurate AST metrics for `.js`/`.mjs`/`.cjs`:
+  - `278` Long function · `279` High cyclomatic complexity · `280` Deep nesting · `281` Too many parameters.
+  - Off by default (they never inflate the default score or the self-scan); opt-in per run.
+  - If acorn isn't installed, `--ast` prints an install hint and the regex scan continues unaffected.
+  - Files acorn can't parse (TS/JSX for now) are skipped silently — no crash. **184 detectors / 280 patterns.**
+
+### Changed (honesty)
+- Wording is now precise: **zero *runtime* dependencies** in the core; `acorn` is an
+  optional peer dependency (dev-installed for the project's own tests) used only by `--ast`.
+  The comparison table note updated — `--ast` provides real complexity metrics; deeper
+  cross-file/taint analysis still belongs to Semgrep/CodeQL.
+
+### Why major
+No breaking API change, but the dependency model gains an (optional) peer and a new
+analysis mode — a significant enough shift to mark 2.0.
+
 ## [1.14.0] — 2026-07-14
 
 ### Added

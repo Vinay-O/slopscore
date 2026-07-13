@@ -1293,6 +1293,26 @@ const META_RULES = [
     fix: 'Two libraries doing the same job (e.g. moment + dayjs, axios + got) add bundle size, CVE surface, and divergent conventions. Standardize on one.',
   },
   {
+    id: '278', title: 'Long function', category: 'code',
+    severity: 'major', authority: 'propose', confidence: 'medium',
+    fix: 'Split by responsibility into smaller, named functions. A very long function is hard to test and reason about (AST/--ast).',
+  },
+  {
+    id: '279', title: 'High cyclomatic complexity', category: 'code',
+    severity: 'major', authority: 'propose', confidence: 'medium',
+    fix: 'Too many independent paths — extract helpers, use early returns, replace nested conditionals with a lookup/polymorphism (AST/--ast).',
+  },
+  {
+    id: '280', title: 'Deep nesting', category: 'code',
+    severity: 'minor', authority: 'propose', confidence: 'medium',
+    fix: 'Flatten with guard clauses / early returns, or extract the inner block into its own function (AST/--ast).',
+  },
+  {
+    id: '281', title: 'Too many parameters', category: 'code',
+    severity: 'minor', authority: 'propose', confidence: 'medium',
+    fix: 'Group related parameters into an options object, or split the function — long parameter lists are error-prone and hard to call (AST/--ast).',
+  },
+  {
     id: '107', title: '.env committed to the repository', category: 'security',
     severity: 'critical', authority: 'flag',
     fix: 'gitignore it AND rotate every secret it contained (they are compromised); scrub git history.',

@@ -42,6 +42,7 @@ function parseArgs(argv) {
     else if (a === '--fail-on') { opts.failOn = argv[++i]; opts.failOnSet = true; }
     else if (a === '--min-confidence') opts.minConfidence = argv[++i];
     else if (a === '--gate') opts.gate = argv[++i] || 'ship';
+    else if (a === '--ast') opts.ast = true;
     else if (a === '--changed') opts.changed = true;
     else if (a === '--since') { opts.changed = true; opts.since = argv[++i]; }
     else if (a === '--category') opts.category = (argv[++i] || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
@@ -168,7 +169,7 @@ function scanAndReport(opts, cfg, baseDir, failOn, record) {
   // config; the user's explicit `rules` always wins over it.
   const preset = resolvePreset(opts.preset || cfg.preset);
   const rules = preset ? { ...preset.rules, ...(cfg.rules || {}) } : cfg.rules;
-  const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules, paths: cfg.paths, customRules: cfg.customRules });
+  const result = scan(opts.paths, { ignore, ignoreBase: baseDir, rules, paths: cfg.paths, customRules: cfg.customRules, ast: opts.ast });
   // --min-confidence gates out softer heuristics (e.g. low-confidence 068) before
   // scoring + reporting, so CI can require only high-confidence signal.
   const floor = CONF_RANK[opts.minConfidence];
@@ -294,6 +295,9 @@ function runScan(opts) {
     if (scannable.length === 0) { out('slopscore: no changed source files to scan — clean by omission.'); process.exit(0); }
     opts.paths = scannable;
   }
+  if (opts.ast && !require('../src/ast').astAvailable()) {
+    err('slopscore: --ast needs the optional peer dependency `acorn`. Install it: npm i -D acorn  (the core scanner stays zero-dependency without it).');
+  }
   const presetName = opts.preset || cfg.preset;
   if (presetName && !resolvePreset(presetName)) {
     err(`slopscore: unknown preset "${presetName}". Available: ${presetNames().join(', ')}`);
@@ -367,7 +371,7 @@ function printProtocol() {
 
 function printRules() {
   const all = LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES);
-  out(`slopscore ships ${all.length} deterministic detectors. The full 276-pattern catalog`);
+  out(`slopscore ships ${all.length} deterministic detectors. The full 280-pattern catalog`);
   out('(including visual, architectural, and judgment-heavy patterns) lives in ANTI_SLOP_PROTOCOL.md.\n');
   const byCat = {};
   for (const r of all) (byCat[r.category] = byCat[r.category] || []).push(r);
@@ -389,7 +393,7 @@ function printExplain(arg) {
   if (!fs.existsSync(p)) { err('slopscore: ANTI_SLOP_PROTOCOL.md not found alongside the package.'); process.exit(2); }
   const lines = fs.readFileSync(p, 'utf8').split('\n');
   const start = lines.findIndex((l) => l.startsWith(`**${id} · `));
-  if (start === -1) { err(`slopscore: no catalog entry ${id} (ids run 001–276). Try: slopscore protocol`); process.exit(2); }
+  if (start === -1) { err(`slopscore: no catalog entry ${id} (ids run 001–280). Try: slopscore protocol`); process.exit(2); }
   const block = [lines[start]];
   for (let i = start + 1; i < lines.length; i += 1) {
     if (/^\*\*\d{3} · /.test(lines[i])) break; // next entry
@@ -416,7 +420,7 @@ USAGE
   slopscore fix [paths...]      auto-apply the safe (🟢 AUTO) fixes; --dry-run to preview
   slopscore gate [paths...]     pre-ship gate: fail on production security + robustness crit/major
   slopscore doctor              diagnose config, ignored paths, stale suppressions, detector count
-  slopscore protocol            print the full 276-pattern protocol (pipe to your agent)
+  slopscore protocol            print the full 280-pattern protocol (pipe to your agent)
   slopscore rules               list the deterministic detectors this CLI runs
   slopscore explain <id>        print one catalog pattern + its fix (e.g. explain 058)
   slopscore init                scaffold .slopscore.json + a PR gate + AGENTS.md (agent auto-adoption)
@@ -431,6 +435,8 @@ OPTIONS
   --min-confidence <level>   only report/score findings at: high | medium | low  (default: low/all)
   --category <names>         focus on one or more categories, e.g. security  (comma-separated)
   --changed                  scan only files git reports as changed (staged/unstaged/untracked)
+  --ast                      opt-in AST metrics for JS (complexity, function length, nesting,
+                             params) — needs the optional peer dep: npm i -D acorn
   --since <ref>              scan only files changed since a git ref (e.g. origin/main)
   --preset <name>            tune coverage to the project: library | backend | cli |
                              web | marketing | mui | tailwind | chakra | …  (also: "preset" in config)

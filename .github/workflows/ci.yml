@@ -7,7 +7,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - name: Run tests (zero dependencies, nothing to install)
+      - name: Install dev deps (acorn — the optional --ast peer; runtime deps stay 0)
+        run: npm install --no-audit --no-fund
+      - name: Run tests
         run: node --test
       - name: Self-scan — slopscore must pass its own audit
         run: node bin/slopscore.js scan . --fail-on minor
