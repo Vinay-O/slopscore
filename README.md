@@ -242,7 +242,7 @@ slopscore scan . --history     # record the score over time + a trend sparkline
 slopscore gate                 # pre-ship gate: fail only on production security + robustness crit/major
 slopscore scan . --changed     # scan only what git says changed (fast local + CI)
 slopscore doctor               # diagnose config, ignored paths, stale suppressions
-slopscore scan . --ast         # opt-in AST metrics for JS (needs: npm i -D acorn)
+slopscore scan . --ast         # opt-in AST metrics for JS/TS/JSX (needs: npm i -D acorn @babel/parser)
 slopscore scan . --sarif       # inline annotations on the PR diff (code scanning)
 slopscore scan . --format junit --out slop.xml   # JUnit XML for CI test-report panels
 slopscore scan . --markdown --out slop.md        # write a UTF-8 report file directly

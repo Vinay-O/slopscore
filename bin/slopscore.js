@@ -296,7 +296,7 @@ function runScan(opts) {
     opts.paths = scannable;
   }
   if (opts.ast && !require('../src/ast').astAvailable()) {
-    err('slopscore: --ast needs the optional peer dependency `acorn`. Install it: npm i -D acorn  (the core scanner stays zero-dependency without it).');
+    err('slopscore: --ast needs an optional parser. For JS: `npm i -D acorn`. For TypeScript/JSX too: `npm i -D @babel/parser`. (The core scanner stays zero-dependency without them.)');
   }
   const presetName = opts.preset || cfg.preset;
   if (presetName && !resolvePreset(presetName)) {
@@ -435,8 +435,8 @@ OPTIONS
   --min-confidence <level>   only report/score findings at: high | medium | low  (default: low/all)
   --category <names>         focus on one or more categories, e.g. security  (comma-separated)
   --changed                  scan only files git reports as changed (staged/unstaged/untracked)
-  --ast                      opt-in AST metrics for JS (complexity, function length, nesting,
-                             params) — needs the optional peer dep: npm i -D acorn
+  --ast                      opt-in AST metrics for JS/TS/JSX (complexity, function length,
+                             nesting, params) — needs: npm i -D acorn  (+ @babel/parser for TS/JSX)
   --since <ref>              scan only files changed since a git ref (e.g. origin/main)
   --preset <name>            tune coverage to the project: library | backend | cli |
                              web | marketing | mui | tailwind | chakra | …  (also: "preset" in config)

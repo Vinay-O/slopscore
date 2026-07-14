@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const { scan } = require('../src/scanner');
-const { astAvailable } = require('../src/ast');
+const { astAvailable, tsAvailable } = require('../src/ast');
 
 const SKIP = !astAvailable(); // acorn (optional peer) not installed → skip AST tests
 
@@ -43,8 +43,16 @@ test('a small, simple function yields no AST findings', { skip: SKIP }, () => {
   assert.ok(!scanSrc('a.js', 'const add = (a, b) => a + b;\n', { ast: true }).some((id) => ['278', '279', '280', '281'].includes(id)));
 });
 
-test('unparseable (TS/JSX) files are skipped, not crashed', { skip: SKIP }, () => {
-  assert.doesNotThrow(() => scanSrc('a.ts', 'const x: number = 1;\ntype T = { a: string };\n', { ast: true }));
+test('TypeScript is analyzed when a TS parser is present, else skipped cleanly', { skip: SKIP }, () => {
+  const ts = 'function f(a:number,b:number,c:number,d:number,e:number,g:number):number{ if(a){if(b){if(c){if(d){if(e){return g;}}}}} for(let i=0;i<a;i++){while(b){if(c&&d||e){break;}}} return a&&b||c&&d||e?1:2; }\n';
+  const ids = scanSrc('a.ts', ts, { ast: true });
+  if (tsAvailable()) assert.ok(ids.includes('279'), 'TS complexity flagged with @babel/parser');
+  // either way, no crash
+});
+
+test('JSX / TSX parse without crashing', { skip: SKIP }, () => {
+  assert.doesNotThrow(() => scanSrc('v.tsx', 'export const V = (p: {n: number}) => <div>{p.n > 0 ? <b>{p.n}</b> : null}</div>;\n', { ast: true }));
+  assert.doesNotThrow(() => scanSrc('v.jsx', 'export const V = ({n}) => <div>{n}</div>;\n', { ast: true }));
 });
 
 test('AST detectors 278-281 are registered', () => {

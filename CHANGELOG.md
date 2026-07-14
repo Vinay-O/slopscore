@@ -3,6 +3,19 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [2.1.0] — 2026-07-14
+
+> `--ast` now covers **TypeScript and JSX** — where most modern (and most AI-generated)
+> code actually lives. Added `@babel/parser` as a second *optional* peer dependency
+> (JS + JSX + TS); acorn stays the lightweight JS-only fallback. Core still zero-runtime-dep.
+
+### Added
+- **`--ast` for `.ts` / `.tsx` / `.jsx` / `.mts` / `.cts`** via `@babel/parser`. The existing
+  metrics (`278` long function, `279` cyclomatic complexity, `280` nesting, `281` params) now
+  apply to TypeScript and JSX, not just plain JS.
+- Parser selection is automatic: `@babel/parser` if installed (JS/TS/JSX), else `acorn` (JS).
+  Missing both → `--ast` prints a hint naming the right install for your language; the regex scan is unaffected.
+
 ## [2.0.0] — 2026-07-14
 
 > **The AST tier — opt-in, still zero-runtime-dependency.** slopscore now has a

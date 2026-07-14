@@ -1,6 +1,6 @@
 {
   "name": "slopscore",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Scan your codebase for AI slop, get a Slop Score, ship clean. Zero runtime dependencies. 184 detectors (security, robustness, performance, code quality, design tells) + a 280-pattern Anti-Slop Protocol for AI coding agents. Optional --ast mode for real complexity metrics.",
   "bin": {
     "slopscore": "bin/slopscore.js"
@@ -48,12 +48,19 @@
     "url": "git+https://github.com/Vinay-O/slopscore.git"
   },
   "devDependencies": {
+    "@babel/parser": "^8.0.4",
     "acorn": "^8.17.0"
   },
   "peerDependencies": {
-    "acorn": ">=8"
+    "acorn": ">=8",
+    "@babel/parser": ">=7"
   },
   "peerDependenciesMeta": {
-    "acorn": { "optional": true }
+    "acorn": {
+      "optional": true
+    },
+    "@babel/parser": {
+      "optional": true
+    }
   }
 }
