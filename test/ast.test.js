@@ -55,6 +55,15 @@ test('JSX / TSX parse without crashing', { skip: SKIP }, () => {
   assert.doesNotThrow(() => scanSrc('v.jsx', 'export const V = ({n}) => <div>{n}</div>;\n', { ast: true }));
 });
 
+test('AST analysis never crashes the scan on pathologically deep code', { skip: SKIP }, () => {
+  let s = 'function f(){';
+  for (let i = 0; i < 20000; i += 1) s += 'if(x){';
+  s += 'y();';
+  for (let i = 0; i < 20000; i += 1) s += '}';
+  s += '}';
+  assert.doesNotThrow(() => scanSrc('deep.js', s, { ast: true }), 'deep nesting must degrade gracefully, not crash');
+});
+
 test('AST detectors 278-281 are registered', () => {
   const rules = require('../src/rules');
   const all = rules.LINE_RULES.concat(rules.WHOLE_FILE_RULES, rules.META_RULES);

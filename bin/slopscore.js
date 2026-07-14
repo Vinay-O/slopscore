@@ -114,10 +114,16 @@ function runDoctor(argv) {
 const VALID_CATEGORIES = new Set(LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES).map((r) => r.category));
 const VALID_FAILON = new Set(['critical', 'major', 'minor', 'never']);
 const VALID_CONFIDENCE = new Set(['high', 'medium', 'low']);
+const VALID_FORMATS = new Set(['terminal', 'json', 'markdown', 'md', 'sarif', 'junit', 'agent']);
 
 // Reject typo'd flag values loudly (exit 2) instead of silently doing the wrong
 // thing — a typo'd --fail-on or --category must never make a slopful repo pass CI.
 function validateOpts(opts) {
+  if (opts.format === 'md') opts.format = 'markdown';
+  if (opts.format && !VALID_FORMATS.has(opts.format)) {
+    err(`slopscore: invalid --format "${opts.format}". Use: ${[...VALID_FORMATS].filter((f) => f !== 'md').join(' | ')}`);
+    process.exit(2);
+  }
   if (opts.failOnSet && !VALID_FAILON.has(opts.failOn)) {
     err(`slopscore: invalid --fail-on "${opts.failOn}". Use: ${[...VALID_FAILON].join(' | ')}`);
     process.exit(2);

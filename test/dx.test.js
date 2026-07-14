@@ -36,6 +36,16 @@ test('config-schema validation warns on an unknown key', () => {
   assert.match(r.out, /unknown .slopscore.json key "failOnn"/);
 });
 
+test('an invalid --format exits 2 with a clear error (not a silent terminal fallback)', () => {
+  const dir = tmpDir({ 'a.js': 'const x = 1;\n' });
+  const r = run(['scan', dir, '--format', 'jso'], dir);
+  assert.strictEqual(r.code, 2, 'a typo\'d format must fail loudly');
+  assert.match(r.out, /invalid --format/);
+  // valid + the md alias still work
+  assert.strictEqual(run(['scan', dir, '--format', 'json'], dir).code, 0);
+  assert.strictEqual(run(['scan', dir, '--format', 'md'], dir).code, 0);
+});
+
 test('--changed with no git repo errors cleanly', () => {
   const dir = tmpDir({ 'a.js': 'const x=1;\n' });
   const r = run(['scan', dir, '--changed'], dir);

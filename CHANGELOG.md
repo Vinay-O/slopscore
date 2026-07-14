@@ -3,6 +3,18 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [2.1.1] — 2026-07-14
+
+### Fixed (found in a rigorous bug hunt)
+- **`058` missed OpenAI `sk-proj-` and Anthropic `sk-ant-` key formats** — the hyphen
+  broke `sk-[A-Za-z0-9]{16,}`. Now matches `sk-(proj-|ant-|svcacct-)?…` (kebab-case class
+  names like `sk-loading-spinner` are still not flagged).
+- **AST analysis is now exception-guarded** — a pathologically deep (but parseable) file
+  could stack-overflow inside the walker and crash the whole scan; it now degrades to no
+  findings for that file instead of taking down the run.
+- **Invalid `--format` now errors (exit 2)** instead of silently falling back to terminal
+  output — matching `--fail-on`/`--min-confidence`. (`--format md` still aliases markdown.)
+
 ## [2.1.0] — 2026-07-14
 
 > `--ast` now covers **TypeScript and JSX** — where most modern (and most AI-generated)

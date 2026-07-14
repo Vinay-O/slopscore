@@ -76,7 +76,7 @@ const LINE_RULES = [
   {
     id: '058', title: 'Hardcoded secret / API key', category: 'security', severity: 'critical',
     authority: 'flag', exts: null, skipTests: true, respectComments: false,
-    re: /((api[_-]?key|secret|password|access[_-]?token)\s*[:=]\s*['"][^'"\s]{12,}['"]|\bsk-[A-Za-z0-9]{16,}|\bBearer\s+[A-Za-z0-9._-]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN[A-Z ]*PRIVATE KEY-----)/i,
+    re: /((api[_-]?key|secret|password|access[_-]?token)\s*[:=]\s*['"][^'"\s]{12,}['"]|\bsk-(proj-|ant-|svcacct-)?[A-Za-z0-9]{16,}|\bBearer\s+[A-Za-z0-9._-]{20,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|xox[baprs]-[A-Za-z0-9-]{10,}|-----BEGIN[A-Z ]*PRIVATE KEY-----)/i,
     unless: /process\.env|import\.meta\.env|getenv|REPLACE|YOUR_|example|placeholder|\*{4,}|xxxx/i,
     fix: 'Move to an env var / secret manager. A committed secret is COMPROMISED — rotate it now.',
   },

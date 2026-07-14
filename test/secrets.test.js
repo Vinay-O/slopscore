@@ -16,6 +16,14 @@ function tmpFile(name, contents) {
 }
 const ids = (p) => scan(p).findings.map((f) => f.id);
 
+test('058 catches OpenAI sk-proj- and Anthropic sk-ant- key formats (hyphen no longer breaks it)', () => {
+  const has = (c) => scan(tmpFile('a.js', c)).findings.some((f) => f.id === '058');
+  assert.ok(has('const key = "sk-proj-abc123def456ghi789jkl";\n'), 'OpenAI project key');
+  assert.ok(has('const key = "sk-ant-abc123def456ghi789jkl";\n'), 'Anthropic key');
+  assert.ok(has('const key = "sk-abc123def456ghi789jkl";\n'), 'classic sk-');
+  assert.ok(!has('const c = "sk-loading-spinner-wrapper";\n'), 'kebab-case class is not a key');
+});
+
 test('192 flags provider-prefixed credentials', () => {
   assert.ok(ids(tmpFile('a.js', 'const k = "AIzaSyA1234567890abcdefghijklmnopqrstuvw";\n')).includes('192'), 'GCP');
   assert.ok(ids(tmpFile('b.js', 'const k = "glpat-abcdefghij1234567890";\n')).includes('192'), 'GitLab');

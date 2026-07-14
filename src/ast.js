@@ -107,14 +107,16 @@ function analyzeFile(source, ext, file, metaFinding) {
   const ast = parse(source, ext);
   if (!ast || !ast.loc) return [];
   const findings = [];
-  for (const fn of collectFunctions(ast)) {
-    if (!fn.loc) continue;
-    const m = metricsOf(fn);
-    if (m.lines > LONG_FN) findings.push(metaFinding('278', file, { title: `Long function (${m.lines} lines)`, line: m.line, snippet: `function body spans ${m.lines} lines` }));
-    if (m.cc > HIGH_CC) findings.push(metaFinding('279', file, { title: `High cyclomatic complexity (${m.cc})`, line: m.line, snippet: `${m.cc} independent paths` }));
-    if (m.maxNest > DEEP_NEST) findings.push(metaFinding('280', file, { title: `Deep nesting (depth ${m.maxNest})`, line: m.line, snippet: `control nesting depth ${m.maxNest}` }));
-    if (m.params > MANY_PARAMS) findings.push(metaFinding('281', file, { title: `Too many parameters (${m.params})`, line: m.line, snippet: `${m.params} parameters` }));
-  }
+  try {
+    for (const fn of collectFunctions(ast)) {
+      if (!fn.loc) continue;
+      const m = metricsOf(fn);
+      if (m.lines > LONG_FN) findings.push(metaFinding('278', file, { title: `Long function (${m.lines} lines)`, line: m.line, snippet: `function body spans ${m.lines} lines` }));
+      if (m.cc > HIGH_CC) findings.push(metaFinding('279', file, { title: `High cyclomatic complexity (${m.cc})`, line: m.line, snippet: `${m.cc} independent paths` }));
+      if (m.maxNest > DEEP_NEST) findings.push(metaFinding('280', file, { title: `Deep nesting (depth ${m.maxNest})`, line: m.line, snippet: `control nesting depth ${m.maxNest}` }));
+      if (m.params > MANY_PARAMS) findings.push(metaFinding('281', file, { title: `Too many parameters (${m.params})`, line: m.line, snippet: `${m.params} parameters` }));
+    }
+  } catch { /* a pathological AST (e.g. extreme nesting → stack limit) must never crash the scan */ }
   return findings;
 }
 
