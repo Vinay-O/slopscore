@@ -42,6 +42,11 @@ test('282 does NOT fire on safe / non-cross-variable cases', { skip: SKIP }, () 
   assert.ok(!flows('d.js', 'function h(req){ const x = req.query.q; logger.info(x); }\n'), 'logging is not a tracked sink');
 });
 
+test('282 flags prototype pollution — a tainted key in a dynamic assignment', { skip: SKIP }, () => {
+  assert.ok(flows('a.js', 'function h(req){ const k = req.body.key; target[k] = 1; }\n'), 'obj[taintedKey] = …');
+  assert.ok(!flows('b.js', 'function h(req){ const v = req.body.v; target["fixed"] = v; }\n'), 'a fixed key (tainted value) is not pollution');
+});
+
 test('282 is AST-only (off by default) and registered as security', { skip: SKIP }, () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-taint2-'));
   fs.writeFileSync(path.join(dir, 'a.js'), 'function h(req){ const c = req.body.cmd; exec(c); }\n');

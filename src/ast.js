@@ -234,6 +234,10 @@ function taintFindings(fn, file, metaFinding) {
       && node.left.property && node.left.property.type === 'Identifier' && node.left.property.name === 'innerHTML'
       && containsTaintedVar(node.right, tainted)) {
       out.push(metaFinding('282', file, { title: 'Tainted input reaches innerHTML (XSS)', line: at(node), snippet: 'a user-derived variable is assigned to .innerHTML' }));
+    } else if (node.type === 'AssignmentExpression' && node.left && node.left.type === 'MemberExpression'
+      && node.left.computed && containsTaintedVar(node.left.property, tainted)) {
+      // obj[taintedKey] = value → prototype pollution (attacker controls the property name)
+      out.push(metaFinding('282', file, { title: 'Tainted key in a dynamic property assignment (prototype pollution)', line: at(node), snippet: 'a user-derived variable is used as an assignment key (obj[key] = …)' }));
     }
   });
   return out;

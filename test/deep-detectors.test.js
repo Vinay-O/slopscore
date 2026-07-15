@@ -107,6 +107,16 @@ test('272/273 secrets-in-logs and CORS-reflect-any-origin', () => {
   assert.ok(!has('e.js', 'app.use(cors({ origin: ["https://x.com"] }));\n', '273'), 'allowlist is fine');
 });
 
+test('283/284/285 crypto + JWT + XXE hardening', () => {
+  assert.ok(has('a.js', 'crypto.createCipheriv("aes-256-ecb", k, iv);\n', '283'), 'ECB mode');
+  assert.ok(has('b.js', 'crypto.createCipheriv("des-cbc", k, iv);\n', '283'), 'DES');
+  assert.ok(!has('c.js', 'crypto.createCipheriv("aes-256-gcm", k, iv);\n', '283'), 'AES-GCM is fine');
+  assert.ok(has('d.js', 'crypto.generateKeyPairSync("rsa", { modulusLength: 1024 });\n', '283'), 'weak RSA key');
+  assert.ok(has('e.js', 'jwt.sign(p, key, { algorithm: "none" });\n', '284'), 'alg none');
+  assert.ok(!has('f.js', 'jwt.verify(t, key, { algorithms: ["RS256"] });\n', '284'), 'RS256 is fine');
+  assert.ok(has('g.js', 'const doc = libxml.parseXml(x, { noent: true });\n', '285'), 'XXE noent');
+});
+
 test('068 near-duplication: blocks differing only in literals are caught', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-nd-'));
   const blk = (m, k) => `function process(items) {\n  const results = items.map((x) => x.value);\n  const total = results.reduce((a, b) => a + b, ${k});\n  const average = total / results.length;\n  logger.info("${m}");\n  return { total: total, average: average, ok: true };\n}\n`;

@@ -1239,6 +1239,25 @@ const LINE_RULES = [
     re: /cors\s*\(\s*\{[^}]*origin\s*:\s*(true|\/)/,
     fix: 'origin:true reflects the caller\'s Origin (effectively allow-all, dangerous with credentials). Pin an explicit allowlist of trusted origins.',
   },
+  {
+    id: '283', title: 'Weak or misused cryptography', category: 'security', severity: 'major',
+    authority: 'propose', exts: CODE, skipTests: true, respectComments: true,
+    // ECB mode (no diffusion), broken ciphers (DES/3DES/RC4/RC2), or an undersized RSA key.
+    re: /aes-\d+-ecb|createCipheriv?\s*\(\s*['"][a-z0-9-]*(ecb|des|rc4|rc2)|\bmodulusLength\s*:\s*(512|1024)\b/i,
+    fix: 'Use AES-GCM (authenticated) with a random IV, and RSA ≥ 2048 / ECC. ECB leaks patterns; DES/3DES/RC4 are broken.',
+  },
+  {
+    id: '284', title: 'JWT algorithm set to "none" (signature bypass)', category: 'security', severity: 'critical',
+    authority: 'flag', exts: CODE, skipTests: true, respectComments: true,
+    re: /(alg|algorithm)s?\s*[:=]\s*\[?\s*['"]none['"]/i,
+    fix: 'Never allow the "none" algorithm — it disables signature verification, so anyone can forge a token. Pin an explicit allowed-algorithms list (e.g. ["RS256"]).',
+  },
+  {
+    id: '285', title: 'XML parsed with external entities enabled (XXE)', category: 'security', severity: 'critical',
+    authority: 'propose', exts: null, skipTests: true, respectComments: true,
+    re: /noent\s*:\s*true|libxml_disable_entity_loader\s*\(\s*false|resolveExternalEntities|processEntities\s*:\s*true|expandEntityReferences\s*:\s*true|external-general-entities/i,
+    fix: 'Disable DTD / external-entity resolution in the XML parser (the default-safe option). XXE lets an attacker read files or reach internal services.',
+  },
 ];
 
 // Detectors implemented as bespoke checks in scanner.js — file size, repo-level

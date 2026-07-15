@@ -296,7 +296,7 @@ Each entry: **ID · Title** `SEVERITY` `AUTHORITY` — description, `DETECT` (ho
 (aesthetic tell). Authority: 🟢 AUTO · 🟡 PROPOSE · 🔴 FLAG (see §0).
 
 A `` `⚙️ slopscore scan` `` tag means **the deterministic CLI already detects this pattern** —
-`npx slopscore` flags it for you with the exact location and fix. **185 of the 281** carry this tag
+`npx slopscore` flags it for you with the exact location and fix. **188 of the 284** carry this tag
 today; the rest need an AST tool (§2.1) or human reading (layout sameness, fake features,
 architectural drift). The tags are generated from the scanner's own rule table, so they never
 drift from what the CLI actually does. Patterns *without* the tag are where you, the agent, earn
@@ -2035,3 +2035,18 @@ Category: code · confidence: medium. Flagged by the deterministic scanner.
 Category: security · confidence: medium. Flagged by the deterministic scanner.
 `DETECT:` AST intra-procedural taint (opt-in `--ast`).
 `FIX:` A user-controlled value (req/params/body/argv/env/location/cookie) reaches a sink (shell, SQL, filesystem, redirect, innerHTML) through a variable. Validate/escape/parameterize at the sink, or sanitize at the source (AST/--ast; intra-procedural taint).
+
+**283 · Weak or misused cryptography** `🟠` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `aes-\d+-ecb|createCipheriv?\s*\(\s*['"][a-z0-9-]*(ecb|des|rc4|rc2)|\bmodulusLength\s*:\s*(512|1024)\b`.
+`FIX:` Use AES-GCM (authenticated) with a random IV, and RSA ≥ 2048 / ECC. ECB leaks patterns; DES/3DES/RC4 are broken.
+
+**284 · JWT algorithm set to "none" (signature bypass)** `🔴` `🔴 FLAG` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `(alg|algorithm)s?\s*[:=]\s*\[?\s*['"]none['"]`.
+`FIX:` Never allow the "none" algorithm — it disables signature verification, so anyone can forge a token. Pin an explicit allowed-algorithms list (e.g. ["RS256"]).
+
+**285 · XML parsed with external entities enabled (XXE)** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: high. Flagged by the deterministic scanner.
+`DETECT:` `noent\s*:\s*true|libxml_disable_entity_loader\s*\(\s*false|resolveExternalEntities|processEntities\s*:\s*true|expandEntityReferences\s*:\s*true|external-general-entities`.
+`FIX:` Disable DTD / external-entity resolution in the XML parser (the default-safe option). XXE lets an attacker read files or reach internal services.

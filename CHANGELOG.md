@@ -3,6 +3,27 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [2.3.0] — 2026-07-16
+
+> Security-hardening wave — deeper crypto/injection detection **and** a more secure
+> tool. 185 → **188 detectors**, catalog **284 patterns**.
+
+### Added — detection
+- **`283` Weak / misused cryptography** — ECB mode, DES/3DES/RC4/RC2, and undersized RSA
+  keys (`modulusLength: 512/1024`). AES-GCM/CBC and RSA ≥2048 are not flagged.
+- **`284` JWT `alg: "none"`** — the signature-bypass footgun; a pinned `["RS256"]` is fine.
+- **`285` XXE** — XML parsed with external entities / DTD resolution enabled
+  (`noent: true`, `processEntities`, `libxml_disable_entity_loader(false)`, `resolveExternalEntities`).
+- **Prototype pollution** is now a taint sink (`282`, `--ast`): `obj[taintedKey] = …` where the
+  key is user-derived (a fixed key with a tainted value is correctly not flagged).
+
+### Hardened — the tool itself
+- **Provenance-signed releases**: a `release.yml` workflow publishes from CI with
+  `npm publish --provenance` (a signed, verifiable attestation tying the tarball to this
+  repo + commit) — supply-chain integrity for a security tool.
+- **SECURITY.md corrected**: documents that the only subprocess ever spawned is `git`
+  (for `--changed`/`--since`, in your own repo) and that `--ast` uses optional peer parsers.
+
 ## [2.2.0] — 2026-07-16
 
 > **Real taint analysis** — the accurate source→sink tracking regex can't do. `--ast`
