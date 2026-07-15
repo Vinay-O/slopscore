@@ -3,6 +3,26 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [2.6.0] — 2026-07-16
+
+> `slopscore compare` — the PR-delta command. Completes the CI story alongside
+> `--baseline` (gate) and `--history` (trend).
+
+### Added
+- **`slopscore compare [ref]`** — diffs the Slop Score **and** the finding set between
+  the working tree and any git ref (default `HEAD`). Shows the score delta, every
+  **newly-introduced** finding, and every **fixed** one, then **exits non-zero only if
+  the change adds slop** — a drop-in PR gate that answers "what did *this branch* do?"
+  - **Non-destructive:** the ref is scanned in a throwaway `git worktree`; your working
+    tree, index, and checked-out branch are never touched.
+  - Findings are diffed by content fingerprint (line-number-independent), so moving code
+    around never shows up as "new."
+  - Honors your `.slopscore.json`, preset, and `--ast` on both sides of the diff.
+
+### Internal
+- Extracted config loading into `src/config.js` (shared by the CLI and `compare`),
+  keeping `bin/slopscore.js` well under its own 500-line god-file limit.
+
 ## [2.5.0] — 2026-07-16
 
 > Inter-procedural taint — the analysis frontier intra-procedural taint couldn't reach.

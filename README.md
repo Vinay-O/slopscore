@@ -241,6 +241,7 @@ slopscore scan . --watch       # re-scan on every save — a live conscience
 slopscore scan . --history     # record the score over time + a trend sparkline
 slopscore gate                 # pre-ship gate: fail only on production security + robustness crit/major
 slopscore scan . --changed     # scan only what git says changed (fast local + CI)
+slopscore compare main         # diff the score + findings vs a git ref (PR delta; fails if it adds slop)
 slopscore doctor               # diagnose config, ignored paths, stale suppressions
 slopscore scan . --ast         # opt-in AST metrics for JS/TS/JSX (needs: npm i -D acorn @babel/parser)
 slopscore scan . --sarif       # inline annotations on the PR diff (code scanning)

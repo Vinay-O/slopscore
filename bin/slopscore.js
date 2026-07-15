@@ -61,32 +61,8 @@ function parseArgs(argv) {
   return opts;
 }
 
-// Returns the parsed config plus the directory it was found in. Configured
-// ignore paths resolve against that directory, so an ignore like "src/rules.js"
-// is honored no matter which sub-path the user points the scan at.
-function loadConfig(startDir) {
-  let dir = path.resolve(startDir);
-  const names = ['.slopscore.json', '.slopscorerc.json'];
-  for (;;) {
-    for (const name of names) {
-      const p = path.join(dir, name);
-      if (fs.existsSync(p)) {
-        try { return { config: JSON.parse(fs.readFileSync(p, 'utf8')), baseDir: dir }; }
-        catch { return { config: {}, baseDir: dir }; }
-      }
-    }
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return { config: {}, baseDir: path.resolve(startDir) };
-}
-
-function configStartDir(paths) {
-  const first = path.resolve(paths[0]);
-  try { return fs.statSync(first).isDirectory() ? first : path.dirname(first); }
-  catch { return process.cwd(); }
-}
+// Config loading lives in src/config.js so bin stays lean and `compare` can reuse it.
+const { loadConfig, configStartDir } = require('../src/config');
 
 // Warn (don't fail) on an unknown top-level .slopscore.json key. Also provides the
 // git-changed file list for --changed/--since. (Kept in src/ so bin stays lean.)
@@ -427,6 +403,7 @@ USAGE
   slopscore fix [paths...]      auto-apply the safe (🟢 AUTO) fixes; --dry-run to preview
   slopscore gate [paths...]     pre-ship gate: fail on production security + robustness crit/major
   slopscore doctor              diagnose config, ignored paths, stale suppressions, detector count
+  slopscore compare [ref]       diff the Slop Score + findings vs a git ref (default HEAD); PR delta
   slopscore protocol            print the full 286-pattern protocol (pipe to your agent)
   slopscore rules               list the deterministic detectors this CLI runs
   slopscore explain <id>        print one catalog pattern + its fix (e.g. explain 058)
@@ -492,6 +469,7 @@ function main() {
   if (cmd === 'fix') { runFix(parseArgs(argv.slice(1))); return; }
   if (cmd === 'gate') { const o = parseArgs(argv.slice(1)); o.gate = o.gate || 'ship'; runScan(o); return; }
   if (cmd === 'doctor') { runDoctor(argv.slice(1)); return; }
+  if (cmd === 'compare') { const r = require('../src/compare').runCompare(argv.slice(1), parseArgs); r.lines.forEach(out); process.exitCode = r.code; return; }
   const rest = cmd === 'scan' ? argv.slice(1) : argv;
   runScan(parseArgs(rest));
 }
