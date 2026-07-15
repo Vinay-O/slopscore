@@ -4,7 +4,7 @@
 
 ### Scan your codebase for AI slop. Get a Slop Score. Ship clean.
 
-**A zero-dependency CLI + a 285-pattern protocol for AI coding agents.**
+**A zero-dependency CLI + a 286-pattern protocol for AI coding agents.**
 The antidote to vibe-coded software: turn *generation* into *governance*.
 
 [![CI](https://github.com/Vinay-O/slopscore/actions/workflows/ci.yml/badge.svg)](https://github.com/Vinay-O/slopscore/actions/workflows/ci.yml)
@@ -95,13 +95,13 @@ slopscore ships **two halves of the same idea**: a deterministic scanner you run
 
 ### 1. The scanner (deterministic, zero-dependency)
 
-Runs **189 detectors** locally in milliseconds — a fast **security first-pass** (secrets across 15+ providers, SQL/command injection, disabled TLS verification, weak hashing, insecure randomness, hardcoded private keys, insecure deserialization, wildcard CORS, `eval`, unverified JWTs, cleartext HTTP, Dockerfile/CI footguns), plus a **robustness pass** (unguarded `JSON.parse`, unchecked `.find()`/`.match()`, `parseInt` w/o radix), empty catches, `any`, hallucinated APIs, missing `alt`, the VibeCode-purple gradient, AI buzzword copy, and god files. Regex/heuristic by default (a fast first pass, not a replacement for Semgrep/CodeQL); an opt-in `--ast` mode adds accurate JS complexity metrics via acorn (an optional peer dependency). No LLM, no network, zero runtime dependencies in the core.
+Runs **190 detectors** locally in milliseconds — a fast **security first-pass** (secrets across 15+ providers, SQL/command injection, disabled TLS verification, weak hashing, insecure randomness, hardcoded private keys, insecure deserialization, wildcard CORS, `eval`, unverified JWTs, cleartext HTTP, Dockerfile/CI footguns), plus a **robustness pass** (unguarded `JSON.parse`, unchecked `.find()`/`.match()`, `parseInt` w/o radix), empty catches, `any`, hallucinated APIs, missing `alt`, the VibeCode-purple gradient, AI buzzword copy, and god files. Regex/heuristic by default (a fast first pass, not a replacement for Semgrep/CodeQL); an opt-in `--ast` mode (acorn/@babel) adds accurate JS/TS complexity metrics, cross-file structural clone detection, and taint analysis — both intra- and single-file inter-procedural (user input flowing through a helper into a sink). No LLM, no network, zero runtime dependencies in the core.
 
 Run a focused security audit with `slopscore scan . --category security`.
 
 ### 2. The protocol (for your coding agent)
 
-[`ANTI_SLOP_PROTOCOL.md`](ANTI_SLOP_PROTOCOL.md) is a **285-pattern operating manual** for AI agents. Hand it to Claude Code, Cursor, Codex CLI, Aider, Copilot, Windsurf, or Cline and say:
+[`ANTI_SLOP_PROTOCOL.md`](ANTI_SLOP_PROTOCOL.md) is a **286-pattern operating manual** for AI agents. Hand it to Claude Code, Cursor, Codex CLI, Aider, Copilot, Windsurf, or Cline and say:
 
 > **"Check the system."**
 
@@ -302,9 +302,9 @@ A bare `// slopscore-disable-next-line` (no id) suppresses every rule on the nex
 
 **It also honors your `eslint-disable`.** A line you already, deliberately, signed off on with `// eslint-disable-next-line @typescript-eslint/no-explicit-any` (or `no-console`) isn't re-litigated — slopscore won't re-flag a decision your team already reviewed. **Security findings are the exception:** an `eslint-disable` can never silence `eval`, SQL injection, a hardcoded secret, etc. — catching the hole someone waved through is the whole point.
 
-## What it detects (189 of the 285)
+## What it detects (190 of the 286)
 
-The CLI runs the deterministic subset; the [full 285-pattern catalog](ANTI_SLOP_PROTOCOL.md) (including visual, architectural, and judgment-heavy patterns) is what you hand your agent.
+The CLI runs the deterministic subset; the [full 286-pattern catalog](ANTI_SLOP_PROTOCOL.md) (including visual, architectural, and judgment-heavy patterns) is what you hand your agent.
 
 | Category | Examples |
 |:--|:--|
@@ -335,7 +335,7 @@ Run `slopscore rules` to see the full list with severities and fix authority.
 | Zero install (`npx`, no config) | ✅ | ⚠️ | ⚠️ | ⚠️ |
 | Zero dependencies | ✅ | ❌ | ❌ | ❌ |
 
-This table is scoped to **AI-slop detection specifically** — it is not a quality ranking. ESLint and Semgrep are excellent at what they're built for (correctness rules, taint analysis), and slopscore is no substitute for either; the `❌`s just mean "not designed to catch the AI tells slopscore targets." slopscore is intentionally a **fast, transparent, zero-runtime-dependency first pass** — regex/heuristic by default. Its opt-in `--ast` mode (acorn) adds accurate JS complexity/length/nesting metrics; for deeper cross-file duplication and taint tracking, **run it alongside** [vibecop](https://github.com/bhvbhushan/vibecop), Semgrep, or CodeQL — the protocol ([`ANTI_SLOP_PROTOCOL.md`](ANTI_SLOP_PROTOCOL.md)) tells your agent exactly when to reach for those. It complements your linter; it doesn't replace it.
+This table is scoped to **AI-slop detection specifically** — it is not a quality ranking. ESLint and Semgrep are excellent at what they're built for (correctness rules, taint analysis), and slopscore is no substitute for either; the `❌`s just mean "not designed to catch the AI tells slopscore targets." slopscore is intentionally a **fast, transparent, zero-runtime-dependency first pass** — regex/heuristic by default. Its opt-in `--ast` mode (acorn/@babel) adds accurate complexity/length/nesting metrics, cross-file structural clone detection, and taint analysis (intra- and single-file inter-procedural); for **full cross-file** taint and call-graph analysis, **run it alongside** [vibecop](https://github.com/bhvbhushan/vibecop), Semgrep, or CodeQL — the protocol ([`ANTI_SLOP_PROTOCOL.md`](ANTI_SLOP_PROTOCOL.md)) tells your agent exactly when to reach for those. It complements your linter; it doesn't replace it.
 
 ## FAQ
 

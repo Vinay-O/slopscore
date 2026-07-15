@@ -1342,6 +1342,11 @@ const META_RULES = [
     fix: 'Two functions have the identical AST shape (copy-paste, renamed or not) in different files. Extract the shared logic into one module — duplicated code multiplies every future bug fix (AST/--ast).',
   },
   {
+    id: '287', title: 'User input flows through a function into a sink (inter-procedural taint)', category: 'security',
+    severity: 'critical', authority: 'propose', confidence: 'medium',
+    fix: 'User input is passed to a helper whose parameter reaches a dangerous sink (shell/SQL/fs/redirect/innerHTML). Validate/parameterize at the sink or sanitize before the call (AST/--ast; single-file inter-procedural taint).',
+  },
+  {
     id: '107', title: '.env committed to the repository', category: 'security',
     severity: 'critical', authority: 'flag',
     fix: 'gitignore it AND rotate every secret it contained (they are compromised); scrub git history.',

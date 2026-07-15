@@ -195,9 +195,10 @@ function bindNames(pat) {
   return out;
 }
 
-// Fixpoint set of tainted variable names within one function body.
-function taintedVars(body) {
-  const tainted = new Set();
+// Fixpoint set of tainted variable names within one function body. `seed` lets the
+// caller pre-mark names as tainted (used to test whether a PARAMETER reaches a sink).
+function taintedVars(body, seed) {
+  const tainted = new Set(seed || []);
   const assigns = [];
   walkNoFn(body, (node) => {
     if (node.type === 'VariableDeclarator' && node.init) assigns.push({ id: node.id, value: node.init });
@@ -255,6 +256,79 @@ function taintFindings(fn, file, metaFinding) {
   return out;
 }
 
+// True if any tracked sink in `body` receives a value carrying `tainted`. Used to
+// decide whether a function PARAMETER reaches a sink (inter-procedural taint).
+function hasSinkForTaint(body, tainted) {
+  let found = false;
+  walkNoFn(body, (node) => {
+    if (found) return;
+    if (node.type === 'CallExpression') {
+      const name = calleeName(node);
+      if (name && SINK_ALL[name] && (node.arguments || []).some((a) => containsTaintedVar(a, tainted))) found = true;
+      else if (name && SINK_SQL.has(name) && node.arguments && node.arguments[0] && containsTaintedVar(node.arguments[0], tainted)) found = true;
+    } else if (node.type === 'AssignmentExpression' && node.left && node.left.type === 'MemberExpression'
+      && node.left.property && node.left.property.type === 'Identifier' && node.left.property.name === 'innerHTML'
+      && containsTaintedVar(node.right, tainted)) found = true;
+  });
+  return found;
+}
+
+function paramName(p) {
+  if (!p) return null;
+  if (p.type === 'Identifier') return p.name;
+  if (p.type === 'AssignmentPattern' && p.left && p.left.type === 'Identifier') return p.left.name;
+  return null;
+}
+
+// Inter-procedural taint (single file): find functions whose PARAMETER reaches a
+// sink, then flag call sites that pass user input to that parameter — the flow
+// intra-procedural taint (282) can't see because source and sink are in different
+// functions. Bounded to same-file definitions/calls (covers module helpers).
+function interprocTaint(ast, file, metaFinding) {
+  // 1) Map each named function to the set of param indices that reach a sink.
+  const sinkFns = new Map();
+  (function walk(node) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (!node.type) return;
+    let name = null; let fn = null;
+    if (node.type === 'FunctionDeclaration' && node.id) { name = node.id.name; fn = node; }
+    else if (node.type === 'VariableDeclarator' && node.id && node.id.type === 'Identifier' && isFn(node.init)) { name = node.id.name; fn = node.init; }
+    if (name && fn && fn.body && fn.params && fn.params.length && fn.params.length <= 8) {
+      const idxs = new Set();
+      for (let i = 0; i < fn.params.length; i += 1) {
+        const pn = paramName(fn.params[i]);
+        if (pn && hasSinkForTaint(fn.body, taintedVars(fn.body, [pn]))) idxs.add(i);
+      }
+      if (idxs.size) sinkFns.set(name, idxs);
+    }
+    for (const k in node) { if (SKIP_KEYS.has(k)) continue; const c = node[k]; if (c && typeof c === 'object') walk(c); }
+  }(ast));
+  if (sinkFns.size === 0) return [];
+
+  // 2) Flag calls to those functions that pass user input to a sink-reaching param.
+  const out = [];
+  const seen = new Set();
+  for (const caller of collectFunctions(ast)) {
+    const tainted = taintedVars(caller.body);
+    walkNoFn(caller.body, (node) => {
+      if (node.type !== 'CallExpression' || !node.callee || node.callee.type !== 'Identifier') return;
+      const idxs = sinkFns.get(node.callee.name);
+      if (!idxs) return;
+      for (const i of idxs) {
+        const arg = (node.arguments || [])[i];
+        if (arg && exprHasTaint(arg, tainted)) {
+          const line = (node.loc && node.loc.start.line) || 1;
+          const key = `${line}:${node.callee.name}`;
+          if (!seen.has(key)) { seen.add(key); out.push(metaFinding('287', file, { title: `User input flows through ${node.callee.name}() into a sink (inter-procedural)`, line, snippet: `argument ${i + 1} of ${node.callee.name}() is user-derived and reaches a sink inside it` })); }
+          break;
+        }
+      }
+    });
+  }
+  return out;
+}
+
 // Parse + analyze one source file; returns findings via the shared metaFinding builder.
 function analyzeFile(source, ext, file, metaFinding, cloneIndex) {
   if (!JS_EXTS.has(ext) && !TS_JSX_EXTS.has(ext)) return [];
@@ -275,6 +349,7 @@ function analyzeFile(source, ext, file, metaFinding, cloneIndex) {
         if (h) { if (!cloneIndex.has(h)) cloneIndex.set(h, []); cloneIndex.get(h).push({ file, line: fn.loc.start.line }); }
       }
     }
+    for (const f of interprocTaint(ast, file, metaFinding)) findings.push(f);
   } catch { /* a pathological AST (e.g. extreme nesting → stack limit) must never crash the scan */ }
   return findings;
 }

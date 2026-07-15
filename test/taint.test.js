@@ -47,6 +47,19 @@ test('282 flags prototype pollution — a tainted key in a dynamic assignment', 
   assert.ok(!flows('b.js', 'function h(req){ const v = req.body.v; target["fixed"] = v; }\n'), 'a fixed key (tainted value) is not pollution');
 });
 
+test('287 inter-procedural: user input flowing through a helper into a sink', { skip: SKIP }, () => {
+  const ip = (name, src) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-ip-'));
+    fs.writeFileSync(path.join(dir, name), src);
+    return [...new Set(scan([dir], { ignoreBase: dir, ast: true }).findings.map((f) => f.id))].includes('287');
+  };
+  assert.ok(ip('a.js', 'function run(sql){ db.query(sql); }\napp.get("/x",(req)=>{ run(req.query.q); });\n'), 'SQLi through helper');
+  assert.ok(ip('b.js', 'function run(cmd){ exec(cmd); }\nfunction h(req){ const c=req.body.c; run(c); }\n'), 'cmd injection through helper via var');
+  assert.ok(ip('c.js', 'const load=(f)=>{ return fs.readFile(f); };\nfunction h(req){ load(req.params.file); }\n'), 'arrow helper');
+  assert.ok(!ip('d.js', 'function fmt(x){ return String(x).trim(); }\nfunction h(req){ fmt(req.query.q); }\n'), 'helper that does not sink its param');
+  assert.ok(!ip('e.js', 'function run(sql){ db.query(sql); }\nfunction h(){ run("SELECT 1"); }\n'), 'sink-helper called with a constant');
+});
+
 test('282 is AST-only (off by default) and registered as security', { skip: SKIP }, () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-taint2-'));
   fs.writeFileSync(path.join(dir, 'a.js'), 'function h(req){ const c = req.body.cmd; exec(c); }\n');

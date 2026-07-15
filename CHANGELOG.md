@@ -3,6 +3,25 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [2.5.0] — 2026-07-16
+
+> Inter-procedural taint — the analysis frontier intra-procedural taint couldn't reach.
+> 189 → **190 detectors**, catalog **286 patterns**.
+
+### Added
+- **`287` Inter-procedural taint** (opt-in `--ast`, single file). Detects user input
+  flowing **through a helper function** into a dangerous sink — the flow `282` (intra-
+  procedural) structurally cannot see because the source and the sink live in different
+  functions:
+  ```js
+  function query(sql) { db.query(sql); }        // helper: param reaches a SQL sink
+  app.get('/x', (req) => query(req.query.q));   // → flagged: user input flows through query()
+  ```
+  Two-pass, low-FP: first it identifies which function *parameters* reach a sink, then
+  flags only call sites that pass user-derived input to exactly those parameters.
+  A helper that doesn't sink its parameter, or a sink-helper called with a constant,
+  is correctly left alone.
+
 ## [2.4.0] — 2026-07-16
 
 > Two major additions: AST cross-file clone detection and an HTML report.
