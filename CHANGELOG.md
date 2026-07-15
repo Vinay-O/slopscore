@@ -3,6 +3,23 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [2.2.0] — 2026-07-16
+
+> **Real taint analysis** — the accurate source→sink tracking regex can't do. `--ast`
+> now follows user input *across variable assignments* into dangerous sinks, catching
+> injection flows the per-line rules miss. 185 detectors / 281 patterns.
+
+### Added
+- **`282` Tainted user input flows into a dangerous sink** (opt-in `--ast`, intra-procedural).
+  Tracks sources (`req`/`request`/`process.argv`/`process.env`/`location`/`document.cookie`)
+  through assignments and destructuring (with transitive aliasing) into sinks: shell
+  `exec`/`execSync`, SQL `.query`/`.execute` (query-string arg only — parameterized params
+  arrays are safe), `fs` path APIs, `res.redirect`, and `.innerHTML =`.
+- **Deliberately additive:** fires only when a tainted *variable* reaches a sink
+  (`const id = req.query.id; … db.query(id)`) — the cross-line case the regex rules can't
+  see. Direct inline `req.x` stays owned by the existing detectors (072/144/253/254/071),
+  so there's no double-reporting. Exception-guarded like the rest of the AST pass.
+
 ## [2.1.1] — 2026-07-14
 
 ### Fixed (found in a rigorous bug hunt)

@@ -296,7 +296,7 @@ Each entry: **ID · Title** `SEVERITY` `AUTHORITY` — description, `DETECT` (ho
 (aesthetic tell). Authority: 🟢 AUTO · 🟡 PROPOSE · 🔴 FLAG (see §0).
 
 A `` `⚙️ slopscore scan` `` tag means **the deterministic CLI already detects this pattern** —
-`npx slopscore` flags it for you with the exact location and fix. **184 of the 280** carry this tag
+`npx slopscore` flags it for you with the exact location and fix. **185 of the 281** carry this tag
 today; the rest need an AST tool (§2.1) or human reading (layout sameness, fake features,
 architectural drift). The tags are generated from the scanner's own rule table, so they never
 drift from what the CLI actually does. Patterns *without* the tag are where you, the agent, earn
@@ -2030,3 +2030,8 @@ Category: code · confidence: medium. Flagged by the deterministic scanner.
 Category: code · confidence: medium. Flagged by the deterministic scanner.
 `DETECT:` AST metric (opt-in `--ast`, needs acorn).
 `FIX:` Group related parameters into an options object, or split the function — long parameter lists are error-prone and hard to call (AST/--ast).
+
+**282 · Tainted user input flows into a dangerous sink** `🔴` `🟡 PROPOSE` `⚙️ slopscore scan`
+Category: security · confidence: medium. Flagged by the deterministic scanner.
+`DETECT:` AST intra-procedural taint (opt-in `--ast`).
+`FIX:` A user-controlled value (req/params/body/argv/env/location/cookie) reaches a sink (shell, SQL, filesystem, redirect, innerHTML) through a variable. Validate/escape/parameterize at the sink, or sanitize at the source (AST/--ast; intra-procedural taint).

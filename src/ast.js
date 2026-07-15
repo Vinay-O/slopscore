@@ -101,6 +101,144 @@ function parse(source, ext) {
   return null;
 }
 
+// ---- intra-procedural taint analysis (detector 282, opt-in via --ast) ----
+// Tracks user input from a SOURCE, through variable assignments, into a dangerous
+// SINK — the cross-variable flow a per-line regex can't see. Deliberately ADDITIVE:
+// it fires only when a tainted VARIABLE reaches a sink (a direct inline `req.x`
+// stays with the regex rules 253/254/144/072…), so the two never double-report.
+
+// A MemberExpression rooted at a user-controlled source.
+function isSource(node) {
+  if (!node || node.type !== 'MemberExpression') return false;
+  const path = [];
+  let n = node;
+  while (n && n.type === 'MemberExpression') { if (n.property && n.property.type === 'Identifier') path.unshift(n.property.name); n = n.object; }
+  const root = n && n.type === 'Identifier' ? n.name : null;
+  if (root === 'req' || root === 'request') return true;
+  if (root === 'process' && (path[0] === 'argv' || path[0] === 'env')) return true;
+  if (root === 'location') return true;
+  if (root === 'window' && path[0] === 'location') return true;
+  if (root === 'document' && (path[0] === 'cookie' || path[0] === 'referrer' || path[0] === 'URL')) return true;
+  return false;
+}
+
+// Walk a subtree without descending into nested functions (per-function scope).
+function walkNoFn(node, visit) {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) { for (const c of node) walkNoFn(c, visit); return; }
+  if (!node.type) return;
+  visit(node);
+  for (const k in node) {
+    if (SKIP_KEYS.has(k)) continue;
+    const child = node[k];
+    if (child && typeof child === 'object' && !isFn(child)) walkNoFn(child, visit);
+  }
+}
+
+// Does the expression carry taint (a source OR an already-tainted var)? Used to
+// PROPAGATE taint through assignments.
+function exprHasTaint(node, tainted) {
+  if (!node || typeof node !== 'object') return false;
+  switch (node.type) {
+    case 'Identifier': return tainted.has(node.name);
+    case 'MemberExpression': return isSource(node) || exprHasTaint(node.object, tainted);
+    case 'CallExpression': return (node.arguments || []).some((a) => exprHasTaint(a, tainted)) || exprHasTaint(node.callee, tainted);
+    case 'TemplateLiteral': return (node.expressions || []).some((e) => exprHasTaint(e, tainted));
+    case 'BinaryExpression': case 'LogicalExpression': return exprHasTaint(node.left, tainted) || exprHasTaint(node.right, tainted);
+    case 'ConditionalExpression': return exprHasTaint(node.consequent, tainted) || exprHasTaint(node.alternate, tainted);
+    case 'AwaitExpression': return exprHasTaint(node.argument, tainted);
+    case 'ArrayExpression': return (node.elements || []).some((e) => exprHasTaint(e, tainted));
+    default: return false;
+  }
+}
+
+// Does the expression reach a tainted VARIABLE (not a direct source member)? Used
+// at SINKS so 282 only reports cross-variable flows (regex owns the inline case).
+function containsTaintedVar(node, tainted) {
+  if (!node || typeof node !== 'object') return false;
+  switch (node.type) {
+    case 'Identifier': return tainted.has(node.name);
+    case 'MemberExpression': return containsTaintedVar(node.object, tainted);
+    case 'CallExpression': return (node.arguments || []).some((a) => containsTaintedVar(a, tainted)) || containsTaintedVar(node.callee, tainted);
+    case 'TemplateLiteral': return (node.expressions || []).some((e) => containsTaintedVar(e, tainted));
+    case 'BinaryExpression': case 'LogicalExpression': return containsTaintedVar(node.left, tainted) || containsTaintedVar(node.right, tainted);
+    case 'ConditionalExpression': return containsTaintedVar(node.consequent, tainted) || containsTaintedVar(node.alternate, tainted);
+    case 'AwaitExpression': return containsTaintedVar(node.argument, tainted);
+    case 'ArrayExpression': return (node.elements || []).some((e) => containsTaintedVar(e, tainted));
+    default: return false;
+  }
+}
+
+// Names bound by an assignment target (handles destructuring).
+function bindNames(pat) {
+  const out = [];
+  (function rec(p) {
+    if (!p) return;
+    if (p.type === 'Identifier') out.push(p.name);
+    else if (p.type === 'ObjectPattern') for (const pr of p.properties || []) rec(pr.value || pr.argument);
+    else if (p.type === 'ArrayPattern') for (const el of p.elements || []) rec(el);
+    else if (p.type === 'AssignmentPattern') rec(p.left);
+    else if (p.type === 'RestElement') rec(p.argument);
+  }(pat));
+  return out;
+}
+
+// Fixpoint set of tainted variable names within one function body.
+function taintedVars(body) {
+  const tainted = new Set();
+  const assigns = [];
+  walkNoFn(body, (node) => {
+    if (node.type === 'VariableDeclarator' && node.init) assigns.push({ id: node.id, value: node.init });
+    else if (node.type === 'AssignmentExpression' && node.operator === '=') assigns.push({ id: node.left, value: node.right });
+  });
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const a of assigns) {
+      if (exprHasTaint(a.value, tainted)) {
+        for (const name of bindNames(a.id)) if (name && !tainted.has(name)) { tainted.add(name); changed = true; }
+      }
+    }
+  }
+  return tainted;
+}
+
+function calleeName(call) {
+  const c = call.callee;
+  if (!c) return null;
+  if (c.type === 'Identifier') return c.name;
+  if (c.type === 'MemberExpression' && c.property && c.property.type === 'Identifier') return c.property.name;
+  return null;
+}
+// Sinks NOT already caught unconditionally by a per-line regex on the sink line.
+// (eval/new Function are excluded — rule 172 flags them regardless of taint.)
+const SINK_ALL = { exec: 'shell command (injection)', execSync: 'shell command (injection)', redirect: 'HTTP redirect (open redirect)', readFile: 'filesystem path (traversal)', readFileSync: 'filesystem path (traversal)', createReadStream: 'filesystem path (traversal)', createWriteStream: 'filesystem path (traversal)', sendFile: 'filesystem path (traversal)', writeFile: 'filesystem path (traversal)', writeFileSync: 'filesystem path (traversal)', unlink: 'filesystem path (traversal)', unlinkSync: 'filesystem path (traversal)' };
+const SINK_SQL = new Set(['query', 'execute', 'raw']);
+
+function taintFindings(fn, file, metaFinding) {
+  const out = [];
+  const tainted = taintedVars(fn.body);
+  if (tainted.size === 0) return out;
+  const at = (node) => (node.loc && node.loc.start.line) || 1;
+  walkNoFn(fn.body, (node) => {
+    if (node.type === 'CallExpression') {
+      const name = calleeName(node);
+      if (!name) return;
+      if (SINK_ALL[name] && (node.arguments || []).some((a) => containsTaintedVar(a, tainted))) {
+        out.push(metaFinding('282', file, { title: `Tainted input reaches a sink — ${SINK_ALL[name]}`, line: at(node), snippet: `a user-derived variable flows into ${name}()` }));
+      } else if (SINK_SQL.has(name) && node.arguments && node.arguments[0] && containsTaintedVar(node.arguments[0], tainted)) {
+        // arg[0] only — a value passed in the params array (parameterized query) is safe.
+        out.push(metaFinding('282', file, { title: 'Tainted input reaches a SQL query (injection)', line: at(node), snippet: `a user-derived variable is the query string of .${name}()` }));
+      }
+    } else if (node.type === 'AssignmentExpression' && node.left && node.left.type === 'MemberExpression'
+      && node.left.property && node.left.property.type === 'Identifier' && node.left.property.name === 'innerHTML'
+      && containsTaintedVar(node.right, tainted)) {
+      out.push(metaFinding('282', file, { title: 'Tainted input reaches innerHTML (XSS)', line: at(node), snippet: 'a user-derived variable is assigned to .innerHTML' }));
+    }
+  });
+  return out;
+}
+
 // Parse + analyze one source file; returns findings via the shared metaFinding builder.
 function analyzeFile(source, ext, file, metaFinding) {
   if (!JS_EXTS.has(ext) && !TS_JSX_EXTS.has(ext)) return [];
@@ -115,6 +253,7 @@ function analyzeFile(source, ext, file, metaFinding) {
       if (m.cc > HIGH_CC) findings.push(metaFinding('279', file, { title: `High cyclomatic complexity (${m.cc})`, line: m.line, snippet: `${m.cc} independent paths` }));
       if (m.maxNest > DEEP_NEST) findings.push(metaFinding('280', file, { title: `Deep nesting (depth ${m.maxNest})`, line: m.line, snippet: `control nesting depth ${m.maxNest}` }));
       if (m.params > MANY_PARAMS) findings.push(metaFinding('281', file, { title: `Too many parameters (${m.params})`, line: m.line, snippet: `${m.params} parameters` }));
+      for (const f of taintFindings(fn, file, metaFinding)) findings.push(f);
     }
   } catch { /* a pathological AST (e.g. extreme nesting → stack limit) must never crash the scan */ }
   return findings;

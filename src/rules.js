@@ -1313,6 +1313,11 @@ const META_RULES = [
     fix: 'Group related parameters into an options object, or split the function — long parameter lists are error-prone and hard to call (AST/--ast).',
   },
   {
+    id: '282', title: 'Tainted user input flows into a dangerous sink', category: 'security',
+    severity: 'critical', authority: 'propose', confidence: 'medium',
+    fix: 'A user-controlled value (req/params/body/argv/env/location/cookie) reaches a sink (shell, SQL, filesystem, redirect, innerHTML) through a variable. Validate/escape/parameterize at the sink, or sanitize at the source (AST/--ast; intra-procedural taint).',
+  },
+  {
     id: '107', title: '.env committed to the repository', category: 'security',
     severity: 'critical', authority: 'flag',
     fix: 'gitignore it AND rotate every secret it contained (they are compromised); scrub git history.',
