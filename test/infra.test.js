@@ -68,6 +68,11 @@ test('golden: every report format produces well-formed output', () => {
 
   end = cap(); report.agentReport(result, s); const agent = end();
   assert.match(agent, /SLOP_SCORE weighted=/);
+
+  end = cap(); report.htmlReport(result, s); const html = end();
+  assert.match(html, /^<!doctype html>/);
+  assert.match(html, /<\/html>\s*$/);
+  assert.ok(!/<script/i.test(html), 'html report is script-free');
 });
 
 test('clean corpus: idiomatic clean code scores zero (no false positives)', () => {

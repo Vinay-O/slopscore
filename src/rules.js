@@ -1337,6 +1337,11 @@ const META_RULES = [
     fix: 'A user-controlled value (req/params/body/argv/env/location/cookie) reaches a sink (shell, SQL, filesystem, redirect, innerHTML) through a variable. Validate/escape/parameterize at the sink, or sanitize at the source (AST/--ast; intra-procedural taint).',
   },
   {
+    id: '286', title: 'Structural clone (function duplicated across files)', category: 'code',
+    severity: 'major', authority: 'propose', confidence: 'medium',
+    fix: 'Two functions have the identical AST shape (copy-paste, renamed or not) in different files. Extract the shared logic into one module — duplicated code multiplies every future bug fix (AST/--ast).',
+  },
+  {
     id: '107', title: '.env committed to the repository', category: 'security',
     severity: 'critical', authority: 'flag',
     fix: 'gitignore it AND rotate every secret it contained (they are compromised); scrub git history.',

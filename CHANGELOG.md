@@ -3,6 +3,21 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [2.4.0] — 2026-07-16
+
+> Two major additions: AST cross-file clone detection and an HTML report.
+> 188 → **189 detectors**, catalog **285 patterns**.
+
+### Added
+- **`286` Structural clone detection** (opt-in `--ast`, cross-file). Fingerprints each
+  function by its AST *shape* (node-type sequence, ignoring names/literals), so a
+  copy-pasted-then-renamed function is caught — even across files, even with different
+  variable names and constants. Reports only functions duplicated across ≥2 files
+  (min structural size, to avoid trivially-similar small functions).
+- **`--format html`** — a **self-contained HTML dashboard** (inline CSS, no scripts, no
+  assets): score banner, severity/category breakdown, and a full findings table with
+  fixes. Great with `--out report.html` for PR artifacts and sharing. All content escaped.
+
 ## [2.3.0] — 2026-07-16
 
 > Security-hardening wave — deeper crypto/injection detection **and** a more secure

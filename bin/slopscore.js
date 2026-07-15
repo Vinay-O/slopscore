@@ -114,7 +114,7 @@ function runDoctor(argv) {
 const VALID_CATEGORIES = new Set(LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES).map((r) => r.category));
 const VALID_FAILON = new Set(['critical', 'major', 'minor', 'never']);
 const VALID_CONFIDENCE = new Set(['high', 'medium', 'low']);
-const VALID_FORMATS = new Set(['terminal', 'json', 'markdown', 'md', 'sarif', 'junit', 'agent']);
+const VALID_FORMATS = new Set(['terminal', 'json', 'markdown', 'md', 'sarif', 'junit', 'agent', 'html']);
 
 // Reject typo'd flag values loudly (exit 2) instead of silently doing the wrong
 // thing — a typo'd --fail-on or --category must never make a slopful repo pass CI.
@@ -199,6 +199,7 @@ function scanAndReport(opts, cfg, baseDir, failOn, record) {
     else if (opts.format === 'agent') report.agentReport(result, s);
     else if (opts.format === 'sarif') report.sarifReport(result, s);
     else if (opts.format === 'junit') report.junitReport(result, s);
+    else if (opts.format === 'html') report.htmlReport(result, s);
     else report.terminalReport(result, s, { max: opts.max });
   };
   if (opts.out) {
@@ -377,7 +378,7 @@ function printProtocol() {
 
 function printRules() {
   const all = LINE_RULES.concat(WHOLE_FILE_RULES, META_RULES);
-  out(`slopscore ships ${all.length} deterministic detectors. The full 284-pattern catalog`);
+  out(`slopscore ships ${all.length} deterministic detectors. The full 285-pattern catalog`);
   out('(including visual, architectural, and judgment-heavy patterns) lives in ANTI_SLOP_PROTOCOL.md.\n');
   const byCat = {};
   for (const r of all) (byCat[r.category] = byCat[r.category] || []).push(r);
@@ -399,7 +400,7 @@ function printExplain(arg) {
   if (!fs.existsSync(p)) { err('slopscore: ANTI_SLOP_PROTOCOL.md not found alongside the package.'); process.exit(2); }
   const lines = fs.readFileSync(p, 'utf8').split('\n');
   const start = lines.findIndex((l) => l.startsWith(`**${id} · `));
-  if (start === -1) { err(`slopscore: no catalog entry ${id} (ids run 001–284). Try: slopscore protocol`); process.exit(2); }
+  if (start === -1) { err(`slopscore: no catalog entry ${id} (ids run 001–285). Try: slopscore protocol`); process.exit(2); }
   const block = [lines[start]];
   for (let i = start + 1; i < lines.length; i += 1) {
     if (/^\*\*\d{3} · /.test(lines[i])) break; // next entry
@@ -426,7 +427,7 @@ USAGE
   slopscore fix [paths...]      auto-apply the safe (🟢 AUTO) fixes; --dry-run to preview
   slopscore gate [paths...]     pre-ship gate: fail on production security + robustness crit/major
   slopscore doctor              diagnose config, ignored paths, stale suppressions, detector count
-  slopscore protocol            print the full 284-pattern protocol (pipe to your agent)
+  slopscore protocol            print the full 285-pattern protocol (pipe to your agent)
   slopscore rules               list the deterministic detectors this CLI runs
   slopscore explain <id>        print one catalog pattern + its fix (e.g. explain 058)
   slopscore init                scaffold .slopscore.json + a PR gate + AGENTS.md (agent auto-adoption)
@@ -436,6 +437,7 @@ OPTIONS
   --markdown                 a Markdown report (great for PR comments)
   --sarif                    SARIF 2.1.0 (GitHub code-scanning annotations)
   --format junit             JUnit XML (CI test-report panels)
+  --format html              self-contained HTML dashboard (great with --out report.html)
   --format agent             compact output for feeding an AI agent
   --fail-on <level>          exit non-zero at: critical | major | minor | never  (default: major)
   --min-confidence <level>   only report/score findings at: high | medium | low  (default: low/all)

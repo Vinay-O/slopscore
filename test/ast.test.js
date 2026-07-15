@@ -64,6 +64,21 @@ test('AST analysis never crashes the scan on pathologically deep code', { skip: 
   assert.doesNotThrow(() => scanSrc('deep.js', s, { ast: true }), 'deep nesting must degrade gracefully, not crash');
 });
 
+test('286 detects cross-file structural clones (renamed copy-paste), not unique/small fns', { skip: SKIP }, () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-clone-'));
+  const body = (n, k) => `function ${n}(items){ const out=[]; for(let i=0;i<items.length;i++){ const it=items[i]; if(it&&it.active){ if(it.score>${k}){out.push(it.id);}else{out.push(0);} } } return out.filter(x=>x>${k}); }\n`;
+  fs.writeFileSync(path.join(dir, 'a.js'), body('processItems', 1));
+  fs.writeFileSync(path.join(dir, 'b.js'), body('handleThings', 99)); // renamed fn/vars/literals, same shape
+  fs.writeFileSync(path.join(dir, 'uniq.js'), 'export const dbl = (x) => x * 2;\n');
+  const findings = scan([dir], { ignoreBase: dir, ast: true }).findings.filter((f) => f.id === '286');
+  assert.ok(findings.length >= 2, 'both clone sites flagged');
+  const files = new Set(findings.map((f) => f.file));
+  assert.ok(files.has('a.js') && files.has('b.js'), 'both files');
+  assert.ok(!findings.some((f) => f.file === 'uniq.js'), 'the unique small fn is not a clone');
+  // off by default
+  assert.ok(!scan([dir], { ignoreBase: dir }).findings.some((f) => f.id === '286'), 'no clones without --ast');
+});
+
 test('AST detectors 278-281 are registered', () => {
   const rules = require('../src/rules');
   const all = rules.LINE_RULES.concat(rules.WHOLE_FILE_RULES, rules.META_RULES);

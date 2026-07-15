@@ -8,7 +8,7 @@ const { buildSuppressions, buildEslintSuppressions } = require('./suppress');
 const { commentMask } = require('./mask');
 const { sanitizeSnippet, looksBinary } = require('./sanitize');
 const { checkManifest } = require('./manifest');
-const { analyzeFile } = require('./ast');
+const { analyzeFile, cloneFindings } = require('./ast');
 
 // id → { eslint, category } so an applied finding can be matched against an
 // inline `eslint-disable` directive. Security findings are never eslint-suppressible
@@ -381,6 +381,7 @@ function scan(target, options = {}) {
 
   const project = detectGlobalContext(files);
   const codeFiles = [];
+  const cloneIndex = options.ast ? new Map() : null;
   let totalLines = 0;
   let productionLines = 0;
   let suppressed = 0;
@@ -409,7 +410,7 @@ function scan(target, options = {}) {
     scanLineRules(file, ext, isTest, text, lines, mask, findings, project, lineRules);
     scanWholeFileRules(file, ext, isTest, text, lines, findings);
     checkFileSize(file, ext, isTest, lineCount, lines, findings);
-    if (options.ast) for (const f of analyzeFile(text, ext, file, metaFinding)) findings.push(f);
+    if (options.ast) for (const f of analyzeFile(text, ext, file, metaFinding, cloneIndex)) findings.push(f);
     // Apply inline suppressions and tag the zone on this file's findings.
     const { map: suppress, directives } = buildSuppressions(lines);
     const eslintSup = buildEslintSuppressions(lines);
@@ -438,6 +439,9 @@ function scan(target, options = {}) {
 
   checkVersionedDuplicates(files, findings);
   if (!options.skipDuplication) checkDuplication(codeFiles, findings, metaFinding);
+  // AST cross-file structural clones (--ast): a function fingerprint in 2+ different
+  // files is copy-paste (renamed or not). Emitted via ast.js to keep scanner lean.
+  if (cloneIndex) for (const f of cloneFindings(cloneIndex, metaFinding, zoneOf)) findings.push(f);
   const repoRoot = path.resolve(options.repoRoot || (hasDir ? roots.find((r) => safeIsDir(r)) : null) || '.');
   if (hasDir && fs.existsSync(repoRoot) && !options.skipRepoChecks) checkRepoLevel(repoRoot, findings);
   // Repo-level findings (.env, dep bloat, thin README, dup files) are production by default.

@@ -14,6 +14,8 @@ const LONG_FN = 60;      // body lines
 const HIGH_CC = 15;      // cyclomatic complexity
 const DEEP_NEST = 4;     // control-structure nesting depth
 const MANY_PARAMS = 5;   // parameters
+const CLONE_MIN_NODES = 30; // min structural size for a function to be clone-checked
+const crypto = require('crypto');
 
 let babelCache;
 let acornCache;
@@ -79,6 +81,16 @@ function collectFunctions(ast) {
     for (const k in node) { if (SKIP_KEYS.has(k)) continue; const c = node[k]; if (c && typeof c === 'object') walk(c); }
   }(ast));
   return fns;
+}
+
+// Structural fingerprint of a function: the sequence of AST node TYPES in its body
+// (identifiers/literals contribute their type but not their name/value), so a
+// copy-pasted-then-renamed function hashes identically. null for small functions.
+function fingerprintFn(fn) {
+  const types = [];
+  walkNoFn(fn.body, (n) => { if (n.type) types.push(n.type); });
+  if (types.length < CLONE_MIN_NODES) return null;
+  return crypto.createHash('sha1').update(types.join(',')).digest('hex').slice(0, 16);
 }
 
 // Parse a source file with the best available parser for its extension.
@@ -244,7 +256,7 @@ function taintFindings(fn, file, metaFinding) {
 }
 
 // Parse + analyze one source file; returns findings via the shared metaFinding builder.
-function analyzeFile(source, ext, file, metaFinding) {
+function analyzeFile(source, ext, file, metaFinding, cloneIndex) {
   if (!JS_EXTS.has(ext) && !TS_JSX_EXTS.has(ext)) return [];
   const ast = parse(source, ext);
   if (!ast || !ast.loc) return [];
@@ -258,9 +270,32 @@ function analyzeFile(source, ext, file, metaFinding) {
       if (m.maxNest > DEEP_NEST) findings.push(metaFinding('280', file, { title: `Deep nesting (depth ${m.maxNest})`, line: m.line, snippet: `control nesting depth ${m.maxNest}` }));
       if (m.params > MANY_PARAMS) findings.push(metaFinding('281', file, { title: `Too many parameters (${m.params})`, line: m.line, snippet: `${m.params} parameters` }));
       for (const f of taintFindings(fn, file, metaFinding)) findings.push(f);
+      if (cloneIndex) {
+        const h = fingerprintFn(fn);
+        if (h) { if (!cloneIndex.has(h)) cloneIndex.set(h, []); cloneIndex.get(h).push({ file, line: fn.loc.start.line }); }
+      }
     }
   } catch { /* a pathological AST (e.g. extreme nesting → stack limit) must never crash the scan */ }
   return findings;
 }
 
-module.exports = { analyzeFile, astAvailable, tsAvailable, metricsOf, collectFunctions };
+module.exports = { analyzeFile, astAvailable, tsAvailable, metricsOf, collectFunctions, cloneFindings };
+
+// Emit 286 for functions whose structural fingerprint appears in 2+ DIFFERENT files
+// (copy-paste across the codebase). zoneOf tags each clone site's zone.
+function cloneFindings(cloneIndex, metaFinding, zoneOf) {
+  const out = [];
+  for (const [, locs] of cloneIndex) {
+    const fileSet = new Set(locs.map((l) => l.file));
+    if (fileSet.size < 2) continue;
+    for (const l of locs) {
+      const f = metaFinding('286', l.file, {
+        title: `Structural clone (function duplicated across ${fileSet.size} files)`,
+        line: l.line, snippet: `structurally identical to ${locs.length - 1} other function(s)`,
+      });
+      f.zone = zoneOf(l.file);
+      out.push(f);
+    }
+  }
+  return out;
+}
