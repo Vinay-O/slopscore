@@ -201,6 +201,27 @@ jobs:
         with: { path: slop.md }
 ```
 
+**Want the PR *delta* — exactly what this branch added or fixed — posted as a comment?** Use `compare` against the base branch (checkout with full history so the base ref is reachable):
+
+```yaml
+# .github/workflows/slopscore-delta.yml
+name: slopscore-delta
+on: [pull_request]
+jobs:
+  delta:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }              # compare needs the base ref's history
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npx slopscore compare origin/${{ github.base_ref }} --markdown > delta.md || true
+      - uses: marocchino/sticky-pull-request-comment@v2
+        with: { path: delta.md }              # updates one sticky comment per PR
+```
+
+The comment shows the score before/after, every finding the PR **introduced**, and every one it **fixed** — diffed by content so moving code never reads as new. Drop the `|| true` if you also want the job to **fail** when a PR adds slop (`compare` exits non-zero only then).
+
 **Pre-commit hook** (catches slop before it's even committed — scans only what you staged):
 
 ```bash

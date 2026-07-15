@@ -60,6 +60,31 @@ test('287 inter-procedural: user input flowing through a helper into a sink', { 
   assert.ok(!ip('e.js', 'function run(sql){ db.query(sql); }\nfunction h(){ run("SELECT 1"); }\n'), 'sink-helper called with a constant');
 });
 
+test('return-value taint (B): a returning helper propagates, a non-returning one does not', { skip: SKIP }, () => {
+  const t282 = (name, src) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-rv-'));
+    fs.writeFileSync(path.join(dir, name), src);
+    return scan([dir], { ignoreBase: dir, ast: true }).findings.some((f) => f.id === '282');
+  };
+  // Helper returns its (tainted) param -> the result is tainted -> sink fires.
+  assert.ok(t282('a.js', 'function clean(input){ return input.trim(); }\nfunction h(req){ const v = clean(req.body.x); exec(v); }\n'), 'returning helper propagates');
+  // Validator returns a literal, not the param -> result is NOT tainted (no FP).
+  assert.ok(!t282('b.js', 'function check(x){ if (!x) throw new Error(); return true; }\nfunction h(req){ const ok = check(req.body.x); exec(ok); }\n'), 'non-returning validator does not propagate');
+  // Unknown/external helper stays conservative (no recall loss).
+  assert.ok(t282('c.js', 'function h(req){ const v = _.identity(req.body.x); exec(v); }\n'), 'external call stays conservative');
+});
+
+test('inter-procedural taint (C): resolves class + object methods', { skip: SKIP }, () => {
+  const t287 = (name, src) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-mr-'));
+    fs.writeFileSync(path.join(dir, name), src);
+    return scan([dir], { ignoreBase: dir, ast: true }).findings.some((f) => f.id === '287');
+  };
+  assert.ok(t287('a.js', 'class S { run(sql){ db.query(sql); } handle(req){ this.run(req.query.q); } }\n'), 'class method via this.');
+  assert.ok(t287('b.js', 'const svc = { go(cmd){ exec(cmd); } };\nfunction h(req){ svc.go(req.body.c); }\n'), 'object method via obj.');
+  assert.ok(!t287('c.js', 'class S { fmt(x){ return String(x); } handle(req){ this.fmt(req.query.q); } }\n'), 'method that does not sink its param is safe');
+});
+
 test('282 is AST-only (off by default) and registered as security', { skip: SKIP }, () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slopscore-taint2-'));
   fs.writeFileSync(path.join(dir, 'a.js'), 'function h(req){ const c = req.body.cmd; exec(c); }\n');

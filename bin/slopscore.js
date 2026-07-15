@@ -403,7 +403,7 @@ USAGE
   slopscore fix [paths...]      auto-apply the safe (🟢 AUTO) fixes; --dry-run to preview
   slopscore gate [paths...]     pre-ship gate: fail on production security + robustness crit/major
   slopscore doctor              diagnose config, ignored paths, stale suppressions, detector count
-  slopscore compare [ref]       diff the Slop Score + findings vs a git ref (default HEAD); PR delta
+  slopscore compare [ref]       diff the Slop Score + findings vs a git ref (default HEAD); --markdown for PRs
   slopscore protocol            print the full 286-pattern protocol (pipe to your agent)
   slopscore rules               list the deterministic detectors this CLI runs
   slopscore explain <id>        print one catalog pattern + its fix (e.g. explain 058)

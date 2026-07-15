@@ -148,18 +148,31 @@ function walkNoFn(node, visit) {
 }
 
 // Does the expression carry taint (a source OR an already-tainted var)? Used to
-// PROPAGATE taint through assignments.
-function exprHasTaint(node, tainted) {
+// PROPAGATE taint through assignments. `localReturn` (optional) maps a locally-
+// defined function name to the set of param indices it actually returns — so a
+// call to such a helper propagates taint only through those params (a validator or
+// logger that receives user input but returns none of it does NOT taint its result).
+function exprHasTaint(node, tainted, localReturn) {
   if (!node || typeof node !== 'object') return false;
   switch (node.type) {
     case 'Identifier': return tainted.has(node.name);
-    case 'MemberExpression': return isSource(node) || exprHasTaint(node.object, tainted);
-    case 'CallExpression': return (node.arguments || []).some((a) => exprHasTaint(a, tainted)) || exprHasTaint(node.callee, tainted);
-    case 'TemplateLiteral': return (node.expressions || []).some((e) => exprHasTaint(e, tainted));
-    case 'BinaryExpression': case 'LogicalExpression': return exprHasTaint(node.left, tainted) || exprHasTaint(node.right, tainted);
-    case 'ConditionalExpression': return exprHasTaint(node.consequent, tainted) || exprHasTaint(node.alternate, tainted);
-    case 'AwaitExpression': return exprHasTaint(node.argument, tainted);
-    case 'ArrayExpression': return (node.elements || []).some((e) => exprHasTaint(e, tainted));
+    case 'MemberExpression': return isSource(node) || exprHasTaint(node.object, tainted, localReturn);
+    case 'CallExpression': {
+      const nm = node.callee && node.callee.type === 'Identifier' ? node.callee.name : null;
+      if (localReturn && nm && localReturn.has(nm)) {
+        const idxs = localReturn.get(nm);
+        return (node.arguments || []).some((a, i) => idxs.has(i) && exprHasTaint(a, tainted, localReturn));
+      }
+      return (node.arguments || []).some((a) => exprHasTaint(a, tainted, localReturn)) || exprHasTaint(node.callee, tainted, localReturn);
+    }
+    case 'TemplateLiteral': return (node.expressions || []).some((e) => exprHasTaint(e, tainted, localReturn));
+    case 'BinaryExpression': case 'LogicalExpression': return exprHasTaint(node.left, tainted, localReturn) || exprHasTaint(node.right, tainted, localReturn);
+    case 'ConditionalExpression': return exprHasTaint(node.consequent, tainted, localReturn) || exprHasTaint(node.alternate, tainted, localReturn);
+    case 'AwaitExpression': case 'SpreadElement': return exprHasTaint(node.argument, tainted, localReturn);
+    case 'ArrayExpression': return (node.elements || []).some((e) => exprHasTaint(e, tainted, localReturn));
+    case 'NewExpression': return (node.arguments || []).some((a) => exprHasTaint(a, tainted, localReturn));
+    case 'SequenceExpression': return (node.expressions || []).some((e) => exprHasTaint(e, tainted, localReturn));
+    case 'ObjectExpression': return (node.properties || []).some((p) => exprHasTaint(p && (p.value || p.argument), tainted, localReturn));
     default: return false;
   }
 }
@@ -197,7 +210,8 @@ function bindNames(pat) {
 
 // Fixpoint set of tainted variable names within one function body. `seed` lets the
 // caller pre-mark names as tainted (used to test whether a PARAMETER reaches a sink).
-function taintedVars(body, seed) {
+// `localReturn` refines call-expression propagation (see exprHasTaint).
+function taintedVars(body, seed, localReturn) {
   const tainted = new Set(seed || []);
   const assigns = [];
   walkNoFn(body, (node) => {
@@ -208,12 +222,55 @@ function taintedVars(body, seed) {
   while (changed) {
     changed = false;
     for (const a of assigns) {
-      if (exprHasTaint(a.value, tainted)) {
+      if (exprHasTaint(a.value, tainted, localReturn)) {
         for (const name of bindNames(a.id)) if (name && !tainted.has(name)) { tainted.add(name); changed = true; }
       }
     }
   }
   return tainted;
+}
+
+// All named functions in a file: declarations, const-assigned arrows/functions,
+// class methods, and object-literal methods — each with a resolvable name for
+// call-site matching. Handles acorn (MethodDefinition→value) and babel (ClassMethod).
+function collectNamedFns(ast) {
+  const out = [];
+  const keyName = (k) => (k ? (k.name || (typeof k.value === 'string' ? k.value : null)) : null);
+  (function walk(node) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    if (!node.type) return;
+    if (node.type === 'FunctionDeclaration' && node.id) out.push({ name: node.id.name, fn: node });
+    else if (node.type === 'VariableDeclarator' && node.id && node.id.type === 'Identifier' && isFn(node.init)) out.push({ name: node.id.name, fn: node.init });
+    else if (node.type === 'MethodDefinition' && node.value && node.value.body && keyName(node.key)) out.push({ name: keyName(node.key), fn: node.value });
+    else if ((node.type === 'ClassMethod' || node.type === 'ObjectMethod') && node.body && keyName(node.key)) out.push({ name: keyName(node.key), fn: node });
+    else if ((node.type === 'Property' || node.type === 'ObjectProperty') && isFn(node.value) && keyName(node.key)) out.push({ name: keyName(node.key), fn: node.value });
+    for (const k in node) { if (SKIP_KEYS.has(k)) continue; const c = node[k]; if (c && typeof c === 'object') walk(c); }
+  }(ast));
+  return out;
+}
+
+// Map each locally-defined function name to the set of param indices whose value
+// can flow to a `return` — so a caller's `x = helper(userInput)` taints `x` only
+// when `helper` actually returns that input (return-value taint propagation).
+function buildReturnMap(ast) {
+  const map = new Map();
+  for (const { name, fn } of collectNamedFns(ast)) {
+    if (!fn.body || !fn.params || !fn.params.length || fn.params.length > 8) continue;
+    const idxs = new Set();
+    for (let i = 0; i < fn.params.length; i += 1) {
+      const pn = paramName(fn.params[i]);
+      if (!pn) continue;
+      const t = taintedVars(fn.body, [pn]);
+      let returnsIt = false;
+      walkNoFn(fn.body, (n) => { if (!returnsIt && n.type === 'ReturnStatement' && n.argument && exprHasTaint(n.argument, t)) returnsIt = true; });
+      if (returnsIt) idxs.add(i);
+    }
+    // Record even an empty set: it marks the function as LOCAL + analyzable, so a
+    // non-returning helper (validator/logger) stops propagating taint to its result.
+    if (!map.has(name)) map.set(name, idxs); else for (const i of idxs) map.get(name).add(i);
+  }
+  return map;
 }
 
 function calleeName(call) {
@@ -228,9 +285,9 @@ function calleeName(call) {
 const SINK_ALL = { exec: 'shell command (injection)', execSync: 'shell command (injection)', redirect: 'HTTP redirect (open redirect)', readFile: 'filesystem path (traversal)', readFileSync: 'filesystem path (traversal)', createReadStream: 'filesystem path (traversal)', createWriteStream: 'filesystem path (traversal)', sendFile: 'filesystem path (traversal)', writeFile: 'filesystem path (traversal)', writeFileSync: 'filesystem path (traversal)', unlink: 'filesystem path (traversal)', unlinkSync: 'filesystem path (traversal)' };
 const SINK_SQL = new Set(['query', 'execute', 'raw']);
 
-function taintFindings(fn, file, metaFinding) {
+function taintFindings(fn, file, metaFinding, returnMap) {
   const out = [];
-  const tainted = taintedVars(fn.body);
+  const tainted = taintedVars(fn.body, undefined, returnMap);
   if (tainted.size === 0) return out;
   const at = (node) => (node.loc && node.loc.start.line) || 1;
   walkNoFn(fn.body, (node) => {
@@ -285,42 +342,38 @@ function paramName(p) {
 // intra-procedural taint (282) can't see because source and sink are in different
 // functions. Bounded to same-file definitions/calls (covers module helpers).
 function interprocTaint(ast, file, metaFinding) {
-  // 1) Map each named function to the set of param indices that reach a sink.
+  // 1) Map each named function/method to the set of param indices that reach a sink.
   const sinkFns = new Map();
-  (function walk(node) {
-    if (!node || typeof node !== 'object') return;
-    if (Array.isArray(node)) { node.forEach(walk); return; }
-    if (!node.type) return;
-    let name = null; let fn = null;
-    if (node.type === 'FunctionDeclaration' && node.id) { name = node.id.name; fn = node; }
-    else if (node.type === 'VariableDeclarator' && node.id && node.id.type === 'Identifier' && isFn(node.init)) { name = node.id.name; fn = node.init; }
-    if (name && fn && fn.body && fn.params && fn.params.length && fn.params.length <= 8) {
-      const idxs = new Set();
-      for (let i = 0; i < fn.params.length; i += 1) {
-        const pn = paramName(fn.params[i]);
-        if (pn && hasSinkForTaint(fn.body, taintedVars(fn.body, [pn]))) idxs.add(i);
-      }
-      if (idxs.size) sinkFns.set(name, idxs);
+  for (const { name, fn } of collectNamedFns(ast)) {
+    if (!fn.body || !fn.params || !fn.params.length || fn.params.length > 8) continue;
+    const idxs = new Set();
+    for (let i = 0; i < fn.params.length; i += 1) {
+      const pn = paramName(fn.params[i]);
+      if (pn && hasSinkForTaint(fn.body, taintedVars(fn.body, [pn]))) idxs.add(i);
     }
-    for (const k in node) { if (SKIP_KEYS.has(k)) continue; const c = node[k]; if (c && typeof c === 'object') walk(c); }
-  }(ast));
+    if (idxs.size) { if (!sinkFns.has(name)) sinkFns.set(name, idxs); else for (const i of idxs) sinkFns.get(name).add(i); }
+  }
   if (sinkFns.size === 0) return [];
 
-  // 2) Flag calls to those functions that pass user input to a sink-reaching param.
+  // 2) Flag calls to those functions/methods (`fn(x)`, `this.fn(x)`, `obj.fn(x)`)
+  //    that pass user input to a sink-reaching param. Member calls resolve by
+  //    method name (single-file), gated by the param-reaches-sink analysis.
   const out = [];
   const seen = new Set();
   for (const caller of collectFunctions(ast)) {
     const tainted = taintedVars(caller.body);
     walkNoFn(caller.body, (node) => {
-      if (node.type !== 'CallExpression' || !node.callee || node.callee.type !== 'Identifier') return;
-      const idxs = sinkFns.get(node.callee.name);
+      if (node.type !== 'CallExpression') return;
+      const name = calleeName(node);
+      if (!name) return;
+      const idxs = sinkFns.get(name);
       if (!idxs) return;
       for (const i of idxs) {
         const arg = (node.arguments || [])[i];
         if (arg && exprHasTaint(arg, tainted)) {
           const line = (node.loc && node.loc.start.line) || 1;
-          const key = `${line}:${node.callee.name}`;
-          if (!seen.has(key)) { seen.add(key); out.push(metaFinding('287', file, { title: `User input flows through ${node.callee.name}() into a sink (inter-procedural)`, line, snippet: `argument ${i + 1} of ${node.callee.name}() is user-derived and reaches a sink inside it` })); }
+          const key = `${line}:${name}`;
+          if (!seen.has(key)) { seen.add(key); out.push(metaFinding('287', file, { title: `User input flows through ${name}() into a sink (inter-procedural)`, line, snippet: `argument ${i + 1} of ${name}() is user-derived and reaches a sink inside it` })); }
           break;
         }
       }
@@ -336,6 +389,7 @@ function analyzeFile(source, ext, file, metaFinding, cloneIndex) {
   if (!ast || !ast.loc) return [];
   const findings = [];
   try {
+    const returnMap = buildReturnMap(ast);
     for (const fn of collectFunctions(ast)) {
       if (!fn.loc) continue;
       const m = metricsOf(fn);
@@ -343,7 +397,7 @@ function analyzeFile(source, ext, file, metaFinding, cloneIndex) {
       if (m.cc > HIGH_CC) findings.push(metaFinding('279', file, { title: `High cyclomatic complexity (${m.cc})`, line: m.line, snippet: `${m.cc} independent paths` }));
       if (m.maxNest > DEEP_NEST) findings.push(metaFinding('280', file, { title: `Deep nesting (depth ${m.maxNest})`, line: m.line, snippet: `control nesting depth ${m.maxNest}` }));
       if (m.params > MANY_PARAMS) findings.push(metaFinding('281', file, { title: `Too many parameters (${m.params})`, line: m.line, snippet: `${m.params} parameters` }));
-      for (const f of taintFindings(fn, file, metaFinding)) findings.push(f);
+      for (const f of taintFindings(fn, file, metaFinding, returnMap)) findings.push(f);
       if (cloneIndex) {
         const h = fingerprintFn(fn);
         if (h) { if (!cloneIndex.has(h)) cloneIndex.set(h, []); cloneIndex.get(h).push({ file, line: fn.loc.start.line }); }

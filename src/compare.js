@@ -28,9 +28,9 @@ const SEV_ORDER = { critical: 0, major: 1, minor: 2 };
 // throwaway `git worktree`, so the working tree is never touched. Returns
 // { code, lines } — lines are pre-formatted for stdout (no color coupling).
 function runCompare(argv, parseArgs) {
-  const opts = parseArgs(argv.filter((a) => a[0] === '-'));
-  const positional = argv.filter((a) => a[0] !== '-');
-  const ref = positional[0] || 'HEAD';
+  const opts = parseArgs(argv);
+  const ref = (opts.paths || []).find((p) => p && p !== '.') || 'HEAD';
+  const markdown = opts.format === 'markdown' || opts.format === 'md';
   const cwd = process.cwd();
   const isGit = (() => { try { git(['rev-parse', '--is-inside-work-tree'], cwd); return true; } catch { return false; } })();
   if (!isGit) return { code: 2, lines: ["compare: not inside a git repository (compare needs git to read the ref's tree)."] };
@@ -70,9 +70,50 @@ function runCompare(argv, parseArgs) {
   added.sort(bySev); removed.sort(bySev);
 
   const delta = sNow.weighted - sRef.weighted;
+  const cap = 25;
+  const loc = (f) => `[${f.id}] ${f.file}:${f.line}  ${f.title}`;
+
+  if (markdown) {
+    const sev = { critical: '🔴', major: '🟠', minor: '🟡' };
+    const verdict = delta > 0 ? '⚠️ **This introduces slop.**' : delta < 0 ? '✅ **Net improvement.**' : '➡️ **Slop Score unchanged.**';
+    const md = [];
+    md.push('## 🩺 slopscore — PR delta');
+    md.push('');
+    md.push(`**Slop Score: \`${sRef.weighted}\` → \`${sNow.weighted}\`  (${delta > 0 ? '▲ +' : delta < 0 ? '▼ ' : '= '}${delta})**  ·  vs \`${ref}\` (\`${sha.slice(0, 8)}\`)`);
+    md.push('');
+    md.push('| | 🔴 critical | 🟠 major | 🟡 minor |');
+    md.push('|--|--|--|--|');
+    md.push(`| \`${ref}\` | ${sRef.counts.critical} | ${sRef.counts.major} | ${sRef.counts.minor} |`);
+    md.push(`| this PR | ${sNow.counts.critical} | ${sNow.counts.major} | ${sNow.counts.minor} |`);
+    md.push('');
+    if (added.length) {
+      md.push(`<details open><summary><b>➕ ${added.length} new finding${added.length === 1 ? '' : 's'} introduced</b></summary>`);
+      md.push('');
+      for (const f of added.slice(0, cap)) md.push(`- ${sev[f.severity]} \`${loc(f)}\``);
+      if (added.length > cap) md.push(`- … and ${added.length - cap} more`);
+      md.push('');
+      md.push('</details>');
+      md.push('');
+    }
+    if (removed.length) {
+      md.push(`<details><summary>✅ ${removed.length} finding${removed.length === 1 ? '' : 's'} fixed</summary>`);
+      md.push('');
+      for (const f of removed.slice(0, cap)) md.push(`- ${sev[f.severity]} \`${loc(f)}\``);
+      if (removed.length > cap) md.push(`- … and ${removed.length - cap} more`);
+      md.push('');
+      md.push('</details>');
+      md.push('');
+    }
+    if (!added.length && !removed.length) md.push('No change in findings. ✅');
+    md.push('');
+    md.push(verdict);
+    md.push('');
+    md.push('<sub>Posted by <a href="https://github.com/Vinay-O/slopscore">slopscore</a> · findings diffed by content, not line number.</sub>');
+    return { code: delta > 0 ? 1 : 0, lines: md };
+  }
+
   const arrow = delta > 0 ? 'up' : delta < 0 ? 'down' : '=';
   const sign = delta > 0 ? '+' : '';
-  const cap = 25;
   const lines = [
     '',
     `  slopscore compare  ·  working tree  vs  ${ref} (${sha.slice(0, 8)})`,
@@ -84,13 +125,13 @@ function runCompare(argv, parseArgs) {
   ];
   if (added.length) {
     lines.push(`  + ${added.length} new finding${added.length === 1 ? '' : 's'} introduced:`);
-    for (const f of added.slice(0, cap)) lines.push(`      + ${f.severity.toUpperCase().padEnd(8)} [${f.id}] ${f.file}:${f.line}  ${f.title}`);
+    for (const f of added.slice(0, cap)) lines.push(`      + ${f.severity.toUpperCase().padEnd(8)} ${loc(f)}`);
     if (added.length > cap) lines.push(`      ... and ${added.length - cap} more`);
     lines.push('');
   }
   if (removed.length) {
     lines.push(`  - ${removed.length} finding${removed.length === 1 ? '' : 's'} fixed:`);
-    for (const f of removed.slice(0, cap)) lines.push(`      - ${f.severity.toUpperCase().padEnd(8)} [${f.id}] ${f.file}:${f.line}  ${f.title}`);
+    for (const f of removed.slice(0, cap)) lines.push(`      - ${f.severity.toUpperCase().padEnd(8)} ${loc(f)}`);
     if (removed.length > cap) lines.push(`      ... and ${removed.length - cap} more`);
     lines.push('');
   }

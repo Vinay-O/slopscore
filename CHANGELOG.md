@@ -3,6 +3,28 @@
 All notable changes to slopscore are documented here. Format based on
 [Keep a Changelog](https://keepachangelog.com/); versions follow [SemVer](https://semver.org/).
 
+## [2.7.0] — 2026-07-16
+
+> Deeper taint analysis + a PR-comment workflow. No new detector ids (these refine
+> `282`/`287`), so the catalog stays at 190 detectors / 286 patterns.
+
+### Improved — taint analysis (`--ast`)
+- **Return-value taint propagation** (`282`). A caller's `const v = helper(userInput)`
+  now taints `v` **only when `helper` actually returns that input**. A non-returning
+  helper (a validator that returns a boolean, a logger) no longer poisons its result —
+  a real false-positive reduction — while transforming helpers that return their input
+  still propagate, and unknown/external calls stay conservative (no recall loss).
+- **Class & object method resolution** (`287`). Inter-procedural taint now resolves
+  `this.method(x)` and `obj.method(x)` calls (class methods and object-literal methods),
+  not just free functions and `const`-assigned arrows — so user input flowing through a
+  class/service method into a sink is caught.
+
+### Added — CI
+- **`slopscore compare --markdown`** emits a PR-ready Markdown comment (score-delta table,
+  collapsible lists of introduced/fixed findings, a verdict). Combined with a documented
+  `slopscore-delta.yml` GitHub Action (see the README), every PR gets a sticky comment
+  showing exactly what it added or fixed — and the job can fail if it adds slop.
+
 ## [2.6.0] — 2026-07-16
 
 > `slopscore compare` — the PR-delta command. Completes the CI story alongside
